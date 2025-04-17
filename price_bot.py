@@ -23,7 +23,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure session with retries and connection pooling
+# HTTP session with retries and pooling
 session = requests.Session()
 retries = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
 adapter = HTTPAdapter(max_retries=retries)
@@ -32,7 +32,7 @@ session.mount("https://", adapter)
 session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; PriceBot/1.0)"})
 TIMEOUT = 20
 
-# Tight regex for full-string numeric price
+# Regex for full-string numeric price
 PRICE_RE = re.compile(r"^\d[\d,.]*$")
 EBAY_SELECTORS = [
     ("meta[itemprop='price']", 'content'),
@@ -40,15 +40,13 @@ EBAY_SELECTORS = [
     ("span#mm-saleDscPrc", 'text'),
 ]
 
-
 def _clean_price(raw: str) -> Optional[Decimal]:
     raw = raw.strip()
     if not PRICE_RE.match(raw):
         return None
     try:
         return Decimal(raw.replace(',', ''))
-    except Exception as e:
-        logger.debug(f"Decimal parse error: {e} for raw '{raw}'")
+    except Exception:
         return None
 
 
@@ -67,10 +65,10 @@ def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
             price_val = offers.get('price')
         elif isinstance(offers, list):
             for item in offers:
-                if isinstance(item, dict) and 'price' in item:
+                if isinstance(item, dict) and item.get('price'):
                     price_val = item['price']
                     break
-        if price_val:
+        if price_val is not None:
             price = _clean_price(str(price_val))
             if price:
                 return price
@@ -78,7 +76,6 @@ def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
 
 
 def scrape_price_ebay(url: str) -> Optional[Decimal]:
-    logger.info(f"Scraping eBay price: {url}")
     try:
         r = session.get(url, timeout=TIMEOUT)
         r.raise_for_status()
@@ -86,7 +83,6 @@ def scrape_price_ebay(url: str) -> Optional[Decimal]:
         logger.error(f"eBay request error: {e}")
         return None
     soup = BeautifulSoup(r.text, 'lxml')
-    # Try primary selectors
     for css, attr in EBAY_SELECTORS:
         tag = soup.select_one(css)
         if tag:
@@ -94,12 +90,10 @@ def scrape_price_ebay(url: str) -> Optional[Decimal]:
             price = _clean_price(raw)
             if price:
                 return price
-    # Fallback JSON-LD
     return _parse_json_ld(soup)
 
 
 def scrape_price_grailed(url: str) -> Optional[Decimal]:
-    logger.info(f"Scraping Grailed price: {url}")
     try:
         r = session.get(url, timeout=TIMEOUT)
         r.raise_for_status()
@@ -107,31 +101,37 @@ def scrape_price_grailed(url: str) -> Optional[Decimal]:
         logger.error(f"Grailed request error: {e}")
         return None
     soup = BeautifulSoup(r.text, 'lxml')
-    # Try span with price in class
     span = soup.find('span', attrs={'class': lambda c: c and 'price' in c.lower()})
     if span:
         price = _clean_price(span.get_text(strip=True))
         if price:
             return price
-    # Try meta tag
     meta = soup.find('meta', property='product:price:amount')
     if meta and meta.get('content'):
         price = _clean_price(meta['content'])
         if price:
             return price
-    # Fallback JSON-LD
     return _parse_json_ld(soup)
 
 
 def get_price(url: str) -> Optional[Decimal]:
-    # Resolve Grailed app.link shorteners before scraping
     parsed = urlparse(url)
+    # Resolve Grailed app.link shorteners
     if parsed.netloc.endswith('app.link'):
         try:
-            resp = session.get(url, allow_redirects=True, timeout=TIMEOUT)
-            url = resp.url
-        except Exception as e:
-            logger.error(f"Redirect resolution error: {e}")
+            resp = session.get(url, timeout=TIMEOUT)
+            if resp.url and 'grailed.com' in resp.url:
+                url = resp.url
+            else:
+                soup = BeautifulSoup(resp.text, 'lxml')
+                meta = soup.find('meta', attrs={'http-equiv': lambda v: v and v.lower() == 'refresh'})
+                if meta and 'url=' in meta.get('content', ''):
+                    url = meta['content'].split('url=', 1)[1]
+                else:
+                    a = soup.find('a', href=re.compile(r'https?://(www\.)?grailed\.com/'))
+                    if a:
+                        url = a['href']
+        except Exception:
             return None
     domain = urlparse(url).netloc.lower().split(':')[0]
     labels = domain.split('.')
@@ -149,18 +149,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = update.message.text or ''
     urls = re.findall(r"(https?://[\w\.-]+(?:/[^\s]*)?)", text)
-    tasks = [asyncio.to_thread(get_price, url) for url in urls]
-    prices = await asyncio.gather(*tasks)
-    for url, price in zip(urls, prices):
+    if not urls:
+        return
+    # Fetch all URLs concurrently for performance
+    tasks = [asyncio.to_thread(get_price, u) for u in urls]
+    results = await asyncio.gather(*tasks)
+    for u, price in zip(urls, results):
         if not price:
-            await update.message.reply_text(f"Couldn’t pull the price from {url} 🤷‍♀️")
+            await update.message.reply_text(f"Couldn’t pull the price from {u} 🤷‍♀️")
         else:
             markup = (price * Decimal('1.30')).quantize(Decimal('0.01'), ROUND_HALF_UP)
             await update.message.reply_text(f"List price: {price} → with my 30% magic: {markup}")
 
 
 def main() -> None:
-    token = os.getenv('BOT_TOKEN')
+    token = os.getenv('BOT_TOKEN') or ''
     if not token:
         raise RuntimeError('Set BOT_TOKEN environment variable')
     app = Application.builder().token(token).build()
