@@ -13,17 +13,26 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
+# Logging
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Reuse a session for connection pooling
+# Configure session with retries and connection pooling
 session = requests.Session()
-session.headers.update({"User-Agent": "Mozilla/5.0"})
+retries = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+adapter = HTTPAdapter(max_retries=retries)
+session.mount("http://", adapter)
+session.mount("https://", adapter)
+session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; PriceBot/1.0)"})
+TIMEOUT = 20
 
+# Tight regex for full-string numeric price
 PRICE_RE = re.compile(r"^\d[\d,.]*$")
 EBAY_SELECTORS = [
     ("meta[itemprop='price']", 'content'),
@@ -33,18 +42,18 @@ EBAY_SELECTORS = [
 
 
 def _clean_price(raw: str) -> Optional[Decimal]:
-    match = PRICE_RE.match(raw.strip())
-    if not match:
+    raw = raw.strip()
+    if not PRICE_RE.match(raw):
         return None
     try:
-        return Decimal(match.group(0).replace(',', ''))
-    except Exception:
+        return Decimal(raw.replace(',', ''))
+    except Exception as e:
+        logger.debug(f"Decimal parse error: {e} for raw '{raw}'")
         return None
 
 
 def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
-    scripts = soup.find_all('script', type='application/ld+json')
-    for script in scripts:
+    for script in soup.find_all('script', type='application/ld+json'):
         text = script.string
         if not text:
             continue
@@ -56,8 +65,8 @@ def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
         price_val = None
         if isinstance(offers, dict):
             price_val = offers.get('price')
-        else:
-            for item in offers if isinstance(offers, list) else []:
+        elif isinstance(offers, list):
+            for item in offers:
                 if isinstance(item, dict) and 'price' in item:
                     price_val = item['price']
                     break
@@ -69,43 +78,48 @@ def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
 
 
 def scrape_price_ebay(url: str) -> Optional[Decimal]:
+    logger.info(f"Scraping eBay price: {url}")
     try:
-        r = session.get(url, timeout=10)
+        r = session.get(url, timeout=TIMEOUT)
+        r.raise_for_status()
     except Exception as e:
         logger.error(f"eBay request error: {e}")
         return None
-    if r.status_code >= 400:
-        return None
     soup = BeautifulSoup(r.text, 'lxml')
+    # Try primary selectors
     for css, attr in EBAY_SELECTORS:
         tag = soup.select_one(css)
         if tag:
-            value = tag.get(attr) if attr != 'text' else tag.get_text(strip=True)
-            price = _clean_price(value)
+            raw = tag.get(attr) if attr != 'text' else tag.get_text(strip=True)
+            price = _clean_price(raw)
             if price:
                 return price
+    # Fallback JSON-LD
     return _parse_json_ld(soup)
 
 
 def scrape_price_grailed(url: str) -> Optional[Decimal]:
+    logger.info(f"Scraping Grailed price: {url}")
     try:
-        r = session.get(url, timeout=10)
+        r = session.get(url, timeout=TIMEOUT)
+        r.raise_for_status()
     except Exception as e:
         logger.error(f"Grailed request error: {e}")
         return None
-    if r.status_code >= 400:
-        return None
     soup = BeautifulSoup(r.text, 'lxml')
+    # Try span with price in class
     span = soup.find('span', attrs={'class': lambda c: c and 'price' in c.lower()})
     if span:
         price = _clean_price(span.get_text(strip=True))
         if price:
             return price
+    # Try meta tag
     meta = soup.find('meta', property='product:price:amount')
     if meta and meta.get('content'):
         price = _clean_price(meta['content'])
         if price:
             return price
+    # Fallback JSON-LD
     return _parse_json_ld(soup)
 
 
@@ -143,10 +157,8 @@ def main() -> None:
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler('start', start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
-
     port = int(os.getenv('PORT', 8000))
     domain = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_URL')
-
     if domain:
         path = f"/{token}"
         webhook_url = f"https://{domain}{path}"
@@ -158,10 +170,8 @@ def main() -> None:
             webhook_url=webhook_url,
         )
     else:
-        logger.warning('No public domain found; falling back to long‑polling.')
+        logger.warning('No public domain found; falling back to long-polling')
         app.run_polling()
 
-
 if __name__ == '__main__':
-    main()
     main()
