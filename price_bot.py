@@ -124,14 +124,15 @@ def scrape_price_grailed(url: str) -> Optional[Decimal]:
 
 
 def get_price(url: str) -> Optional[Decimal]:
-    # Resolve grailed.app.link (Branch) redirects to actual Grailed URL
-    try:
-        parsed = urlparse(url)
-        if parsed.netloc.endswith('app.link'):
-            resp = session.head(url, allow_redirects=True, timeout=TIMEOUT)
+    # Resolve Grailed app.link shorteners before scraping
+    parsed = urlparse(url)
+    if parsed.netloc.endswith('app.link'):
+        try:
+            resp = session.get(url, allow_redirects=True, timeout=TIMEOUT)
             url = resp.url
-    except Exception:
-        pass
+        except Exception as e:
+            logger.error(f"Redirect resolution error: {e}")
+            return None
     domain = urlparse(url).netloc.lower().split(':')[0]
     labels = domain.split('.')
     if 'ebay' in labels:
