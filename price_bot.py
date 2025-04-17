@@ -152,8 +152,8 @@ def main() -> None:
     app.run_webhook(
         listen='0.0.0.0',
         port=port,
-        webhook_path=path,
-        web_app_url=webhook_url
+        url_path=path,
+        webhook_url=webhook_url
     )
 
 if __name__ == '__main__':
