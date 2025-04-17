@@ -124,6 +124,14 @@ def scrape_price_grailed(url: str) -> Optional[Decimal]:
 
 
 def get_price(url: str) -> Optional[Decimal]:
+    # Resolve grailed.app.link (Branch) redirects to actual Grailed URL
+    try:
+        parsed = urlparse(url)
+        if parsed.netloc.endswith('app.link'):
+            resp = session.head(url, allow_redirects=True, timeout=TIMEOUT)
+            url = resp.url
+    except Exception:
+        pass
     domain = urlparse(url).netloc.lower().split(':')[0]
     labels = domain.split('.')
     if 'ebay' in labels:
