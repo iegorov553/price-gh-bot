@@ -144,17 +144,24 @@ def main() -> None:
     app.add_handler(CommandHandler('start', start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
-    # Always use webhooks on Railway
     port = int(os.getenv('PORT', 8000))
-    domain = os.getenv('RAILWAY_PUBLIC_DOMAIN')
-    path = f"/{token}"
-    webhook_url = f"https://{domain}{path}"
-    app.run_webhook(
-        listen='0.0.0.0',
-        port=port,
-        url_path=path,
-        webhook_url=webhook_url
-    )
+    domain = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_URL')
+
+    if domain:
+        path = f"/{token}"
+        webhook_url = f"https://{domain}{path}"
+        logger.info(f"Starting webhook at {webhook_url}")
+        app.run_webhook(
+            listen='0.0.0.0',
+            port=port,
+            url_path=path,
+            webhook_url=webhook_url,
+        )
+    else:
+        logger.warning('No public domain found; falling back to long‑polling.')
+        app.run_polling()
+
 
 if __name__ == '__main__':
+    main()
     main()
