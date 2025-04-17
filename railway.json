@@ -1,4 +1,9 @@
 {
-  "build": "pip install -r requirements.txt",
-  "start": "python price_bot.py"
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "buildCommand": "pip install -r requirements.txt"
+  },
+  "deploy": {
+    "startCommand": "python price_bot.py"
+  }
 }
