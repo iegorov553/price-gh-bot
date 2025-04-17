@@ -1,4 +1,4 @@
-python-telegram-bot --pre
+python-telegram-bot[webhooks] --pre
 requests
 beautifulsoup4
 lxml
