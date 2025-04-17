@@ -1,0 +1,4 @@
+{
+  "build": "pip install -r requirements.txt",
+  "start": "python price_bot.py"
+}
