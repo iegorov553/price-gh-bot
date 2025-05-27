@@ -25,6 +25,7 @@ from messages import (
     TIME_YESTERDAY, TIME_DAYS_AGO, SELLER_INFO_LINE, SELLER_DESCRIPTION_LINE,
     ADMIN_NOTIFICATION, LOG_CBR_API_FAILED
 )
+from shipping_estimator import estimate_shopfans_shipping
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -864,6 +865,17 @@ def analyze_seller_profile(profile_url: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def extract_title(soup: BeautifulSoup) -> str | None:
+    """Extract title from page HTML."""
+    og = soup.find("meta", property="og:title")
+    if og and og.get("content"):
+        return og["content"]
+    h1 = soup.find("h1")
+    if h1:
+        return h1.get_text(strip=True)
+    return None
+
+
 def format_seller_profile_response(seller_data: Dict[str, Any]) -> str:
     """Format seller profile analysis into a readable message."""
     reliability = seller_data['reliability']
@@ -915,11 +927,11 @@ def format_seller_profile_response(seller_data: Dict[str, Any]) -> str:
     return "\n".join(response_lines)
 
 
-def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decimal], bool, Optional[Dict[str, Any]]]:
-    """Get price, shipping cost, buyability status, and seller data for a URL.
+def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decimal], bool, Optional[Dict[str, Any]], Optional[str]]:
+    """Get price, shipping cost, buyability status, seller data, and title for a URL.
     
     Returns:
-        tuple: (price, shipping, is_buyable, seller_data)
+        tuple: (price, shipping, is_buyable, seller_data, title)
         - For eBay: is_buyable is always True, seller_data is None
         - For Grailed: is_buyable depends on button presence, seller_data extracted
     """
@@ -940,7 +952,7 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
                     if a:
                         url = a['href']
         except Exception:
-            return None, None, False, None
+            return None, None, False, None, None
     
     try:
         r = session.get(url, timeout=TIMEOUT)
@@ -948,7 +960,7 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
         soup = BeautifulSoup(r.text, 'lxml')
     except Exception as e:
         logger.error(f"Request error: {e}")
-        return None, None, False, None
+        return None, None, False, None, None
     
     domain = urlparse(url).netloc.lower().split(':')[0]
     labels = domain.split('.')
@@ -965,16 +977,18 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
         if not price:
             price = _parse_json_ld(soup)
         shipping = scrape_shipping_ebay(soup)
-        return price, shipping, True, None  # eBay items are always buyable, no seller data
+        title = extract_title(soup)
+        return price, shipping, True, None, title  # eBay items are always buyable, no seller data
     
     if 'grailed' in labels:
         price, is_buyable = scrape_price_grailed(url)
         shipping = scrape_shipping_grailed(soup)
         seller_data = extract_seller_data_grailed(soup)
+        title = extract_title(soup)
         logger.debug(f"Grailed extraction results: price={price}, shipping={shipping}, buyable={is_buyable}, seller_data={'yes' if seller_data else 'no'}")
-        return price, shipping, is_buyable, seller_data
+        return price, shipping, is_buyable, seller_data, title
     
-    return None, None, False, None
+    return None, None, False, None, None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(START_MESSAGE)
@@ -1024,7 +1038,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             LOG_CBR_API_FAILED
         )
     
-    for u, (price, shipping, is_buyable, seller_data) in zip(urls, results):
+    for u, (price, shipping_us, is_buyable, seller_data, title) in zip(urls, results):
         if not price:
             await update.message.reply_text(ERROR_PRICE_NOT_FOUND)
         elif not is_buyable:
@@ -1033,8 +1047,10 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 OFFER_ONLY_MESSAGE.format(price=price)
             )
         else:
-            shipping = shipping or Decimal('0')
-            total_cost = price + shipping
+            # Calculate Shopfans shipping cost
+            shopfans_shipping = estimate_shopfans_shipping(title or "")
+            shipping_total = (shipping_us or Decimal("0")) + shopfans_shipping
+            total_cost = price + shipping_total
             
             # New pricing logic: fixed $15 commission if item price < $150, otherwise 10% markup
             if price < Decimal('150'):
@@ -1044,7 +1060,14 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 final_price = (total_cost * Decimal('1.10')).quantize(Decimal('0.01'), ROUND_HALF_UP)
                 commission_text = COMMISSION_PERCENTAGE
             
-            shipping_text = SHIPPING_PAID.format(shipping=shipping) if shipping > 0 else SHIPPING_FREE
+            # Prepare shipping text
+            if shipping_us == 0:
+                shipping_text = f" + ${shopfans_shipping} доставка (Shopfans)"
+            else:
+                shipping_text = (
+                    f" + ${shipping_us} доставка по США"
+                    f" + ${shopfans_shipping} доставка РФ"
+                )
             
             # Convert to RUB if rate is available
             rub_text = ""

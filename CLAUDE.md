@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture Overview
 
-This Telegram bot consists of two main files: `price_bot.py` (main logic) and `messages.py` (localized messages). It scrapes prices from eBay and Grailed listings, adds US shipping costs, applies tiered commission structure, converts to RUB, and provides comprehensive Grailed seller reliability analysis. The bot operates in two modes:
+This Telegram bot consists of three main files: `price_bot.py` (main logic), `messages.py` (localized messages), and `shipping_estimator.py` (Shopfans shipping calculations). It scrapes prices from eBay and Grailed listings, adds US shipping costs, estimates Russia delivery costs via Shopfans Lite, applies tiered commission structure, converts to RUB, and provides comprehensive Grailed seller reliability analysis. The bot operates in two modes:
 - **Webhook mode**: When deployed with a public domain (Railway), uses webhooks for production
 - **Polling mode**: Falls back to long-polling when no public domain is available (local development)
 
@@ -34,7 +34,8 @@ This Telegram bot consists of two main files: `price_bot.py` (main logic) and `m
 - **Buyability detection**: Function `scrape_price_grailed()` analyzes JSON data to determine if Grailed items have fixed buy-now pricing or are offer-only
 - **Seller analysis**: Comprehensive system for evaluating Grailed seller reliability with `evaluate_seller_reliability()`, `analyze_seller_profile()`, and `extract_seller_data_grailed()`
 - **Profile processing**: Functions `extract_seller_profile_url()` and `fetch_seller_last_update()` get seller data from their profile pages
-- **Shipping scrapers**: Separate functions for eBay (`scrape_shipping_ebay`) and Grailed (`scrape_shipping_grailed`) that parse shipping costs
+- **Shipping scrapers**: Separate functions for eBay (`scrape_shipping_ebay`) and Grailed (`scrape_shipping_grailed`) that parse US shipping costs
+- **Russia shipping estimation**: `shipping_estimator.py` module with `estimate_shopfans_shipping()` that calculates delivery costs to Russia based on item title categorization and Shopfans Lite pricing
 - **Link resolution**: Handles Grailed app.link shorteners by following redirects
 - **Concurrent processing**: Uses `asyncio.gather()` to scrape multiple URLs in parallel when multiple links are detected
 - **HTTP session**: Configured with retries and proper user agent for reliable scraping
@@ -103,6 +104,17 @@ The bot implements a comprehensive seller evaluation system for Grailed:
 - **Offer-only items**: Message explaining need to contact seller + displayed price for reference
 - **Profile analysis**: Detailed seller reliability breakdown
 - **Errors**: Simple Russian error messages
+
+### Shopfans Shipping Estimation
+
+⚠️ **IMPORTANT**: Shipping weight estimates in `shipping_estimator.py` should be reviewed and updated quarterly based on actual shipment tracking data to maintain accuracy.
+
+The shipping estimation system:
+- Uses regex pattern matching on item titles to determine product categories
+- Maps categories to estimated weights in kilograms
+- Applies Shopfans Lite pricing formula: `max($13.99, $14 × weight) + handling_fee`
+- Handling fee: $3 for items ≤ 0.45kg, $5 for heavier items
+- Default weight: 0.60kg for unmatched items
 
 ### Deployment
 
