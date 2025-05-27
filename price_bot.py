@@ -35,6 +35,8 @@ TIMEOUT = 20
 def get_usd_to_rub_rate() -> Optional[Decimal]:
     """Get USD to RUB exchange rate from Google with 5% markup"""
     try:
+        logger.info("Fetching USD to RUB exchange rate from Google...")
+        
         # Using Google's currency conversion via search
         url = "https://www.google.com/search?q=1+usd+to+rub"
         headers = {
@@ -42,34 +44,86 @@ def get_usd_to_rub_rate() -> Optional[Decimal]:
         }
         response = requests.get(url, headers=headers, timeout=TIMEOUT)
         response.raise_for_status()
+        logger.info(f"Got response from Google, status: {response.status_code}")
         
-        soup = BeautifulSoup(response.text, 'lxml')
+        # Try BeautifulSoup first, fall back to regex if not available
+        try:
+            soup = BeautifulSoup(response.text, 'lxml')
+            
+            # Try multiple selectors for the exchange rate
+            selectors = [
+                "span.DFlfde.SwHCTb",  # Main rate display
+                "div.BNeawe.iBp4i.AP7Wnd",  # Alternative selector
+                "span.pclqee",  # Another possible selector
+                "div.a61j6",  # Additional selector
+                "span.SwHCTb",  # Simplified selector
+            ]
+            
+            logger.info(f"Trying {len(selectors)} CSS selectors...")
+            for i, selector in enumerate(selectors):
+                rate_element = soup.select_one(selector)
+                if rate_element:
+                    rate_text = rate_element.get_text(strip=True)
+                    logger.info(f"Selector {i+1} found text: '{rate_text}'")
+                    
+                    # Extract numeric value, handle both comma and dot as decimal separator
+                    rate_match = re.search(r'(\d+[,.]?\d*)', rate_text)
+                    if rate_match:
+                        rate_str = rate_match.group(1).replace(',', '.')
+                        logger.info(f"Extracted rate string: '{rate_str}'")
+                        
+                        # Ensure we have a valid decimal number
+                        if re.match(r'^\d+(\.\d+)?$', rate_str):
+                            base_rate = Decimal(rate_str)
+                            # Check if rate is in reasonable range (70-120)
+                            if 70 <= base_rate <= 120:
+                                # Add 5% markup
+                                final_rate = (base_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                                logger.info(f"USD to RUB rate: {base_rate} -> {final_rate} (with 5% markup)")
+                                return final_rate
+                            else:
+                                logger.warning(f"Rate out of expected range: {base_rate}")
+                        else:
+                            logger.warning(f"Invalid rate format: '{rate_str}'")
+                    else:
+                        logger.warning(f"No numeric value found in: '{rate_text}'")
+                else:
+                    logger.debug(f"Selector {i+1} not found: {selector}")
         
-        # Try multiple selectors for the exchange rate
-        selectors = [
-            "span.DFlfde.SwHCTb",  # Main rate display
-            "div.BNeawe.iBp4i.AP7Wnd",  # Alternative selector
-            "span.pclqee",  # Another possible selector
+        except ImportError:
+            logger.warning("BeautifulSoup not available, using regex fallback")
+        
+        # Fallback: search for patterns in HTML text
+        logger.info("Using pattern-based search...")
+        html_text = response.text
+        
+        # Look for patterns that might contain exchange rates
+        rate_patterns = [
+            r'(\d{2,3}[.,]\d{2,4})\s*(?:RUB|рубл|rubles?)',
+            r'(\d{2,3}[.,]\d{2,4})\s*Russian',
+            r'1\s*USD\s*=\s*(\d{2,3}[.,]\d{2,4})',
+            r'(\d{2,3}[.,]\d{2,4})\s*₽',
         ]
         
-        for selector in selectors:
-            rate_element = soup.select_one(selector)
-            if rate_element:
-                rate_text = rate_element.get_text(strip=True)
-                # Extract numeric value, handle both comma and dot as decimal separator
-                rate_match = re.search(r'(\d+[,.]?\d*)', rate_text)
-                if rate_match:
-                    rate_str = rate_match.group(1).replace(',', '.')
-                    # Ensure we have a valid decimal number
+        for pattern in rate_patterns:
+            matches = re.findall(pattern, html_text, re.IGNORECASE)
+            if matches:
+                logger.info(f"Pattern match found: {matches[:3]}")
+                try:
+                    rate_str = matches[0].replace(',', '.')
                     if re.match(r'^\d+(\.\d+)?$', rate_str):
                         base_rate = Decimal(rate_str)
-                        # Add 5% markup
-                        final_rate = (base_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                        logger.info(f"USD to RUB rate: {base_rate} -> {final_rate} (with 5% markup)")
-                        return final_rate
+                        # Check if rate is in reasonable range
+                        if 70 <= base_rate <= 120:
+                            final_rate = (base_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                            logger.info(f"Pattern-based USD to RUB rate: {base_rate} -> {final_rate} (with 5% markup)")
+                            return final_rate
+                except Exception as e:
+                    logger.warning(f"Error processing pattern rate: {e}")
         
         logger.warning("Could not find exchange rate in Google response")
         return None
+        
     except Exception as e:
         logger.error(f"Error getting USD to RUB rate: {e}")
         return None
@@ -281,7 +335,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     results = await asyncio.gather(*tasks)
     
     # Get USD to RUB rate once for all conversions
+    logger.info("Getting USD to RUB exchange rate...")
     usd_to_rub_rate = await asyncio.to_thread(get_usd_to_rub_rate)
+    if usd_to_rub_rate:
+        logger.info(f"Successfully got exchange rate: {usd_to_rub_rate}")
+    else:
+        logger.warning("Failed to get exchange rate - will show USD only")
     
     for u, (price, shipping) in zip(urls, results):
         if not price:
@@ -305,6 +364,9 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             if usd_to_rub_rate:
                 final_price_rub = (final_price * usd_to_rub_rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
                 rub_text = f" (₽{final_price_rub})"
+                logger.info(f"Converted ${final_price} to ₽{final_price_rub} using rate {usd_to_rub_rate}")
+            else:
+                logger.warning("No exchange rate available, showing USD only")
             
             await update.message.reply_text(
                 f"Price: ${price}{shipping_text} = ${total_cost}\n"
