@@ -5,10 +5,10 @@ based on activity, ratings, review volume, and trusted status. Provides
 tiered categorization (Diamond/Gold/Silver/Bronze/Ghost) with scoring rationale.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from ..models import SellerData, ReliabilityScore
-from ..bot.messages import SELLER_RELIABILITY, GHOST_INACTIVE_DESCRIPTION
+from ..bot.messages import GHOST_INACTIVE_DESCRIPTION, SELLER_RELIABILITY
+from ..models import ReliabilityScore, SellerData
 
 
 def evaluate_seller_reliability(seller_data: SellerData) -> ReliabilityScore:
@@ -26,14 +26,28 @@ def evaluate_seller_reliability(seller_data: SellerData) -> ReliabilityScore:
     Returns:
         ReliabilityScore with detailed scores and category assignment.
     """
-    now = datetime.now(timezone.utc)
+    # Check if we have no meaningful seller data (all zeros/False)
+    if (seller_data.avg_rating == 0.0 and
+        seller_data.num_reviews == 0 and
+        not seller_data.trusted_badge):
+        return ReliabilityScore(
+            activity_score=0,
+            rating_score=0,
+            review_volume_score=0,
+            badge_score=0,
+            total_score=0,
+            category='No Data',
+            description=SELLER_RELIABILITY['No Data']['description']
+        )
+
+    now = datetime.now(UTC)
     last_updated = seller_data.last_updated
-    
+
     if last_updated.tzinfo is None:
-        last_updated = last_updated.replace(tzinfo=timezone.utc)
-    
+        last_updated = last_updated.replace(tzinfo=UTC)
+
     days_since_update = (now - last_updated).days
-    
+
     # Hard filter: Ghost if inactive > 30 days
     if days_since_update > 30:
         return ReliabilityScore(
@@ -45,7 +59,7 @@ def evaluate_seller_reliability(seller_data: SellerData) -> ReliabilityScore:
             category='Ghost',
             description=GHOST_INACTIVE_DESCRIPTION
         )
-    
+
     # Activity Score (0-30)
     if days_since_update <= 2:
         activity_score = 30
@@ -53,7 +67,7 @@ def evaluate_seller_reliability(seller_data: SellerData) -> ReliabilityScore:
         activity_score = 24
     else:  # 8-30 days
         activity_score = 12
-    
+
     # Rating Score (0-35)
     avg_rating = seller_data.avg_rating
     if avg_rating >= 4.90:
@@ -66,7 +80,7 @@ def evaluate_seller_reliability(seller_data: SellerData) -> ReliabilityScore:
         rating_score = 12
     else:
         rating_score = 0
-    
+
     # Review Volume Score (0-25)
     num_reviews = seller_data.num_reviews
     if num_reviews == 0:
@@ -79,13 +93,13 @@ def evaluate_seller_reliability(seller_data: SellerData) -> ReliabilityScore:
         review_volume_score = 20
     else:  # >= 200
         review_volume_score = 25
-    
+
     # Badge Score (0-10)
     badge_score = 10 if seller_data.trusted_badge else 0
-    
+
     # Total Score
     total_score = activity_score + rating_score + review_volume_score + badge_score
-    
+
     # Determine category and description
     if total_score >= 85:
         category = 'Diamond'
@@ -102,7 +116,7 @@ def evaluate_seller_reliability(seller_data: SellerData) -> ReliabilityScore:
     else:
         category = 'Ghost'
         description = SELLER_RELIABILITY['Ghost']['description']
-    
+
     return ReliabilityScore(
         activity_score=activity_score,
         rating_score=rating_score,

@@ -6,7 +6,7 @@ pricing structure with handling fees and supports pattern-based categorization.
 """
 
 import re
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from ..config import config
 from ..models import ShippingQuote
@@ -22,12 +22,12 @@ def _calc_shopfans_price(weight: Decimal) -> Decimal:
         Total shipping cost in USD including handling fees.
     """
     base = max(Decimal(str(config.shipping.base_cost)), Decimal(str(config.shipping.per_kg_rate)) * weight)
-    
+
     if weight <= Decimal(str(config.shipping.light_threshold)):
         handling = Decimal(str(config.shipping.light_handling_fee))
     else:
         handling = Decimal(str(config.shipping.heavy_handling_fee))
-    
+
     return (base + handling).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
 
@@ -46,14 +46,14 @@ def estimate_shopfans_shipping(title: str) -> ShippingQuote:
     """
     if not title:
         title = ""
-    
+
     title_lc = title.lower()
-    
+
     # Try to match patterns from config
     for pattern_data in config.shipping_patterns:
         pattern = pattern_data.get("pattern", "")
         weight = Decimal(str(pattern_data.get("weight", config.default_shipping_weight)))
-        
+
         if re.search(pattern, title_lc, re.IGNORECASE):
             cost = _calc_shopfans_price(weight)
             return ShippingQuote(
@@ -61,11 +61,11 @@ def estimate_shopfans_shipping(title: str) -> ShippingQuote:
                 cost_usd=cost,
                 description=f"Matched pattern: {pattern}"
             )
-    
+
     # Use default weight if no pattern matches
     default_weight = Decimal(str(config.default_shipping_weight))
     cost = _calc_shopfans_price(default_weight)
-    
+
     return ShippingQuote(
         weight_kg=default_weight,
         cost_usd=cost,
@@ -94,9 +94,9 @@ def calc_shipping(country: str, weight: Decimal) -> ShippingQuote:
         return ShippingQuote(
             weight_kg=weight,
             cost_usd=cost,
-            description=f"Shopfans shipping to Russia"
+            description="Shopfans shipping to Russia"
         )
-    
+
     # Fallback for unsupported countries
     return ShippingQuote(
         weight_kg=weight,

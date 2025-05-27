@@ -6,8 +6,7 @@ This module contains tests for the seller reliability service that:
 - Handles various seller profile scenarios and edge cases
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 from app.models import SellerData
 from app.services.reliability import evaluate_seller_reliability
@@ -19,11 +18,11 @@ def test_evaluate_seller_reliability_diamond():
         num_reviews=250,
         avg_rating=4.95,
         trusted_badge=True,
-        last_updated=datetime.now(timezone.utc) - timedelta(days=1)
+        last_updated=datetime.now(UTC) - timedelta(days=1)
     )
-    
+
     score = evaluate_seller_reliability(seller_data)
-    
+
     assert score.category == "Diamond"
     assert score.total_score >= 85
     assert score.activity_score == 30
@@ -38,11 +37,11 @@ def test_evaluate_seller_reliability_gold():
         num_reviews=100,
         avg_rating=4.80,
         trusted_badge=False,
-        last_updated=datetime.now(timezone.utc) - timedelta(days=3)
+        last_updated=datetime.now(UTC) - timedelta(days=3)
     )
-    
+
     score = evaluate_seller_reliability(seller_data)
-    
+
     assert score.category == "Gold"
     assert 70 <= score.total_score < 85
     assert score.activity_score == 24
@@ -57,11 +56,11 @@ def test_evaluate_seller_reliability_ghost_inactive():
         num_reviews=50,
         avg_rating=4.50,
         trusted_badge=True,
-        last_updated=datetime.now(timezone.utc) - timedelta(days=35)
+        last_updated=datetime.now(UTC) - timedelta(days=35)
     )
-    
+
     score = evaluate_seller_reliability(seller_data)
-    
+
     assert score.category == "Ghost"
     assert score.total_score == 0
     assert score.activity_score == 0
@@ -76,11 +75,11 @@ def test_evaluate_seller_reliability_bronze():
         num_reviews=5,
         avg_rating=3.80,
         trusted_badge=False,
-        last_updated=datetime.now(timezone.utc) - timedelta(days=15)
+        last_updated=datetime.now(UTC) - timedelta(days=15)
     )
-    
+
     score = evaluate_seller_reliability(seller_data)
-    
+
     assert score.category == "Bronze"
     assert 40 <= score.total_score < 55
     assert score.activity_score == 12
@@ -95,11 +94,11 @@ def test_evaluate_seller_reliability_no_reviews():
         num_reviews=0,
         avg_rating=0.0,
         trusted_badge=False,
-        last_updated=datetime.now(timezone.utc) - timedelta(days=1)
+        last_updated=datetime.now(UTC) - timedelta(days=1)
     )
-    
+
     score = evaluate_seller_reliability(seller_data)
-    
+
     assert score.total_score == 30  # Only activity score
     assert score.activity_score == 30
     assert score.rating_score == 0

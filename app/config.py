@@ -5,13 +5,14 @@ config files, and default settings. Provides structured configuration classes
 for different aspects of the application (bot, shipping, currency, etc.).
 """
 
-import os
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any
+
 import yaml
+
 try:
-    from pydantic_settings import BaseSettings
     from pydantic import Field
+    from pydantic_settings import BaseSettings
 except ImportError:
     # Fallback for older pydantic versions
     from pydantic import BaseSettings, Field
@@ -74,12 +75,12 @@ class BotConfig(BaseSettings):
     bot_token: str = Field(..., env="BOT_TOKEN")
     admin_chat_id: int = 26917201
     port: int = Field(default=8000, env="PORT")
-    railway_domain: Optional[str] = Field(default=None, env="RAILWAY_PUBLIC_DOMAIN")
-    railway_url: Optional[str] = Field(default=None, env="RAILWAY_URL")
+    railway_domain: str | None = Field(default=None, env="RAILWAY_PUBLIC_DOMAIN")
+    railway_url: str | None = Field(default=None, env="RAILWAY_URL")
     timeout: int = 20
 
     @property
-    def webhook_domain(self) -> Optional[str]:
+    def webhook_domain(self) -> str | None:
         """Get webhook domain for Railway deployment.
         
         Returns:
@@ -104,8 +105,8 @@ class Config:
     environment variables, YAML files, and default values. Provides typed
     access to configuration sections for different application components.
     """
-    
-    def __init__(self, config_dir: Optional[Path] = None):
+
+    def __init__(self, config_dir: Path | None = None):
         """Initialize configuration manager.
         
         Args:
@@ -113,25 +114,25 @@ class Config:
         """
         if config_dir is None:
             config_dir = Path(__file__).parent / "config"
-        
+
         self.config_dir = Path(config_dir)
-        
+
         # Load main configurations
         self.bot = BotConfig()
-        
+
         # Load fee configuration
         fees_path = self.config_dir / "fees.yml"
         if fees_path.exists():
             with open(fees_path) as f:
                 fees_data = yaml.safe_load(f)
-            
+
             commission_data = fees_data.get("commission", {})
             self.commission = CommissionConfig(
                 fixed_amount=commission_data.get("fixed", {}).get("amount", 15.0),
                 fixed_threshold=commission_data.get("fixed", {}).get("threshold", 150.0),
                 percentage_rate=commission_data.get("percentage", {}).get("rate", 0.10)
             )
-            
+
             shopfans_data = fees_data.get("shopfans", {})
             self.shipping = ShippingConfig(
                 base_cost=shopfans_data.get("base_cost", 13.99),
@@ -140,7 +141,7 @@ class Config:
                 light_handling_fee=shopfans_data.get("handling_fee", {}).get("light_items", 3.0),
                 heavy_handling_fee=shopfans_data.get("handling_fee", {}).get("heavy_items", 5.0)
             )
-            
+
             currency_data = fees_data.get("currency", {})
             self.currency = CurrencyConfig(
                 markup_percentage=currency_data.get("markup_percentage", 5.0),
@@ -152,11 +153,11 @@ class Config:
             self.commission = CommissionConfig()
             self.shipping = ShippingConfig()
             self.currency = CurrencyConfig()
-        
+
         # Load shipping patterns
         self.shipping_patterns = self._load_shipping_patterns()
-    
-    def _load_shipping_patterns(self) -> List[Dict[str, Any]]:
+
+    def _load_shipping_patterns(self) -> list[dict[str, Any]]:
         """Load shipping weight patterns from YAML configuration.
         
         Returns:
@@ -165,12 +166,12 @@ class Config:
         shipping_path = self.config_dir / "shipping_table.yml"
         if not shipping_path.exists():
             return []
-        
+
         with open(shipping_path) as f:
             data = yaml.safe_load(f)
-        
+
         return data.get("patterns", [])
-    
+
     @property
     def default_shipping_weight(self) -> float:
         """Get default shipping weight for unmatched items.
@@ -181,10 +182,10 @@ class Config:
         shipping_path = self.config_dir / "shipping_table.yml"
         if not shipping_path.exists():
             return 0.60
-        
+
         with open(shipping_path) as f:
             data = yaml.safe_load(f)
-        
+
         return data.get("default_weight", 0.60)
 
 

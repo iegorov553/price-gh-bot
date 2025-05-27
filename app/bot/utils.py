@@ -6,22 +6,35 @@ HTTP session management. Centralizes reusable bot functionality.
 """
 
 import logging
-from datetime import datetime, timezone
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional
+from datetime import UTC, datetime
+from decimal import ROUND_HALF_UP, Decimal
 
 import aiohttp
 from telegram.ext import Application
 
 from ..config import config
-from ..models import PriceCalculation, CurrencyRate, ReliabilityScore
+from ..models import CurrencyRate, PriceCalculation, ReliabilityScore
 from .messages import (
-    PRICE_LINE, FINAL_PRICE_LINE, COMMISSION_FIXED, COMMISSION_PERCENTAGE,
-    SELLER_INFO_LINE, SELLER_DESCRIPTION_LINE, SELLER_RELIABILITY,
-    SELLER_PROFILE_HEADER, SELLER_RELIABILITY_LINE, SELLER_DETAILS_HEADER,
-    SELLER_ACTIVITY_LINE, SELLER_RATING_LINE, SELLER_REVIEWS_LINE,
-    SELLER_BADGE_LINE, TRUSTED_SELLER_BADGE, NO_BADGE, TIME_TODAY,
-    TIME_YESTERDAY, TIME_DAYS_AGO, ADMIN_NOTIFICATION
+    ADMIN_NOTIFICATION,
+    COMMISSION_FIXED,
+    COMMISSION_PERCENTAGE,
+    FINAL_PRICE_LINE,
+    NO_BADGE,
+    PRICE_LINE,
+    SELLER_ACTIVITY_LINE,
+    SELLER_BADGE_LINE,
+    SELLER_DESCRIPTION_LINE,
+    SELLER_DETAILS_HEADER,
+    SELLER_INFO_LINE,
+    SELLER_PROFILE_HEADER,
+    SELLER_RATING_LINE,
+    SELLER_RELIABILITY,
+    SELLER_RELIABILITY_LINE,
+    SELLER_REVIEWS_LINE,
+    TIME_DAYS_AGO,
+    TIME_TODAY,
+    TIME_YESTERDAY,
+    TRUSTED_SELLER_BADGE,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,7 +88,7 @@ def calculate_final_price(item_price: Decimal, shipping_us: Decimal, shipping_ru
         PriceCalculation: Complete price breakdown including commission and final price.
     """
     total_cost = item_price + shipping_us + shipping_russia
-    
+
     # Apply commission based on item price
     if item_price < Decimal(str(config.commission.fixed_threshold)):
         commission = Decimal(str(config.commission.fixed_amount))
@@ -84,7 +97,7 @@ def calculate_final_price(item_price: Decimal, shipping_us: Decimal, shipping_ru
         commission_rate = Decimal(str(config.commission.percentage_rate))
         commission = (total_cost * commission_rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
         final_price = (total_cost * (Decimal('1') + commission_rate)).quantize(Decimal('0.01'), ROUND_HALF_UP)
-    
+
     return PriceCalculation(
         item_price=item_price,
         shipping_us=shipping_us,
@@ -97,8 +110,8 @@ def calculate_final_price(item_price: Decimal, shipping_us: Decimal, shipping_ru
 
 def format_price_response(
     calculation: PriceCalculation,
-    exchange_rate: Optional[CurrencyRate] = None,
-    reliability: Optional[ReliabilityScore] = None,
+    exchange_rate: CurrencyRate | None = None,
+    reliability: ReliabilityScore | None = None,
     is_grailed: bool = False
 ) -> str:
     """Format price calculation into user-friendly response message.
@@ -123,19 +136,19 @@ def format_price_response(
             f" + ${calculation.shipping_us} доставка по США"
             f" + ${calculation.shipping_russia} доставка РФ"
         )
-    
+
     # Commission text
     if calculation.item_price < Decimal(str(config.commission.fixed_threshold)):
         commission_text = COMMISSION_FIXED
     else:
         commission_text = COMMISSION_PERCENTAGE
-    
+
     # Convert to RUB if rate available
     rub_text = ""
     if exchange_rate:
         final_price_rub = (calculation.final_price_usd * exchange_rate.rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
         rub_text = f" (₽{final_price_rub})"
-    
+
     # Base response
     response_lines = [
         PRICE_LINE.format(
@@ -149,11 +162,11 @@ def format_price_response(
             rub_text=rub_text
         )
     ]
-    
+
     # Add seller reliability for Grailed items
     if reliability and is_grailed:
         emoji = SELLER_RELIABILITY.get(reliability.category, {}).get('emoji', '❓')
-        
+
         response_lines.append("")  # Empty line
         response_lines.append(SELLER_INFO_LINE.format(
             emoji=emoji,
@@ -163,7 +176,7 @@ def format_price_response(
         response_lines.append(SELLER_DESCRIPTION_LINE.format(
             description=reliability.description
         ))
-    
+
     return "\n".join(response_lines)
 
 
@@ -182,10 +195,10 @@ def format_seller_profile_response(seller_data: dict) -> str:
     """
     reliability = seller_data['reliability']
     emoji = SELLER_RELIABILITY.get(reliability['category'], {}).get('emoji', '❓')
-    
+
     # Calculate days since last update
-    days_since_update = (datetime.now(timezone.utc) - seller_data['last_updated']).days
-    
+    days_since_update = (datetime.now(UTC) - seller_data['last_updated']).days
+
     # Format last update text
     if days_since_update == 0:
         last_update_text = TIME_TODAY
@@ -193,10 +206,10 @@ def format_seller_profile_response(seller_data: dict) -> str:
         last_update_text = TIME_YESTERDAY
     else:
         last_update_text = TIME_DAYS_AGO.format(days=days_since_update)
-    
+
     # Badge text
     badge_text = TRUSTED_SELLER_BADGE if seller_data['trusted_badge'] else NO_BADGE
-    
+
     response_lines = [
         SELLER_PROFILE_HEADER.format(emoji=emoji),
         "",
@@ -224,7 +237,7 @@ def format_seller_profile_response(seller_data: dict) -> str:
             badge_text=badge_text
         ),
     ]
-    
+
     return "\n".join(response_lines)
 
 
@@ -240,7 +253,7 @@ def create_session() -> aiohttp.ClientSession:
     connector = aiohttp.TCPConnector(limit=100, limit_per_host=30)
     timeout = aiohttp.ClientTimeout(total=config.bot.timeout)
     headers = {"User-Agent": "Mozilla/5.0 (compatible; PriceBot/2.0)"}
-    
+
     return aiohttp.ClientSession(
         connector=connector,
         timeout=timeout,

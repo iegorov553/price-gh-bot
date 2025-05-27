@@ -7,9 +7,9 @@ This module contains tests for the shipping service that:
 - Provides fallback calculations for unrecognized items
 """
 
-import pytest
 from decimal import Decimal
-from app.services.shipping import estimate_shopfans_shipping, calc_shipping
+
+from app.services.shipping import calc_shipping, estimate_shopfans_shipping
 
 
 def test_estimate_shopfans_hoodie():
@@ -51,7 +51,7 @@ def test_estimate_shopfans_case_insensitive():
     """Test that matching is case insensitive."""
     quote1 = estimate_shopfans_shipping("HOODIE")
     assert quote1.cost_usd == Decimal("18.99")
-    
+
     quote2 = estimate_shopfans_shipping("vintage tee shirt")
     assert quote2.cost_usd == Decimal("16.99")
 
@@ -75,7 +75,7 @@ def test_estimate_shopfans_light_items():
     quote1 = estimate_shopfans_shipping("Tie")
     assert quote1.cost_usd == Decimal("17.12")
     assert quote1.weight_kg == Decimal("0.08")
-    
+
     quote2 = estimate_shopfans_shipping("Socks")
     assert quote2.cost_usd == Decimal("16.99")
     assert quote2.weight_kg == Decimal("0.05")

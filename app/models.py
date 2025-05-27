@@ -7,7 +7,7 @@ external API responses. All models include validation and type checking.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -20,10 +20,10 @@ class ItemData(BaseModel):
         is_buyable: Whether item has fixed buy-now price vs offer-only.
         title: Item title/description for shipping weight estimation.
     """
-    price: Optional[Decimal] = None
-    shipping_us: Optional[Decimal] = None
+    price: Decimal | None = None
+    shipping_us: Decimal | None = None
     is_buyable: bool = False
-    title: Optional[str] = None
+    title: str | None = None
 
 
 class SellerData(BaseModel):
@@ -94,8 +94,8 @@ class PriceCalculation(BaseModel):
     total_cost: Decimal
     commission: Decimal
     final_price_usd: Decimal
-    final_price_rub: Optional[Decimal] = None
-    exchange_rate: Optional[Decimal] = None
+    final_price_rub: Decimal | None = None
+    exchange_rate: Decimal | None = None
 
 
 class CurrencyRate(BaseModel):

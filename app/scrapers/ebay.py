@@ -11,14 +11,12 @@ to ensure reliable data retrieval across different eBay page types.
 import json
 import re
 from decimal import Decimal
-from typing import Optional
 from urllib.parse import urlparse
 
 import aiohttp
 from bs4 import BeautifulSoup
 
 from ..models import ItemData
-
 
 PRICE_RE = re.compile(r"^\d[\d,.]*$")
 EBAY_SELECTORS = [
@@ -35,7 +33,7 @@ EBAY_SHIPPING_SELECTORS = [
 ]
 
 
-def _clean_price(raw: str) -> Optional[Decimal]:
+def _clean_price(raw: str) -> Decimal | None:
     """Clean and parse price string into Decimal."""
     raw = raw.strip()
     if not PRICE_RE.match(raw):
@@ -46,7 +44,7 @@ def _clean_price(raw: str) -> Optional[Decimal]:
         return None
 
 
-def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
+def _parse_json_ld(soup: BeautifulSoup) -> Decimal | None:
     """Parse JSON-LD structured data for price information."""
     for script in soup.find_all('script', type='application/ld+json'):
         text = script.string
@@ -56,10 +54,10 @@ def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
             data = json.loads(text)
         except json.JSONDecodeError:
             continue
-        
+
         offers = data.get('offers') or data.get('@graph', [])
         price_val = None
-        
+
         if isinstance(offers, dict):
             price_val = offers.get('price')
         elif isinstance(offers, list):
@@ -67,7 +65,7 @@ def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
                 if isinstance(item, dict) and item.get('price'):
                     price_val = item['price']
                     break
-        
+
         if price_val is not None:
             price = _clean_price(str(price_val))
             if price:
@@ -75,7 +73,7 @@ def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
     return None
 
 
-def _scrape_shipping_ebay(soup: BeautifulSoup) -> Optional[Decimal]:
+def _scrape_shipping_ebay(soup: BeautifulSoup) -> Decimal | None:
     """Extract US shipping cost from eBay listing page."""
     for css, attr in EBAY_SHIPPING_SELECTORS:
         tag = soup.select_one(css)
@@ -87,13 +85,13 @@ def _scrape_shipping_ebay(soup: BeautifulSoup) -> Optional[Decimal]:
             shipping = _clean_price(raw)
             if shipping:
                 return shipping
-    
+
     if soup.find(text=re.compile(r'free shipping', re.I)):
         return Decimal('0')
     return None
 
 
-def _extract_title(soup: BeautifulSoup) -> Optional[str]:
+def _extract_title(soup: BeautifulSoup) -> str | None:
     """Extract item title from eBay listing page."""
     og = soup.find("meta", property="og:title")
     if og and og.get("content"):
@@ -128,9 +126,9 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> ItemData:
             html = await response.text()
     except Exception:
         return ItemData()
-    
+
     soup = BeautifulSoup(html, 'lxml')
-    
+
     # Extract price
     price = None
     for css, attr in EBAY_SELECTORS:
@@ -140,16 +138,16 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> ItemData:
             price = _clean_price(raw)
             if price:
                 break
-    
+
     if not price:
         price = _parse_json_ld(soup)
-    
+
     # Extract shipping
     shipping = _scrape_shipping_ebay(soup)
-    
+
     # Extract title
     title = _extract_title(soup)
-    
+
     return ItemData(
         price=price,
         shipping_us=shipping,

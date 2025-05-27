@@ -7,16 +7,15 @@ message processing.
 """
 
 import logging
-import os
 
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-from .bot.handlers import start, handle_link
+from .bot.handlers import handle_link, start
 from .config import config
 
 # Logging
 logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s", 
+    format="%(asctime)s - %(levelname)s - %(message)s",
     level=logging.DEBUG  # Enable debug logging
 )
 logger = logging.getLogger(__name__)
@@ -34,20 +33,20 @@ def main() -> None:
     """
     if not config.bot.bot_token:
         raise RuntimeError('Set BOT_TOKEN environment variable')
-    
+
     # Create application
     app = Application.builder().token(config.bot.bot_token).build()
-    
+
     # Add handlers
     app.add_handler(CommandHandler('start', start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
-    
+
     # Run in webhook or polling mode
     if config.bot.use_webhook:
         path = f"/{config.bot.bot_token}"
         webhook_url = f"https://{config.bot.webhook_domain}{path}"
         logger.info(f"Starting webhook at {webhook_url}")
-        
+
         app.run_webhook(
             listen='0.0.0.0',
             port=config.bot.port,
