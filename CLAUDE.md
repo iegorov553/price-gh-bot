@@ -10,12 +10,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture Overview
 
-This is a single-file Telegram bot (`price_bot.py`) that scrapes prices from eBay and Grailed listings, adds US shipping costs, applies tiered commission structure, converts to RUB, and provides comprehensive Grailed seller reliability analysis. The bot operates in two modes:
+This Telegram bot consists of two main files: `price_bot.py` (main logic) and `messages.py` (localized messages). It scrapes prices from eBay and Grailed listings, adds US shipping costs, applies tiered commission structure, converts to RUB, and provides comprehensive Grailed seller reliability analysis. The bot operates in two modes:
 - **Webhook mode**: When deployed with a public domain (Railway), uses webhooks for production
 - **Polling mode**: Falls back to long-polling when no public domain is available (local development)
 
 ### Core Components
 
+- **Messages module**: Separate `messages.py` file containing all user-facing text in Russian for easy localization and editing
 - **Price scrapers**: Combined function `get_price_and_shipping()` that extracts item price, US shipping cost, buyability status, and seller data from eBay and Grailed listings
 - **Buyability detection**: Function `scrape_price_grailed()` analyzes JSON data to determine if Grailed items have fixed buy-now pricing or are offer-only
 - **Seller analysis**: Comprehensive system for evaluating Grailed seller reliability with `evaluate_seller_reliability()`, `analyze_seller_profile()`, and `extract_seller_data_grailed()`

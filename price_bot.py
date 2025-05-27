@@ -14,6 +14,18 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse
 
+from messages import (
+    START_MESSAGE, ERROR_PRICE_NOT_FOUND, ERROR_SELLER_DATA_NOT_FOUND, 
+    ERROR_SELLER_ANALYSIS, OFFER_ONLY_MESSAGE, COMMISSION_FIXED, 
+    COMMISSION_PERCENTAGE, SHIPPING_FREE, SHIPPING_PAID, PRICE_LINE,
+    FINAL_PRICE_LINE, SELLER_RELIABILITY, GHOST_INACTIVE_DESCRIPTION,
+    SELLER_PROFILE_HEADER, SELLER_RELIABILITY_LINE, SELLER_DETAILS_HEADER,
+    SELLER_ACTIVITY_LINE, SELLER_RATING_LINE, SELLER_REVIEWS_LINE,
+    SELLER_BADGE_LINE, TRUSTED_SELLER_BADGE, NO_BADGE, TIME_TODAY,
+    TIME_YESTERDAY, TIME_DAYS_AGO, SELLER_INFO_LINE, SELLER_DESCRIPTION_LINE,
+    ADMIN_NOTIFICATION, LOG_CBR_API_FAILED
+)
+
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -71,7 +83,7 @@ def evaluate_seller_reliability(num_reviews: int, avg_rating: float, trusted_bad
             'badge_score': 0,
             'total_score': 0,
             'category': 'Ghost',
-            'description': 'Неактивный продавец (>30 дней без обновлений)'
+            'description': GHOST_INACTIVE_DESCRIPTION
         }
     
     # Activity Score (0-30)
@@ -115,19 +127,19 @@ def evaluate_seller_reliability(num_reviews: int, avg_rating: float, trusted_bad
     # Determine category and description
     if total_score >= 85:
         category = 'Diamond'
-        description = 'Продавец топ-уровня, можно брать без лишних вопросов'
+        description = SELLER_RELIABILITY['Diamond']['description']
     elif total_score >= 70:
         category = 'Gold'
-        description = 'Высокая надёжность, смело оплачивать'
+        description = SELLER_RELIABILITY['Gold']['description']
     elif total_score >= 55:
         category = 'Silver'
-        description = 'Нормально, но проверь детали сделки'
+        description = SELLER_RELIABILITY['Silver']['description']
     elif total_score >= 40:
         category = 'Bronze'
-        description = 'Повышенный риск, используй безопасную оплату'
+        description = SELLER_RELIABILITY['Bronze']['description']
     else:
         category = 'Ghost'
-        description = 'Низкая надёжность, высокий риск'
+        description = SELLER_RELIABILITY['Ghost']['description']
     
     return {
         'activity_score': activity_score,
@@ -144,7 +156,7 @@ async def notify_admin(application, message: str) -> None:
     try:
         await application.bot.send_message(
             chat_id=ADMIN_CHAT_ID,
-            text=f"🚨 Price Bot Alert:\n{message}"
+            text=ADMIN_NOTIFICATION.format(message=message)
         )
         logger.info(f"Admin notification sent: {message}")
     except Exception as e:
@@ -582,45 +594,48 @@ def format_seller_profile_response(seller_data: Dict[str, Any]) -> str:
     """Format seller profile analysis into a readable message."""
     reliability = seller_data['reliability']
     
-    # Emoji mapping
-    emoji_map = {
-        'Diamond': '💎',
-        'Gold': '🥇',
-        'Silver': '🥈', 
-        'Bronze': '🥉',
-        'Ghost': '👻'
-    }
-    emoji = emoji_map.get(reliability['category'], '❓')
+    emoji = SELLER_RELIABILITY.get(reliability['category'], {}).get('emoji', '❓')
     
     # Calculate days since last update
     days_since_update = (datetime.now(timezone.utc) - seller_data['last_updated']).days
     
     # Format last update text
     if days_since_update == 0:
-        last_update_text = "сегодня"
+        last_update_text = TIME_TODAY
     elif days_since_update == 1:
-        last_update_text = "вчера"
-    elif days_since_update <= 7:
-        last_update_text = f"{days_since_update} дн. назад"
-    elif days_since_update <= 30:
-        last_update_text = f"{days_since_update} дн. назад"
+        last_update_text = TIME_YESTERDAY
     else:
-        last_update_text = f"{days_since_update} дн. назад"
+        last_update_text = TIME_DAYS_AGO.format(days=days_since_update)
     
     # Badge text
-    badge_text = "✅ Проверенный продавец" if seller_data['trusted_badge'] else "❌ Нет бейджа"
+    badge_text = TRUSTED_SELLER_BADGE if seller_data['trusted_badge'] else NO_BADGE
     
     response_lines = [
-        f"{emoji} Анализ продавца Grailed",
+        SELLER_PROFILE_HEADER.format(emoji=emoji),
         "",
-        f"Надёжность: {reliability['category']} ({reliability['total_score']}/100)",
-        f"{reliability['description']}",
+        SELLER_RELIABILITY_LINE.format(
+            category=reliability['category'],
+            total_score=reliability['total_score']
+        ),
+        reliability['description'],
         "",
-        "Детали:",
-        f"• Активность: {reliability['activity_score']}/30 (обновления {last_update_text})",
-        f"• Рейтинг: {reliability['rating_score']}/35 ({seller_data['avg_rating']:.1f}/5.0)",
-        f"• Отзывы: {reliability['review_volume_score']}/25 ({seller_data['num_reviews']} отзывов)",
-        f"• Бейдж: {reliability['badge_score']}/10 ({badge_text})",
+        SELLER_DETAILS_HEADER,
+        SELLER_ACTIVITY_LINE.format(
+            activity_score=reliability['activity_score'],
+            last_update_text=last_update_text
+        ),
+        SELLER_RATING_LINE.format(
+            rating_score=reliability['rating_score'],
+            avg_rating=seller_data['avg_rating']
+        ),
+        SELLER_REVIEWS_LINE.format(
+            review_volume_score=reliability['review_volume_score'],
+            num_reviews=seller_data['num_reviews']
+        ),
+        SELLER_BADGE_LINE.format(
+            badge_score=reliability['badge_score'],
+            badge_text=badge_text
+        ),
     ]
     
     return "\n".join(response_lines)
@@ -687,11 +702,7 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
     return None, None, False, None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        "Пришлите ссылку на товар с eBay или Grailed. Бот рассчитает стоимость с доставкой и комиссией.\n\n"
-        "Комиссия: $15 для товаров дешевле $150, или 10% для товаров от $150.\n"
-        "Цены показываются в долларах и рублях по курсу ЦБ РФ + 5%."
-    )
+    await update.message.reply_text(START_MESSAGE)
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = update.message.text or ''
@@ -708,10 +719,10 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     response = format_seller_profile_response(seller_data)
                     await update.message.reply_text(response)
                 else:
-                    await update.message.reply_text(f"Не удалось получить данные о продавце")
+                    await update.message.reply_text(ERROR_SELLER_DATA_NOT_FOUND)
             except Exception as e:
                 logger.error(f"Error processing seller profile {url}: {e}")
-                await update.message.reply_text("Ошибка при анализе продавца")
+                await update.message.reply_text(ERROR_SELLER_ANALYSIS)
             return  # Exit after processing seller profile
     
     # Continue with regular listing processing if no seller profiles found
@@ -729,17 +740,16 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         # Notify admin about CBR API failure
         await notify_admin(
             context.application,
-            "CBR API is unavailable. Currency conversion disabled. Check logs for details."
+            LOG_CBR_API_FAILED
         )
     
     for u, (price, shipping, is_buyable, seller_data) in zip(urls, results):
         if not price:
-            await update.message.reply_text("Не удалось получить цену товара")
+            await update.message.reply_text(ERROR_PRICE_NOT_FOUND)
         elif not is_buyable:
             # For items without buy-now option (only offer button)
             await update.message.reply_text(
-                f"У продавца не указана цена выкупа. Для расчёта полной стоимости товара необходимо связаться с продавцом.\n\n"
-                f"Указанная цена: ${price} (только для переговоров)"
+                OFFER_ONLY_MESSAGE.format(price=price)
             )
         else:
             shipping = shipping or Decimal('0')
@@ -748,12 +758,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             # New pricing logic: fixed $15 commission if item price < $150, otherwise 10% markup
             if price < Decimal('150'):
                 final_price = (total_cost + Decimal('15')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                commission_text = "комиссия $15"
+                commission_text = COMMISSION_FIXED
             else:
                 final_price = (total_cost * Decimal('1.10')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                commission_text = "наценка 10%"
+                commission_text = COMMISSION_PERCENTAGE
             
-            shipping_text = f" + ${shipping} доставка" if shipping > 0 else " (бесплатная доставка)"
+            shipping_text = SHIPPING_PAID.format(shipping=shipping) if shipping > 0 else SHIPPING_FREE
             
             # Convert to RUB if rate is available
             rub_text = ""
@@ -766,8 +776,16 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             
             # Prepare base response message
             response_lines = [
-                f"Цена: ${price}{shipping_text} = ${total_cost}",
-                f"С учетом {commission_text}: ${final_price}{rub_text}"
+                PRICE_LINE.format(
+                    price=price,
+                    shipping_text=shipping_text,
+                    total_cost=total_cost
+                ),
+                FINAL_PRICE_LINE.format(
+                    commission_text=commission_text,
+                    final_price=final_price,
+                    rub_text=rub_text
+                )
             ]
             
             # Add seller reliability info for Grailed items with buyout price
@@ -781,18 +799,17 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     )
                     
                     # Format seller reliability info
-                    emoji_map = {
-                        'Diamond': '💎',
-                        'Gold': '🥇',
-                        'Silver': '🥈',
-                        'Bronze': '🥉',
-                        'Ghost': '👻'
-                    }
-                    emoji = emoji_map.get(reliability['category'], '❓')
+                    emoji = SELLER_RELIABILITY.get(reliability['category'], {}).get('emoji', '❓')
                     
                     response_lines.append("")  # Empty line for separation
-                    response_lines.append(f"{emoji} Продавец: {reliability['category']} ({reliability['total_score']}/100)")
-                    response_lines.append(f"📊 {reliability['description']}")
+                    response_lines.append(SELLER_INFO_LINE.format(
+                        emoji=emoji,
+                        category=reliability['category'],
+                        total_score=reliability['total_score']
+                    ))
+                    response_lines.append(SELLER_DESCRIPTION_LINE.format(
+                        description=reliability['description']
+                    ))
                     
                 except Exception as e:
                     logger.error(f"Error evaluating seller reliability: {e}")
