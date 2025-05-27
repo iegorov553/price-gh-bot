@@ -9,8 +9,9 @@ import os
 import re
 import json
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional
+from typing import Optional, Dict, Any
 from urllib.parse import urlparse
 
 import requests
@@ -35,6 +36,108 @@ TIMEOUT = 20
 
 # Admin notification settings
 ADMIN_CHAT_ID = 26917201
+
+def evaluate_seller_reliability(num_reviews: int, avg_rating: float, trusted_badge: bool, last_updated: datetime) -> Dict[str, Any]:
+    """Evaluate Grailed seller reliability based on public profile metadata.
+    
+    Args:
+        num_reviews: Number of reviews at time of evaluation
+        avg_rating: Average rating (0.00 - 5.00)
+        trusted_badge: True if profile has Trusted Seller badge
+        last_updated: Date/time of last listing update
+    
+    Returns:
+        Dict containing:
+        - activity_score: Points for activity (0-30)
+        - rating_score: Points for rating (0-35) 
+        - review_volume_score: Points for review volume (0-25)
+        - badge_score: Points for trusted badge (0-10)
+        - total_score: Sum of all scores (0-100)
+        - category: Reliability category string
+        - description: Category description
+    """
+    now = datetime.now(timezone.utc)
+    if last_updated.tzinfo is None:
+        last_updated = last_updated.replace(tzinfo=timezone.utc)
+    
+    days_since_update = (now - last_updated).days
+    
+    # Hard filter: Ghost if inactive > 30 days
+    if days_since_update > 30:
+        return {
+            'activity_score': 0,
+            'rating_score': 0,
+            'review_volume_score': 0,
+            'badge_score': 0,
+            'total_score': 0,
+            'category': 'Ghost',
+            'description': 'Неактивный продавец (>30 дней без обновлений)'
+        }
+    
+    # Activity Score (0-30)
+    if days_since_update <= 2:
+        activity_score = 30
+    elif days_since_update <= 7:
+        activity_score = 24
+    else:  # 8-30 days
+        activity_score = 12
+    
+    # Rating Score (0-35)
+    if avg_rating >= 4.90:
+        rating_score = 35
+    elif avg_rating >= 4.70:
+        rating_score = 30
+    elif avg_rating >= 4.50:
+        rating_score = 24
+    elif avg_rating >= 4.00:
+        rating_score = 12
+    else:
+        rating_score = 0
+    
+    # Review Volume Score (0-25)
+    if num_reviews == 0:
+        review_volume_score = 0
+    elif num_reviews <= 9:
+        review_volume_score = 5
+    elif num_reviews <= 49:
+        review_volume_score = 15
+    elif num_reviews <= 199:
+        review_volume_score = 20
+    else:  # >= 200
+        review_volume_score = 25
+    
+    # Badge Score (0-10)
+    badge_score = 10 if trusted_badge else 0
+    
+    # Total Score
+    total_score = activity_score + rating_score + review_volume_score + badge_score
+    
+    # Determine category and description
+    if total_score >= 85:
+        category = 'Diamond'
+        description = 'Продавец топ-уровня, можно брать без лишних вопросов'
+    elif total_score >= 70:
+        category = 'Gold'
+        description = 'Высокая надёжность, смело оплачивать'
+    elif total_score >= 55:
+        category = 'Silver'
+        description = 'Нормально, но проверь детали сделки'
+    elif total_score >= 40:
+        category = 'Bronze'
+        description = 'Повышенный риск, используй безопасную оплату'
+    else:
+        category = 'Ghost'
+        description = 'Низкая надёжность, высокий риск'
+    
+    return {
+        'activity_score': activity_score,
+        'rating_score': rating_score,
+        'review_volume_score': review_volume_score,
+        'badge_score': badge_score,
+        'total_score': total_score,
+        'category': category,
+        'description': description
+    }
 
 async def notify_admin(application, message: str) -> None:
     """Send notification to admin about API failure"""
@@ -246,13 +349,290 @@ def scrape_price_grailed(url: str) -> tuple[Optional[Decimal], bool]:
     return price, is_buyable
 
 
-def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decimal], bool]:
-    """Get price, shipping cost, and buyability status for a URL.
+def extract_seller_profile_url(soup: BeautifulSoup) -> Optional[str]:
+    """Extract seller profile URL from Grailed listing page."""
+    try:
+        # Look for seller profile link in various possible locations
+        # Common patterns: /users/username, /sellers/username, profile links
+        
+        # Try to find seller link in JSON data first
+        for script in soup.find_all('script'):
+            if script.string and ('seller' in script.string or 'user' in script.string):
+                # Look for patterns like "seller":{"username":"someuser"} or "user":{"username":"someuser"}
+                username_match = re.search(r'"(?:seller|user)"\s*:\s*\{[^}]*"username"\s*:\s*"([^"]+)"', script.string)
+                if username_match:
+                    username = username_match.group(1)
+                    return f"https://www.grailed.com/users/{username}"
+                
+                # Look for direct profile URL patterns
+                profile_match = re.search(r'"(?:profileUrl|userUrl|sellerUrl)"\s*:\s*"([^"]+)"', script.string)
+                if profile_match:
+                    url = profile_match.group(1)
+                    if url.startswith('/'):
+                        return f"https://www.grailed.com{url}"
+                    return url
+        
+        # Fallback: look for seller links in HTML
+        for link in soup.find_all('a', href=True):
+            href = link.get('href', '')
+            if '/users/' in href or '/sellers/' in href:
+                if href.startswith('/'):
+                    return f"https://www.grailed.com{href}"
+                elif href.startswith('https://www.grailed.com/'):
+                    return href
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error extracting seller profile URL: {e}")
+        return None
+
+
+def fetch_seller_last_update(profile_url: str) -> Optional[datetime]:
+    """Fetch the last update date from seller's profile page."""
+    try:
+        logger.info(f"Fetching seller profile: {profile_url}")
+        r = session.get(profile_url, timeout=TIMEOUT)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, 'lxml')
+        
+        latest_date = None
+        
+        # Look for listing dates in JSON data
+        for script in soup.find_all('script'):
+            if script.string and ('listing' in script.string or 'item' in script.string):
+                # Find all date patterns in the script
+                date_matches = re.findall(r'"(?:updatedAt|createdAt|lastUpdated)"\s*:\s*"([^"]+)"', script.string)
+                for date_str in date_matches:
+                    try:
+                        if 'T' in date_str:
+                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                        else:
+                            date_obj = datetime.fromisoformat(date_str)
+                        
+                        if latest_date is None or date_obj > latest_date:
+                            latest_date = date_obj
+                    except Exception:
+                        continue
+        
+        # Fallback: look for visible date elements
+        if not latest_date:
+            # Look for time elements, date spans, etc.
+            for time_elem in soup.find_all(['time', 'span'], attrs={'datetime': True}):
+                try:
+                    date_str = time_elem.get('datetime')
+                    date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                    if latest_date is None or date_obj > latest_date:
+                        latest_date = date_obj
+                except Exception:
+                    continue
+        
+        return latest_date
+        
+    except Exception as e:
+        logger.error(f"Error fetching seller profile {profile_url}: {e}")
+        return None
+
+
+def extract_seller_data_grailed(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
+    """Extract seller metadata from Grailed listing page.
     
     Returns:
-        tuple: (price, shipping, is_buyable)
-        - For eBay: is_buyable is always True
-        - For Grailed: is_buyable depends on button presence
+        Dict with seller data or None if extraction fails:
+        - num_reviews: Number of reviews
+        - avg_rating: Average rating (0.00-5.00)
+        - trusted_badge: Has Trusted Seller badge
+        - last_updated: Date of last listing update from seller profile
+    """
+    try:
+        # Extract basic seller info from listing page
+        avg_rating = 0.0
+        num_reviews = 0
+        trusted_badge = False
+        
+        # Look for seller data in JSON within script tags
+        for script in soup.find_all('script'):
+            if script.string and 'seller' in script.string and 'rating' in script.string:
+                # Try to extract seller info from JSON
+                try:
+                    # Look for patterns like "seller":{"rating":4.5,"reviewCount":23}
+                    seller_match = re.search(r'"seller"\s*:\s*\{[^}]*"rating"\s*:\s*([0-9.]+)[^}]*"reviewCount"\s*:\s*(\d+)[^}]*\}', script.string)
+                    if seller_match:
+                        avg_rating = float(seller_match.group(1))
+                        num_reviews = int(seller_match.group(2))
+                        
+                        # Look for trusted badge
+                        trusted_badge = '"trustedSeller":true' in script.string or '"trusted":true' in script.string
+                        break
+                except Exception:
+                    continue
+        
+        # Get seller profile URL and fetch last update date
+        profile_url = extract_seller_profile_url(soup)
+        last_updated = None
+        
+        if profile_url:
+            last_updated = fetch_seller_last_update(profile_url)
+        
+        # If no last_updated found, use current time as fallback
+        if not last_updated:
+            logger.warning("Could not determine seller's last update date, using current time")
+            last_updated = datetime.now(timezone.utc)
+        
+        # Only return data if we have basic seller info
+        if avg_rating > 0 or num_reviews > 0:
+            return {
+                'num_reviews': num_reviews,
+                'avg_rating': avg_rating,
+                'trusted_badge': trusted_badge,
+                'last_updated': last_updated
+            }
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error extracting seller data: {e}")
+        return None
+
+
+def is_grailed_seller_profile(url: str) -> bool:
+    """Check if URL is a Grailed seller profile."""
+    try:
+        parsed = urlparse(url)
+        if 'grailed.com' not in parsed.netloc.lower():
+            return False
+        
+        path = parsed.path.lower()
+        # Common seller profile patterns
+        return '/users/' in path or '/sellers/' in path or '/user/' in path
+    except Exception:
+        return False
+
+
+def analyze_seller_profile(profile_url: str) -> Optional[Dict[str, Any]]:
+    """Analyze Grailed seller profile and return reliability data.
+    
+    Returns:
+        Dict with seller analysis or None if extraction fails:
+        - Basic seller info (reviews, rating, badge, last_updated)
+        - Reliability evaluation (scores, category, description)
+    """
+    try:
+        logger.info(f"Analyzing seller profile: {profile_url}")
+        r = session.get(profile_url, timeout=TIMEOUT)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, 'lxml')
+        
+        # Extract seller data from profile page
+        avg_rating = 0.0
+        num_reviews = 0
+        trusted_badge = False
+        
+        # Look for seller data in JSON within script tags
+        for script in soup.find_all('script'):
+            if script.string and ('rating' in script.string or 'review' in script.string):
+                try:
+                    # Look for patterns like "rating":4.5,"reviewCount":23
+                    rating_match = re.search(r'"rating"\s*:\s*([0-9.]+)', script.string)
+                    if rating_match:
+                        avg_rating = float(rating_match.group(1))
+                    
+                    review_match = re.search(r'"reviewCount"\s*:\s*(\d+)', script.string)
+                    if review_match:
+                        num_reviews = int(review_match.group(1))
+                    
+                    # Look for trusted badge
+                    if '"trustedSeller":true' in script.string or '"trusted":true' in script.string:
+                        trusted_badge = True
+                        
+                except Exception:
+                    continue
+        
+        # Get last updated date from profile listings
+        last_updated = fetch_seller_last_update(profile_url)
+        
+        # If no last_updated found, use current time as fallback
+        if not last_updated:
+            logger.warning("Could not determine seller's last update date, using current time")
+            last_updated = datetime.now(timezone.utc)
+        
+        # Only proceed if we have basic seller info
+        if avg_rating > 0 or num_reviews > 0:
+            # Evaluate reliability
+            reliability = evaluate_seller_reliability(
+                num_reviews, avg_rating, trusted_badge, last_updated
+            )
+            
+            return {
+                'num_reviews': num_reviews,
+                'avg_rating': avg_rating,
+                'trusted_badge': trusted_badge,
+                'last_updated': last_updated,
+                'reliability': reliability
+            }
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error analyzing seller profile {profile_url}: {e}")
+        return None
+
+
+def format_seller_profile_response(seller_data: Dict[str, Any]) -> str:
+    """Format seller profile analysis into a readable message."""
+    reliability = seller_data['reliability']
+    
+    # Emoji mapping
+    emoji_map = {
+        'Diamond': '💎',
+        'Gold': '🥇',
+        'Silver': '🥈', 
+        'Bronze': '🥉',
+        'Ghost': '👻'
+    }
+    emoji = emoji_map.get(reliability['category'], '❓')
+    
+    # Calculate days since last update
+    days_since_update = (datetime.now(timezone.utc) - seller_data['last_updated']).days
+    
+    # Format last update text
+    if days_since_update == 0:
+        last_update_text = "сегодня"
+    elif days_since_update == 1:
+        last_update_text = "вчера"
+    elif days_since_update <= 7:
+        last_update_text = f"{days_since_update} дн. назад"
+    elif days_since_update <= 30:
+        last_update_text = f"{days_since_update} дн. назад"
+    else:
+        last_update_text = f"{days_since_update} дн. назад"
+    
+    # Badge text
+    badge_text = "✅ Trusted Seller" if seller_data['trusted_badge'] else "❌ No badge"
+    
+    response_lines = [
+        f"{emoji} **Анализ продавца Grailed**",
+        "",
+        f"📊 **Категория надёжности:** {reliability['category']} ({reliability['total_score']}/100)",
+        f"💭 {reliability['description']}",
+        "",
+        "**📈 Детализация баллов:**",
+        f"• Активность: {reliability['activity_score']}/30 (обновления {last_update_text})",
+        f"• Рейтинг: {reliability['rating_score']}/35 (⭐ {seller_data['avg_rating']:.1f}/5.0)",
+        f"• Отзывы: {reliability['review_volume_score']}/25 ({seller_data['num_reviews']} отзывов)",
+        f"• Бейдж: {reliability['badge_score']}/10 ({badge_text})",
+    ]
+    
+    return "\n".join(response_lines)
+
+
+def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decimal], bool, Optional[Dict[str, Any]]]:
+    """Get price, shipping cost, buyability status, and seller data for a URL.
+    
+    Returns:
+        tuple: (price, shipping, is_buyable, seller_data)
+        - For eBay: is_buyable is always True, seller_data is None
+        - For Grailed: is_buyable depends on button presence, seller_data extracted
     """
     parsed = urlparse(url)
     # Resolve Grailed app.link shorteners
@@ -271,7 +651,7 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
                     if a:
                         url = a['href']
         except Exception:
-            return None, None, False
+            return None, None, False, None
     
     try:
         r = session.get(url, timeout=TIMEOUT)
@@ -279,7 +659,7 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
         soup = BeautifulSoup(r.text, 'lxml')
     except Exception as e:
         logger.error(f"Request error: {e}")
-        return None, None, False
+        return None, None, False, None
     
     domain = urlparse(url).netloc.lower().split(':')[0]
     labels = domain.split('.')
@@ -296,14 +676,15 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
         if not price:
             price = _parse_json_ld(soup)
         shipping = scrape_shipping_ebay(soup)
-        return price, shipping, True  # eBay items are always buyable
+        return price, shipping, True, None  # eBay items are always buyable, no seller data
     
     if 'grailed' in labels:
         price, is_buyable = scrape_price_grailed(url)
         shipping = scrape_shipping_grailed(soup)
-        return price, shipping, is_buyable
+        seller_data = extract_seller_data_grailed(soup)
+        return price, shipping, is_buyable, seller_data
     
-    return None, None, False
+    return None, None, False, None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
@@ -315,6 +696,23 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     urls = re.findall(r"(https?://[\w\.-]+(?:/[^\s]*)?)", text)
     if not urls:
         return
+    
+    # Check if any URLs are Grailed seller profiles
+    for url in urls:
+        if is_grailed_seller_profile(url):
+            try:
+                seller_data = await asyncio.to_thread(analyze_seller_profile, url)
+                if seller_data:
+                    response = format_seller_profile_response(seller_data)
+                    await update.message.reply_text(response, parse_mode='Markdown')
+                else:
+                    await update.message.reply_text(f"Не удалось получить данные о продавце: {url}")
+            except Exception as e:
+                logger.error(f"Error processing seller profile {url}: {e}")
+                await update.message.reply_text(f"Ошибка при анализе продавца: {url}")
+            return  # Exit after processing seller profile
+    
+    # Continue with regular listing processing if no seller profiles found
     # Fetch all URLs concurrently for performance
     tasks = [asyncio.to_thread(get_price_and_shipping, u) for u in urls]
     results = await asyncio.gather(*tasks)
@@ -332,7 +730,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             "CBR API is unavailable. Currency conversion disabled. Check logs for details."
         )
     
-    for u, (price, shipping, is_buyable) in zip(urls, results):
+    for u, (price, shipping, is_buyable, seller_data) in zip(urls, results):
         if not price:
             await update.message.reply_text(f"Couldn’t pull the price from {u} 🤷‍♀️")
         elif not is_buyable:
@@ -364,10 +762,40 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             else:
                 logger.warning("No exchange rate available, showing USD only")
             
-            await update.message.reply_text(
-                f"Price: ${price}{shipping_text} = ${total_cost}\n"
+            # Prepare base response message
+            response_lines = [
+                f"Price: ${price}{shipping_text} = ${total_cost}",
                 f"With {commission_text}: ${final_price}{rub_text}"
-            )
+            ]
+            
+            # Add seller reliability info for Grailed items with buyout price
+            if seller_data and 'grailed' in u.lower():
+                try:
+                    reliability = evaluate_seller_reliability(
+                        seller_data['num_reviews'],
+                        seller_data['avg_rating'],
+                        seller_data['trusted_badge'],
+                        seller_data['last_updated']
+                    )
+                    
+                    # Format seller reliability info
+                    emoji_map = {
+                        'Diamond': '💎',
+                        'Gold': '🥇',
+                        'Silver': '🥈',
+                        'Bronze': '🥉',
+                        'Ghost': '👻'
+                    }
+                    emoji = emoji_map.get(reliability['category'], '❓')
+                    
+                    response_lines.append("")  # Empty line for separation
+                    response_lines.append(f"{emoji} Продавец: {reliability['category']} ({reliability['total_score']}/100)")
+                    response_lines.append(f"📊 {reliability['description']}")
+                    
+                except Exception as e:
+                    logger.error(f"Error evaluating seller reliability: {e}")
+            
+            await update.message.reply_text("\n".join(response_lines))
 
 
 def main() -> None:
