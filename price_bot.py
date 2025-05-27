@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import json
+import xml.etree.ElementTree as ET
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 from urllib.parse import urlparse
@@ -32,148 +33,60 @@ session.mount("https://", adapter)
 session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; PriceBot/1.0)"})
 TIMEOUT = 20
 
-def get_usd_to_rub_rate() -> Optional[Decimal]:
-    """Get USD to RUB exchange rate from Google with 5% markup"""
+# Admin notification settings
+ADMIN_CHAT_ID = 26917201
+
+async def notify_admin(application, message: str) -> None:
+    """Send notification to admin about API failure"""
     try:
-        logger.info("Fetching USD to RUB exchange rate from Google...")
+        await application.bot.send_message(
+            chat_id=ADMIN_CHAT_ID,
+            text=f"🚨 Price Bot Alert:\n{message}"
+        )
+        logger.info(f"Admin notification sent: {message}")
+    except Exception as e:
+        logger.error(f"Failed to send admin notification: {e}")
+
+def get_usd_to_rub_rate() -> Optional[Decimal]:
+    """Get USD to RUB exchange rate from Central Bank of Russia with 5% markup"""
+    try:
+        logger.info("Fetching USD to RUB exchange rate from Central Bank of Russia...")
         
-        # Using Google's currency conversion via search
-        url = "https://www.google.com/search?q=1+usd+to+rub"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-        response = requests.get(url, headers=headers, timeout=TIMEOUT)
+        # CBR official XML API endpoint
+        url = "https://www.cbr.ru/scripts/XML_daily.asp"
+        response = requests.get(url, timeout=TIMEOUT)
         response.raise_for_status()
-        logger.info(f"Got response from Google, status: {response.status_code}")
+        logger.info(f"Got response from CBR, status: {response.status_code}")
         
-        # Try BeautifulSoup first, fall back to regex if not available
-        try:
-            soup = BeautifulSoup(response.text, 'lxml')
-            
-            # Try multiple selectors for the exchange rate
-            selectors = [
-                "span.DFlfde.SwHCTb",  # Main rate display
-                "div.BNeawe.iBp4i.AP7Wnd",  # Alternative selector
-                "span.pclqee",  # Another possible selector
-                "div.a61j6",  # Additional selector
-                "span.SwHCTb",  # Simplified selector
-            ]
-            
-            logger.info(f"Trying {len(selectors)} CSS selectors...")
-            for i, selector in enumerate(selectors):
-                rate_element = soup.select_one(selector)
-                if rate_element:
-                    rate_text = rate_element.get_text(strip=True)
-                    logger.info(f"Selector {i+1} found text: '{rate_text}'")
-                    
-                    # Extract numeric value, handle both comma and dot as decimal separator
-                    rate_match = re.search(r'(\d+[,.]?\d*)', rate_text)
-                    if rate_match:
-                        rate_str = rate_match.group(1).replace(',', '.')
-                        logger.info(f"Extracted rate string: '{rate_str}'")
-                        
-                        # Ensure we have a valid decimal number
-                        if re.match(r'^\d+(\.\d+)?$', rate_str):
-                            base_rate = Decimal(rate_str)
-                            # Check if rate is in reasonable range (70-120)
-                            if 70 <= base_rate <= 120:
-                                # Add 5% markup
-                                final_rate = (base_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                                logger.info(f"USD to RUB rate: {base_rate} -> {final_rate} (with 5% markup)")
-                                return final_rate
-                            else:
-                                logger.warning(f"Rate out of expected range: {base_rate}")
-                        else:
-                            logger.warning(f"Invalid rate format: '{rate_str}'")
-                    else:
-                        logger.warning(f"No numeric value found in: '{rate_text}'")
-                else:
-                    logger.debug(f"Selector {i+1} not found: {selector}")
+        # Parse XML response
+        root = ET.fromstring(response.content)
+        logger.info(f"Successfully parsed CBR XML, date: {root.get('Date')}")
         
-        except ImportError:
-            logger.warning("BeautifulSoup not available, using regex fallback")
-        
-        # Fallback: search for patterns in HTML text
-        logger.info("Using pattern-based search...")
-        html_text = response.text
-        
-        # Look for patterns that might contain exchange rates
-        rate_patterns = [
-            # Standard formats
-            r'(\d{2,3}[.,]\d{2,4})\s*(?:RUB|рубл|rubles?)',
-            r'(\d{2,3}[.,]\d{2,4})\s*Russian',
-            r'1\s*USD\s*=\s*(\d{2,3}[.,]\d{2,4})',
-            r'(\d{2,3}[.,]\d{2,4})\s*₽',
-            # More flexible patterns
-            r'(\d{2,3}[.,]\d{1,4})\s*(?:российский|rubles?|RUB)',
-            r'USD.*?(\d{2,3}[.,]\d{1,4}).*?RUB',
-            r'(\d{2,3}[.,]\d{1,4}).*?(?:рубл|руб)',
-            # Very flexible - any number in typical range
-            r'\b(\d{2,3}[.,]\d{1,4})\b',
-        ]
-        
-        for i, pattern in enumerate(rate_patterns):
-            matches = re.findall(pattern, html_text, re.IGNORECASE)
-            if matches:
-                logger.info(f"Pattern {i+1} match found: {matches[:5]}")
-                # Try all matches for this pattern
-                for match in matches[:10]:  # Limit to first 10 matches
-                    try:
-                        rate_str = match.replace(',', '.')
-                        if re.match(r'^\d+(\.\d+)?$', rate_str):
-                            base_rate = Decimal(rate_str)
-                            # Check if rate is in reasonable range
-                            if 70 <= base_rate <= 120:
-                                final_rate = (base_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                                logger.info(f"Pattern-based USD to RUB rate: {base_rate} -> {final_rate} (with 5% markup)")
-                                return final_rate
-                            else:
-                                logger.debug(f"Rate out of range: {base_rate}")
-                        else:
-                            logger.debug(f"Invalid rate format: {rate_str}")
-                    except Exception as e:
-                        logger.debug(f"Error processing rate '{match}': {e}")
-        
-        # Last resort: try alternative source
-        logger.info("Trying alternative currency source...")
-        try:
-            alt_url = "https://www.google.com/search?q=USD+RUB+rate"
-            alt_response = requests.get(alt_url, headers=headers, timeout=TIMEOUT)
-            alt_response.raise_for_status()
-            
-            # Look for any numbers in reasonable range in alternative response
-            alt_numbers = re.findall(r'\b(\d{2,3}[.,]?\d{0,4})\b', alt_response.text)
-            valid_rates = []
-            
-            for num_str in alt_numbers:
-                try:
-                    clean_num = num_str.replace(',', '.')
-                    if re.match(r'^\d+(\.\d+)?$', clean_num):
-                        num = float(clean_num)
-                        if 70 <= num <= 120:
-                            valid_rates.append(Decimal(str(num)))
-                except:
-                    continue
-            
-            if valid_rates:
-                # Use most common rate or median
-                base_rate = valid_rates[0]  # For simplicity, use first valid rate
-                final_rate = (base_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                logger.info(f"Alternative source USD to RUB rate: {base_rate} -> {final_rate} (with 5% markup)")
-                return final_rate
+        # Find USD currency entry
+        for valute in root.findall('Valute'):
+            char_code = valute.find('CharCode')
+            if char_code is not None and char_code.text == 'USD':
+                value_elem = valute.find('Value')
+                nominal_elem = valute.find('Nominal')
                 
-        except Exception as e:
-            logger.warning(f"Alternative source failed: {e}")
+                if value_elem is not None and nominal_elem is not None:
+                    # CBR uses comma as decimal separator
+                    value_str = value_elem.text.replace(',', '.')
+                    nominal_str = nominal_elem.text
+                    
+                    base_rate = Decimal(value_str) / Decimal(nominal_str)
+                    logger.info(f"CBR USD rate: {base_rate} RUB per USD")
+                    
+                    # Add 5% markup
+                    final_rate = (base_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                    logger.info(f"Final USD to RUB rate: {base_rate} -> {final_rate} (with 5% markup)")
+                    return final_rate
         
-        # Fallback to approximate rate if all else fails
-        logger.warning("Could not find exchange rate from any source, using fallback rate")
-        fallback_rate = Decimal('95.00')  # Approximate current rate
-        final_fallback_rate = (fallback_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-        logger.info(f"Using fallback USD to RUB rate: {fallback_rate} -> {final_fallback_rate} (with 5% markup)")
-        return final_fallback_rate
+        raise ValueError("USD currency not found in CBR response")
         
     except Exception as e:
-        logger.error(f"Error getting USD to RUB rate: {e}")
+        error_msg = f"CBR API failed: {e}"
+        logger.error(error_msg)
         return None
 
 # Regex for full-string numeric price
@@ -370,7 +283,7 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Yo, send me an eBay or Grailed link and I'll calculate the price + shipping + commission (fixed $15 for items <$150, or 10% for items ≥$150). Final price shown in USD and RUB."
+        "Yo, send me an eBay or Grailed link and I'll calculate the price + shipping + commission (fixed $15 for items <$150, or 10% for items ≥$150). Final price shown in USD and RUB (official CBR rate + 5%)."
     )
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -388,7 +301,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if usd_to_rub_rate:
         logger.info(f"Successfully got exchange rate: {usd_to_rub_rate}")
     else:
-        logger.warning("Failed to get exchange rate - will show USD only")
+        logger.error("CBR API failed - currency conversion unavailable")
+        # Notify admin about CBR API failure
+        await notify_admin(
+            context.application,
+            "CBR API is unavailable. Currency conversion disabled. Check logs for details."
+        )
     
     for u, (price, shipping) in zip(urls, results):
         if not price:

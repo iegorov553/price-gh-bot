@@ -9,7 +9,7 @@ A Telegram bot that scrapes prices from eBay and Grailed listings, calculates sh
   - Fixed $15 commission for items under $150
   - 10% markup for items $150 and above
 - **Shipping calculation**: Automatically detects and includes US shipping costs
-- **Currency conversion**: Converts final price to RUB using Google exchange rates (+5% markup)
+- **Currency conversion**: Converts final price to RUB using **Central Bank of Russia** official rates (+5% markup)
 - **Concurrent processing**: Handles multiple URLs in a single message
 - **Dual deployment modes**: Webhook (production) and polling (development)
 
@@ -22,9 +22,11 @@ A Telegram bot that scrapes prices from eBay and Grailed listings, calculates sh
   - Example: $250.00 + free shipping = $250.00 → **$275.00** (₽27,500)
 
 ### Currency Conversion
-- USD to RUB exchange rate fetched from Google
-- Additional 5% markup applied to the exchange rate
+- USD to RUB exchange rate from **Central Bank of Russia (CBR)** official API
+- Uses daily official rates: `https://www.cbr.ru/scripts/XML_daily.asp`
+- Additional 5% markup applied to the official CBR rate
 - Final price displayed in both USD and RUB
+- Admin notifications if CBR API is unavailable
 
 ## Supported Platforms
 
@@ -89,10 +91,11 @@ With $15 commission: $117.49 (₽11,749.00)
 
 ## Error Handling
 
-- Graceful fallback for currency conversion failures
+- **Currency conversion**: CBR API failures trigger admin notifications via Telegram
 - Multiple CSS selectors for robust price extraction
 - Request timeouts and retry mechanisms
 - Comprehensive logging for debugging
+- No fallback rates - shows USD only if CBR API is unavailable
 
 ## Development
 
