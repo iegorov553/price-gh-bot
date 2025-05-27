@@ -1,4 +1,11 @@
-"""Tests for shipping cost estimation."""
+"""Tests for Shopfans shipping cost estimation service.
+
+This module contains tests for the shipping service that:
+- Estimates shipping costs and weights based on item categorization
+- Applies Shopfans Lite pricing formula with handling fees
+- Handles pattern matching for different product types (clothing, shoes, etc.)
+- Provides fallback calculations for unrecognized items
+"""
 
 import pytest
 from decimal import Decimal

@@ -1,4 +1,9 @@
-"""Configuration management for the price bot."""
+"""Configuration management for the price bot.
+
+Handles all application configuration including environment variables, YAML
+config files, and default settings. Provides structured configuration classes
+for different aspects of the application (bot, shipping, currency, etc.).
+"""
 
 import os
 from pathlib import Path
@@ -13,7 +18,15 @@ except ImportError:
 
 
 class ShippingConfig(BaseSettings):
-    """Shopfans shipping configuration."""
+    """Shopfans shipping cost calculation parameters.
+    
+    Attributes:
+        base_cost: Minimum shipping cost in USD.
+        per_kg_rate: Cost per kilogram in USD.
+        light_threshold: Weight threshold for light item handling fee.
+        light_handling_fee: Additional fee for items under threshold.
+        heavy_handling_fee: Additional fee for items over threshold.
+    """
     base_cost: float = 13.99
     per_kg_rate: float = 14.0
     light_threshold: float = 0.45
@@ -22,21 +35,42 @@ class ShippingConfig(BaseSettings):
 
 
 class CommissionConfig(BaseSettings):
-    """Commission structure configuration."""
+    """Commission fee structure configuration.
+    
+    Attributes:
+        fixed_amount: Fixed commission for items under threshold.
+        fixed_threshold: Price threshold for switching to percentage.
+        percentage_rate: Commission rate for expensive items (0.10 = 10%).
+    """
     fixed_amount: float = 15.0
     fixed_threshold: float = 150.0
     percentage_rate: float = 0.10
 
 
 class CurrencyConfig(BaseSettings):
-    """Currency exchange configuration."""
+    """Currency conversion settings.
+    
+    Attributes:
+        markup_percentage: Markup added to base exchange rate.
+        default_source: Primary exchange rate API source.
+        fallback_enabled: Whether to use fallback rate sources.
+    """
     markup_percentage: float = 5.0
     default_source: str = "cbr"
     fallback_enabled: bool = False
 
 
 class BotConfig(BaseSettings):
-    """Main bot configuration."""
+    """Main Telegram bot configuration.
+    
+    Attributes:
+        bot_token: Telegram bot API token from environment.
+        admin_chat_id: Telegram chat ID for admin notifications.
+        port: Server port for webhook mode.
+        railway_domain: Railway public domain for webhooks.
+        railway_url: Railway URL for webhooks (fallback).
+        timeout: HTTP request timeout in seconds.
+    """
     bot_token: str = Field(..., env="BOT_TOKEN")
     admin_chat_id: int = 26917201
     port: int = Field(default=8000, env="PORT")
@@ -46,19 +80,37 @@ class BotConfig(BaseSettings):
 
     @property
     def webhook_domain(self) -> Optional[str]:
-        """Get webhook domain for Railway deployment."""
+        """Get webhook domain for Railway deployment.
+        
+        Returns:
+            Domain string if available, None for polling mode.
+        """
         return self.railway_domain or self.railway_url
 
     @property
     def use_webhook(self) -> bool:
-        """Determine if webhook mode should be used."""
+        """Determine if webhook mode should be used.
+        
+        Returns:
+            True if webhook domain is configured, False for polling mode.
+        """
         return bool(self.webhook_domain)
 
 
 class Config:
-    """Application configuration manager."""
+    """Application configuration manager.
+    
+    Centralizes loading and management of all configuration sources including
+    environment variables, YAML files, and default values. Provides typed
+    access to configuration sections for different application components.
+    """
     
     def __init__(self, config_dir: Optional[Path] = None):
+        """Initialize configuration manager.
+        
+        Args:
+            config_dir: Path to configuration directory, defaults to app/config.
+        """
         if config_dir is None:
             config_dir = Path(__file__).parent / "config"
         
@@ -105,7 +157,11 @@ class Config:
         self.shipping_patterns = self._load_shipping_patterns()
     
     def _load_shipping_patterns(self) -> List[Dict[str, Any]]:
-        """Load shipping weight patterns from YAML."""
+        """Load shipping weight patterns from YAML configuration.
+        
+        Returns:
+            List of pattern dictionaries with 'pattern' and 'weight' keys.
+        """
         shipping_path = self.config_dir / "shipping_table.yml"
         if not shipping_path.exists():
             return []
@@ -117,7 +173,11 @@ class Config:
     
     @property
     def default_shipping_weight(self) -> float:
-        """Get default shipping weight."""
+        """Get default shipping weight for unmatched items.
+        
+        Returns:
+            Default weight in kilograms, falls back to 0.60kg.
+        """
         shipping_path = self.config_dir / "shipping_table.yml"
         if not shipping_path.exists():
             return 0.60

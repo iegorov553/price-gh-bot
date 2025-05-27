@@ -1,4 +1,9 @@
-"""Seller reliability evaluation service."""
+"""Seller reliability evaluation service.
+
+Implements comprehensive seller reliability scoring for Grailed marketplace
+based on activity, ratings, review volume, and trusted status. Provides
+tiered categorization (Diamond/Gold/Silver/Bronze/Ghost) with scoring rationale.
+"""
 
 from datetime import datetime, timezone
 
@@ -7,14 +12,19 @@ from ..bot.messages import SELLER_RELIABILITY, GHOST_INACTIVE_DESCRIPTION
 
 
 def evaluate_seller_reliability(seller_data: SellerData) -> ReliabilityScore:
-    """
-    Evaluate Grailed seller reliability based on profile metadata.
+    """Evaluate Grailed seller reliability based on profile metadata.
+    
+    Implements a 100-point scoring system across four criteria:
+    - Activity (0-30): Based on days since last listing update
+    - Rating (0-35): Based on average seller rating
+    - Review Volume (0-25): Based on number of reviews
+    - Badge (0-10): Based on trusted seller status
     
     Args:
-        seller_data: SellerData with profile information
+        seller_data: SellerData object containing profile information.
     
     Returns:
-        ReliabilityScore with evaluation results
+        ReliabilityScore with detailed scores and category assignment.
     """
     now = datetime.now(timezone.utc)
     last_updated = seller_data.last_updated

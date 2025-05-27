@@ -1,4 +1,10 @@
-"""Telegram bot handlers."""
+"""Telegram bot message and command handlers.
+
+Implements the main bot interaction logic including command processing, URL
+detection and parsing, marketplace scraping orchestration, and response
+formatting. Handles both price calculation workflows and seller analysis
+features with proper error handling and admin notifications.
+"""
 
 import asyncio
 import logging
@@ -26,12 +32,28 @@ logger = logging.getLogger(__name__)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /start command."""
+    """Handle /start command.
+    
+    Sends welcome message with bot usage instructions and pricing information.
+    
+    Args:
+        update: Telegram update object containing message data.
+        context: Bot context for accessing application instance.
+    """
     await update.message.reply_text(START_MESSAGE)
 
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle messages containing URLs."""
+    """Handle messages containing marketplace URLs.
+    
+    Main handler that processes user messages containing eBay or Grailed URLs.
+    Detects seller profile links vs item listings and routes to appropriate
+    processing workflow. Handles concurrent scraping and response formatting.
+    
+    Args:
+        update: Telegram update object containing message data.
+        context: Bot context for accessing application instance.
+    """
     text = update.message.text or ''
     urls = re.findall(r"(https?://[\w\.-]+(?:/[^\s]*)?)", text)
     if not urls:
@@ -56,7 +78,16 @@ async def _handle_seller_profile(
     profile_url: str, 
     session: aiohttp.ClientSession
 ) -> None:
-    """Handle Grailed seller profile analysis."""
+    """Handle Grailed seller profile analysis.
+    
+    Analyzes a Grailed seller profile URL and sends reliability evaluation.
+    
+    Args:
+        update: Telegram update object containing message data.
+        context: Bot context for accessing application instance.
+        profile_url: Grailed seller profile URL to analyze.
+        session: HTTP session for making requests.
+    """
     try:
         seller_analysis = await grailed.analyze_seller_profile(profile_url, session)
         if seller_analysis:
@@ -87,7 +118,17 @@ async def _handle_listings(
     urls: list, 
     session: aiohttp.ClientSession
 ) -> None:
-    """Handle regular marketplace listings."""
+    """Handle regular marketplace listings.
+    
+    Processes marketplace item URLs, calculates prices with shipping and fees,
+    and sends formatted responses with optional seller reliability analysis.
+    
+    Args:
+        update: Telegram update object containing message data.
+        context: Bot context for accessing application instance.
+        urls: List of marketplace URLs to process.
+        session: HTTP session for making requests.
+    """
     # Resolve Grailed app.link shorteners
     resolved_urls = []
     for url in urls:
@@ -172,7 +213,17 @@ async def _handle_listings(
 
 
 async def _resolve_shortener(url: str, session: aiohttp.ClientSession) -> str:
-    """Resolve Grailed app.link shorteners."""
+    """Resolve Grailed app.link shorteners.
+    
+    Follows redirects from Grailed app.link URLs to get final destination.
+    
+    Args:
+        url: URL to resolve, potentially a shortener.
+        session: HTTP session for making requests.
+        
+    Returns:
+        Resolved URL or original URL if not a shortener.
+    """
     parsed = urlparse(url)
     if not parsed.netloc.endswith('app.link'):
         return url
@@ -202,16 +253,42 @@ async def _resolve_shortener(url: str, session: aiohttp.ClientSession) -> str:
 
 
 async def _scrape_ebay_item(url: str, session: aiohttp.ClientSession):
-    """Scrape eBay item."""
+    """Scrape eBay item data.
+    
+    Extracts item information from eBay listing page.
+    
+    Args:
+        url: eBay item URL to scrape.
+        session: HTTP session for making requests.
+        
+    Returns:
+        Tuple of (item_data, None) since eBay doesn't provide seller data.
+    """
     item_data = await ebay.get_item_data(url, session)
     return item_data, None
 
 
 async def _scrape_grailed_item(url: str, session: aiohttp.ClientSession):
-    """Scrape Grailed item."""
+    """Scrape Grailed item data.
+    
+    Extracts item and seller information from Grailed listing page.
+    
+    Args:
+        url: Grailed item URL to scrape.
+        session: HTTP session for making requests.
+        
+    Returns:
+        Tuple of (item_data, seller_data) from the listing.
+    """
     return await grailed.get_item_data(url, session)
 
 
 async def _return_none():
-    """Return None for unsupported URLs."""
+    """Return None for unsupported URLs.
+    
+    Helper function used in asyncio.gather for non-marketplace URLs.
+    
+    Returns:
+        None to indicate no data extracted.
+    """
     return None

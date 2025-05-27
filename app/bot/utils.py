@@ -1,4 +1,9 @@
-"""Bot utility functions."""
+"""Bot utility functions and response formatting.
+
+Provides utility functions for Telegram bot operations including admin
+notifications, price calculation logic, response message formatting, and
+HTTP session management. Centralizes reusable bot functionality.
+"""
 
 import logging
 from datetime import datetime, timezone
@@ -23,7 +28,12 @@ logger = logging.getLogger(__name__)
 
 
 async def notify_admin(application: Application, message: str) -> None:
-    """Send notification to admin about API failure."""
+    """Send notification to admin about system issues.
+    
+    Args:
+        application: Telegram Application instance for sending messages.
+        message: Alert message to send to admin.
+    """
     try:
         await application.bot.send_message(
             chat_id=config.bot.admin_chat_id,
@@ -35,7 +45,12 @@ async def notify_admin(application: Application, message: str) -> None:
 
 
 async def send_debug_to_admin(application: Application, message: str) -> None:
-    """Send debug message to admin only (not to users)."""
+    """Send debug message to admin for troubleshooting purposes.
+    
+    Args:
+        application: Telegram Application instance for sending messages.
+        message: Debug message content to send to admin.
+    """
     try:
         await application.bot.send_message(
             chat_id=config.bot.admin_chat_id,
@@ -46,7 +61,19 @@ async def send_debug_to_admin(application: Application, message: str) -> None:
 
 
 def calculate_final_price(item_price: Decimal, shipping_us: Decimal, shipping_russia: Decimal) -> PriceCalculation:
-    """Calculate final price with commission."""
+    """Calculate final price with tiered commission structure.
+    
+    Applies either fixed commission ($15) for items under $150 or 10% markup
+    for items $150 and above.
+    
+    Args:
+        item_price: Base price of the item in USD.
+        shipping_us: US domestic shipping cost in USD.
+        shipping_russia: Russia delivery shipping cost in USD.
+        
+    Returns:
+        PriceCalculation: Complete price breakdown including commission and final price.
+    """
     total_cost = item_price + shipping_us + shipping_russia
     
     # Apply commission based on item price
@@ -74,7 +101,20 @@ def format_price_response(
     reliability: Optional[ReliabilityScore] = None,
     is_grailed: bool = False
 ) -> str:
-    """Format price calculation into user response."""
+    """Format price calculation into user-friendly response message.
+    
+    Creates formatted message with price breakdown, commission explanation,
+    RUB conversion (if available), and seller reliability info for Grailed items.
+    
+    Args:
+        calculation: Price calculation data including all cost components.
+        exchange_rate: USD to RUB exchange rate for currency conversion.
+        reliability: Seller reliability score for Grailed items.
+        is_grailed: Whether this is a Grailed listing to show seller info.
+        
+    Returns:
+        str: Formatted message ready to send to user.
+    """
     # Prepare shipping text
     if calculation.shipping_us == 0:
         shipping_text = f" + ${calculation.shipping_russia} доставка (Shopfans)"
@@ -128,7 +168,18 @@ def format_price_response(
 
 
 def format_seller_profile_response(seller_data: dict) -> str:
-    """Format seller profile analysis into readable message."""
+    """Format Grailed seller profile analysis into detailed message.
+    
+    Creates comprehensive seller reliability breakdown including activity,
+    rating, review volume, and badge status with user-friendly formatting.
+    
+    Args:
+        seller_data: Dictionary containing seller profile data with reliability
+                    scores, last update timestamp, and badge status.
+                    
+    Returns:
+        str: Formatted seller analysis message in Russian.
+    """
     reliability = seller_data['reliability']
     emoji = SELLER_RELIABILITY.get(reliability['category'], {}).get('emoji', '❓')
     
@@ -178,7 +229,14 @@ def format_seller_profile_response(seller_data: dict) -> str:
 
 
 def create_session() -> aiohttp.ClientSession:
-    """Create aiohttp session with proper configuration."""
+    """Create configured aiohttp session for web scraping.
+    
+    Sets up session with connection limits, timeouts, and user agent
+    header optimized for reliable web scraping operations.
+    
+    Returns:
+        aiohttp.ClientSession: Configured HTTP session for making requests.
+    """
     connector = aiohttp.TCPConnector(limit=100, limit_per_host=30)
     timeout = aiohttp.ClientTimeout(total=config.bot.timeout)
     headers = {"User-Agent": "Mozilla/5.0 (compatible; PriceBot/2.0)"}

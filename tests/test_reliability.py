@@ -1,4 +1,10 @@
-"""Tests for seller reliability evaluation."""
+"""Tests for Grailed seller reliability evaluation system.
+
+This module contains tests for the seller reliability service that:
+- Evaluates sellers across 4 scoring criteria (activity, rating, reviews, badge)
+- Categorizes sellers into Diamond/Gold/Silver/Bronze/Ghost tiers
+- Handles various seller profile scenarios and edge cases
+"""
 
 import pytest
 from datetime import datetime, timezone, timedelta
