@@ -99,30 +99,78 @@ def get_usd_to_rub_rate() -> Optional[Decimal]:
         
         # Look for patterns that might contain exchange rates
         rate_patterns = [
+            # Standard formats
             r'(\d{2,3}[.,]\d{2,4})\s*(?:RUB|рубл|rubles?)',
             r'(\d{2,3}[.,]\d{2,4})\s*Russian',
             r'1\s*USD\s*=\s*(\d{2,3}[.,]\d{2,4})',
             r'(\d{2,3}[.,]\d{2,4})\s*₽',
+            # More flexible patterns
+            r'(\d{2,3}[.,]\d{1,4})\s*(?:российский|rubles?|RUB)',
+            r'USD.*?(\d{2,3}[.,]\d{1,4}).*?RUB',
+            r'(\d{2,3}[.,]\d{1,4}).*?(?:рубл|руб)',
+            # Very flexible - any number in typical range
+            r'\b(\d{2,3}[.,]\d{1,4})\b',
         ]
         
-        for pattern in rate_patterns:
+        for i, pattern in enumerate(rate_patterns):
             matches = re.findall(pattern, html_text, re.IGNORECASE)
             if matches:
-                logger.info(f"Pattern match found: {matches[:3]}")
-                try:
-                    rate_str = matches[0].replace(',', '.')
-                    if re.match(r'^\d+(\.\d+)?$', rate_str):
-                        base_rate = Decimal(rate_str)
-                        # Check if rate is in reasonable range
-                        if 70 <= base_rate <= 120:
-                            final_rate = (base_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                            logger.info(f"Pattern-based USD to RUB rate: {base_rate} -> {final_rate} (with 5% markup)")
-                            return final_rate
-                except Exception as e:
-                    logger.warning(f"Error processing pattern rate: {e}")
+                logger.info(f"Pattern {i+1} match found: {matches[:5]}")
+                # Try all matches for this pattern
+                for match in matches[:10]:  # Limit to first 10 matches
+                    try:
+                        rate_str = match.replace(',', '.')
+                        if re.match(r'^\d+(\.\d+)?$', rate_str):
+                            base_rate = Decimal(rate_str)
+                            # Check if rate is in reasonable range
+                            if 70 <= base_rate <= 120:
+                                final_rate = (base_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                                logger.info(f"Pattern-based USD to RUB rate: {base_rate} -> {final_rate} (with 5% markup)")
+                                return final_rate
+                            else:
+                                logger.debug(f"Rate out of range: {base_rate}")
+                        else:
+                            logger.debug(f"Invalid rate format: {rate_str}")
+                    except Exception as e:
+                        logger.debug(f"Error processing rate '{match}': {e}")
         
-        logger.warning("Could not find exchange rate in Google response")
-        return None
+        # Last resort: try alternative source
+        logger.info("Trying alternative currency source...")
+        try:
+            alt_url = "https://www.google.com/search?q=USD+RUB+rate"
+            alt_response = requests.get(alt_url, headers=headers, timeout=TIMEOUT)
+            alt_response.raise_for_status()
+            
+            # Look for any numbers in reasonable range in alternative response
+            alt_numbers = re.findall(r'\b(\d{2,3}[.,]?\d{0,4})\b', alt_response.text)
+            valid_rates = []
+            
+            for num_str in alt_numbers:
+                try:
+                    clean_num = num_str.replace(',', '.')
+                    if re.match(r'^\d+(\.\d+)?$', clean_num):
+                        num = float(clean_num)
+                        if 70 <= num <= 120:
+                            valid_rates.append(Decimal(str(num)))
+                except:
+                    continue
+            
+            if valid_rates:
+                # Use most common rate or median
+                base_rate = valid_rates[0]  # For simplicity, use first valid rate
+                final_rate = (base_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                logger.info(f"Alternative source USD to RUB rate: {base_rate} -> {final_rate} (with 5% markup)")
+                return final_rate
+                
+        except Exception as e:
+            logger.warning(f"Alternative source failed: {e}")
+        
+        # Fallback to approximate rate if all else fails
+        logger.warning("Could not find exchange rate from any source, using fallback rate")
+        fallback_rate = Decimal('95.00')  # Approximate current rate
+        final_fallback_rate = (fallback_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+        logger.info(f"Using fallback USD to RUB rate: {fallback_rate} -> {final_fallback_rate} (with 5% markup)")
+        return final_fallback_rate
         
     except Exception as e:
         logger.error(f"Error getting USD to RUB rate: {e}")
@@ -213,7 +261,7 @@ def scrape_price_ebay(url: str) -> Optional[Decimal]:
 
 
 def scrape_shipping_grailed(soup: BeautifulSoup) -> Optional[Decimal]:
-    shipping_text = soup.find(text=re.compile(r'shipping', re.I))
+    shipping_text = soup.find(string=re.compile(r'shipping', re.I))
     if shipping_text:
         parent = shipping_text.parent
         if parent:
