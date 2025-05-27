@@ -199,28 +199,59 @@ def scrape_shipping_grailed(soup: BeautifulSoup) -> Optional[Decimal]:
     return Decimal('15')
 
 
-def scrape_price_grailed(url: str) -> Optional[Decimal]:
+def scrape_price_grailed(url: str) -> tuple[Optional[Decimal], bool]:
+    """Scrape Grailed price and determine if item has buy-now option.
+    
+    Returns:
+        tuple: (price, is_buyable)
+        - price: The item price if found
+        - is_buyable: True if both Purchase/Buy and Offer buttons exist, False if only Offer
+    """
     try:
         r = session.get(url, timeout=TIMEOUT)
         r.raise_for_status()
     except Exception as e:
         logger.error(f"Grailed request error: {e}")
-        return None
+        return None, False
+    
     soup = BeautifulSoup(r.text, 'lxml')
+    
+    # Extract price
+    price = None
     span = soup.find('span', attrs={'class': lambda c: c and 'price' in c.lower()})
     if span:
         price = _clean_price(span.get_text(strip=True))
-        if price:
-            return price
-    meta = soup.find('meta', property='product:price:amount')
-    if meta and meta.get('content'):
-        price = _clean_price(meta['content'])
-        if price:
-            return price
-    return _parse_json_ld(soup)
+    if not price:
+        meta = soup.find('meta', property='product:price:amount')
+        if meta and meta.get('content'):
+            price = _clean_price(meta['content'])
+    if not price:
+        price = _parse_json_ld(soup)
+    
+    # Check for purchase/buy buttons
+    purchase_button = soup.find('button', string=re.compile(r'(Purchase|Buy Now|Buy)', re.I))
+    if not purchase_button:
+        purchase_button = soup.find('a', string=re.compile(r'(Purchase|Buy Now|Buy)', re.I))
+    
+    # Check for offer button
+    offer_button = soup.find('button', string=re.compile(r'(Offer|Make.*Offer)', re.I))
+    if not offer_button:
+        offer_button = soup.find('a', string=re.compile(r'(Offer|Make.*Offer)', re.I))
+    
+    # Item is buyable if both buttons exist, not buyable if only offer button exists
+    is_buyable = purchase_button is not None and offer_button is not None
+    
+    return price, is_buyable
 
 
-def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decimal]]:
+def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decimal], bool]:
+    """Get price, shipping cost, and buyability status for a URL.
+    
+    Returns:
+        tuple: (price, shipping, is_buyable)
+        - For eBay: is_buyable is always True
+        - For Grailed: is_buyable depends on button presence
+    """
     parsed = urlparse(url)
     # Resolve Grailed app.link shorteners
     if parsed.netloc.endswith('app.link'):
@@ -238,7 +269,7 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
                     if a:
                         url = a['href']
         except Exception:
-            return None, None
+            return None, None, False
     
     try:
         r = session.get(url, timeout=TIMEOUT)
@@ -246,7 +277,7 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
         soup = BeautifulSoup(r.text, 'lxml')
     except Exception as e:
         logger.error(f"Request error: {e}")
-        return None, None
+        return None, None, False
     
     domain = urlparse(url).netloc.lower().split(':')[0]
     labels = domain.split('.')
@@ -263,23 +294,14 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
         if not price:
             price = _parse_json_ld(soup)
         shipping = scrape_shipping_ebay(soup)
-        return price, shipping
+        return price, shipping, True  # eBay items are always buyable
     
     if 'grailed' in labels:
-        span = soup.find('span', attrs={'class': lambda c: c and 'price' in c.lower()})
-        price = None
-        if span:
-            price = _clean_price(span.get_text(strip=True))
-        if not price:
-            meta = soup.find('meta', property='product:price:amount')
-            if meta and meta.get('content'):
-                price = _clean_price(meta['content'])
-        if not price:
-            price = _parse_json_ld(soup)
+        price, is_buyable = scrape_price_grailed(url)
         shipping = scrape_shipping_grailed(soup)
-        return price, shipping
+        return price, shipping, is_buyable
     
-    return None, None
+    return None, None, False
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
@@ -308,9 +330,15 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             "CBR API is unavailable. Currency conversion disabled. Check logs for details."
         )
     
-    for u, (price, shipping) in zip(urls, results):
+    for u, (price, shipping, is_buyable) in zip(urls, results):
         if not price:
             await update.message.reply_text(f"Couldn’t pull the price from {u} 🤷‍♀️")
+        elif not is_buyable:
+            # For items without buy-now option (only offer button)
+            await update.message.reply_text(
+                f"У продавца не указана цена выкупа. Для расчёта полной стоимости товара необходимо связаться с продавцом.\n\n"
+                f"Указанная цена: ${price} (только для переговоров)"
+            )
         else:
             shipping = shipping or Decimal('0')
             total_cost = price + shipping
