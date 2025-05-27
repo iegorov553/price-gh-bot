@@ -23,7 +23,9 @@ from messages import (
     SELLER_ACTIVITY_LINE, SELLER_RATING_LINE, SELLER_REVIEWS_LINE,
     SELLER_BADGE_LINE, TRUSTED_SELLER_BADGE, NO_BADGE, TIME_TODAY,
     TIME_YESTERDAY, TIME_DAYS_AGO, SELLER_INFO_LINE, SELLER_DESCRIPTION_LINE,
-    ADMIN_NOTIFICATION, LOG_CBR_API_FAILED
+    ADMIN_NOTIFICATION, LOG_CBR_API_FAILED, DEBUG_SELLER_PROFILE_DETECTED,
+    DEBUG_SELLER_PROFILE_NOT_DETECTED, DEBUG_SELLER_DATA_EXTRACTED,
+    DEBUG_SELLER_DATA_NOT_FOUND
 )
 
 import requests
@@ -364,35 +366,56 @@ def scrape_price_grailed(url: str) -> tuple[Optional[Decimal], bool]:
 def extract_seller_profile_url(soup: BeautifulSoup) -> Optional[str]:
     """Extract seller profile URL from Grailed listing page."""
     try:
-        # Look for seller profile link in various possible locations
-        # Common patterns: /users/username, /sellers/username, profile links
+        logger.debug("Extracting seller profile URL from listing page...")
         
         # Try to find seller link in JSON data first
+        scripts_checked = 0
         for script in soup.find_all('script'):
+            scripts_checked += 1
             if script.string and ('seller' in script.string or 'user' in script.string):
+                logger.debug(f"Found script with seller/user data (script #{scripts_checked})")
+                
                 # Look for patterns like "seller":{"username":"someuser"} or "user":{"username":"someuser"}
                 username_match = re.search(r'"(?:seller|user)"\s*:\s*\{[^}]*"username"\s*:\s*"([^"]+)"', script.string)
                 if username_match:
                     username = username_match.group(1)
-                    return f"https://www.grailed.com/users/{username}"
+                    profile_url = f"https://www.grailed.com/{username}"
+                    logger.debug(f"Found username in JSON: {username} -> {profile_url}")
+                    return profile_url
                 
                 # Look for direct profile URL patterns
                 profile_match = re.search(r'"(?:profileUrl|userUrl|sellerUrl)"\s*:\s*"([^"]+)"', script.string)
                 if profile_match:
                     url = profile_match.group(1)
                     if url.startswith('/'):
-                        return f"https://www.grailed.com{url}"
+                        full_url = f"https://www.grailed.com{url}"
+                        logger.debug(f"Found relative profile URL: {url} -> {full_url}")
+                        return full_url
+                    logger.debug(f"Found absolute profile URL: {url}")
                     return url
         
+        logger.debug(f"Checked {scripts_checked} scripts for seller profile URL")
+        
         # Fallback: look for seller links in HTML
+        links_checked = 0
         for link in soup.find_all('a', href=True):
+            links_checked += 1
             href = link.get('href', '')
-            if '/users/' in href or '/sellers/' in href:
+            
+            # Check for various profile URL patterns
+            if ('/users/' in href or '/sellers/' in href or 
+                (href.startswith('/') and href.count('/') == 2 and 
+                 not href.startswith('/listings') and not href.startswith('/search'))):
+                
                 if href.startswith('/'):
-                    return f"https://www.grailed.com{href}"
+                    full_url = f"https://www.grailed.com{href}"
+                    logger.debug(f"Found seller link in HTML: {href} -> {full_url}")
+                    return full_url
                 elif href.startswith('https://www.grailed.com/'):
+                    logger.debug(f"Found full seller link in HTML: {href}")
                     return href
         
+        logger.debug(f"Checked {links_checked} HTML links, no seller profile URL found")
         return None
         
     except Exception as e:
@@ -457,14 +480,20 @@ def extract_seller_data_grailed(soup: BeautifulSoup) -> Optional[Dict[str, Any]]
         - last_updated: Date of last listing update from seller profile
     """
     try:
+        logger.debug("Extracting seller data from listing page...")
+        
         # Extract basic seller info from listing page
         avg_rating = 0.0
         num_reviews = 0
         trusted_badge = False
         
         # Look for seller data in JSON within script tags
+        scripts_checked = 0
         for script in soup.find_all('script'):
-            if script.string and 'seller' in script.string and 'rating' in script.string:
+            scripts_checked += 1
+            if script.string and 'seller' in script.string:
+                logger.debug(f"Found script with 'seller' keyword (script #{scripts_checked})")
+                
                 # Try to extract seller info from JSON
                 try:
                     # Look for patterns like "seller":{"rating":4.5,"reviewCount":23}
@@ -472,19 +501,26 @@ def extract_seller_data_grailed(soup: BeautifulSoup) -> Optional[Dict[str, Any]]
                     if seller_match:
                         avg_rating = float(seller_match.group(1))
                         num_reviews = int(seller_match.group(2))
+                        logger.debug(f"Extracted rating: {avg_rating}, reviews: {num_reviews}")
                         
                         # Look for trusted badge
                         trusted_badge = '"trustedSeller":true' in script.string or '"trusted":true' in script.string
+                        logger.debug(f"Trusted badge found: {trusted_badge}")
                         break
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Error parsing seller data from script: {e}")
                     continue
+        
+        logger.debug(f"Checked {scripts_checked} scripts, found rating: {avg_rating}, reviews: {num_reviews}")
         
         # Get seller profile URL and fetch last update date
         profile_url = extract_seller_profile_url(soup)
-        last_updated = None
+        logger.debug(f"Extracted seller profile URL: {profile_url}")
         
+        last_updated = None
         if profile_url:
             last_updated = fetch_seller_last_update(profile_url)
+            logger.debug(f"Fetched last update: {last_updated}")
         
         # If no last_updated found, use current time as fallback
         if not last_updated:
@@ -493,6 +529,7 @@ def extract_seller_data_grailed(soup: BeautifulSoup) -> Optional[Dict[str, Any]]
         
         # Only return data if we have basic seller info
         if avg_rating > 0 or num_reviews > 0:
+            logger.info(f"Successfully extracted seller data: rating={avg_rating}, reviews={num_reviews}, badge={trusted_badge}")
             return {
                 'num_reviews': num_reviews,
                 'avg_rating': avg_rating,
@@ -500,6 +537,7 @@ def extract_seller_data_grailed(soup: BeautifulSoup) -> Optional[Dict[str, Any]]
                 'last_updated': last_updated
             }
         
+        logger.warning("No seller data found in listing page")
         return None
         
     except Exception as e:
@@ -512,12 +550,38 @@ def is_grailed_seller_profile(url: str) -> bool:
     try:
         parsed = urlparse(url)
         if 'grailed.com' not in parsed.netloc.lower():
+            logger.debug(f"Not a Grailed domain: {parsed.netloc}")
             return False
         
-        path = parsed.path.lower()
-        # Common seller profile patterns
-        return '/users/' in path or '/sellers/' in path or '/user/' in path
-    except Exception:
+        path = parsed.path.lower().strip('/')
+        logger.debug(f"Checking path for seller profile: '{path}'")
+        
+        # Updated patterns based on actual Grailed URLs:
+        # 1. /users/username (old pattern)
+        # 2. /sellers/username (old pattern) 
+        # 3. /username (new direct pattern)
+        # 4. Exclude listing URLs like /listings/12345
+        
+        # Check for direct username pattern (most common now)
+        if path and '/' not in path and not path.startswith('listings'):
+            # Exclude common non-profile pages
+            excluded_pages = {'sell', 'buy', 'search', 'help', 'about', 'terms', 
+                             'privacy', 'brands', 'designers', 'categories', 'login', 
+                             'signup', 'settings', 'notifications', 'feed'}
+            if path not in excluded_pages:
+                logger.info(f"Detected direct seller profile pattern: {url}")
+                return True
+        
+        # Check for legacy patterns
+        if path.startswith('users/') or path.startswith('sellers/') or path.startswith('user/'):
+            logger.info(f"Detected legacy seller profile pattern: {url}")
+            return True
+            
+        logger.debug(f"URL does not match seller profile patterns: {url}")
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error checking seller profile URL: {e}")
         return False
 
 
@@ -533,6 +597,7 @@ def analyze_seller_profile(profile_url: str) -> Optional[Dict[str, Any]]:
         logger.info(f"Analyzing seller profile: {profile_url}")
         r = session.get(profile_url, timeout=TIMEOUT)
         r.raise_for_status()
+        logger.debug(f"Profile page loaded successfully, status: {r.status_code}")
         soup = BeautifulSoup(r.text, 'lxml')
         
         # Extract seller data from profile page
@@ -697,6 +762,7 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
         price, is_buyable = scrape_price_grailed(url)
         shipping = scrape_shipping_grailed(soup)
         seller_data = extract_seller_data_grailed(soup)
+        logger.debug(f"Grailed extraction results: price={price}, shipping={shipping}, buyable={is_buyable}, seller_data={'yes' if seller_data else 'no'}")
         return price, shipping, is_buyable, seller_data
     
     return None, None, False, None
@@ -712,7 +778,10 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     # Check if any URLs are Grailed seller profiles
     for url in urls:
+        logger.info(f"Checking URL: {url}")
         if is_grailed_seller_profile(url):
+            logger.info(f"Processing seller profile: {url}")
+            await update.message.reply_text(DEBUG_SELLER_PROFILE_DETECTED.format(url=url))
             try:
                 seller_data = await asyncio.to_thread(analyze_seller_profile, url)
                 if seller_data:
@@ -724,6 +793,8 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 logger.error(f"Error processing seller profile {url}: {e}")
                 await update.message.reply_text(ERROR_SELLER_ANALYSIS)
             return  # Exit after processing seller profile
+        else:
+            logger.debug(f"URL is not a seller profile: {url}")
     
     # Continue with regular listing processing if no seller profiles found
     # Fetch all URLs concurrently for performance
@@ -790,6 +861,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             
             # Add seller reliability info for Grailed items with buyout price
             if seller_data and 'grailed' in u.lower():
+                logger.info(f"Processing seller reliability for Grailed item. Seller data: reviews={seller_data.get('num_reviews', 0)}, rating={seller_data.get('avg_rating', 0)}")
                 try:
                     reliability = evaluate_seller_reliability(
                         seller_data['num_reviews'],
@@ -811,8 +883,14 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                         description=reliability['description']
                     ))
                     
+                    logger.info(f"Added seller reliability info: {reliability['category']} ({reliability['total_score']}/100)")
+                    
                 except Exception as e:
                     logger.error(f"Error evaluating seller reliability: {e}")
+            elif 'grailed' in u.lower():
+                logger.warning(f"No seller data found for Grailed item: {u}")
+            else:
+                logger.debug(f"Not a Grailed item, skipping seller analysis: {u}")
             
             await update.message.reply_text("\n".join(response_lines))
 
