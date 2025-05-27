@@ -226,7 +226,7 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Yo, send me an eBay or Grailed link and I'll calculate the price + shipping + 10%."
+        "Yo, send me an eBay or Grailed link and I'll calculate the price + shipping + commission (fixed $15 for items <$150, or 10% for items ≥$150)."
     )
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -243,12 +243,19 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         else:
             shipping = shipping or Decimal('0')
             total_cost = price + shipping
-            final_price = (total_cost * Decimal('1.10')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+            
+            # New pricing logic: fixed $15 commission if item price < $150, otherwise 10% markup
+            if price < Decimal('150'):
+                final_price = (total_cost + Decimal('15')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                commission_text = "$15 commission"
+            else:
+                final_price = (total_cost * Decimal('1.10')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                commission_text = "10% markup"
             
             shipping_text = f" + ${shipping} shipping" if shipping > 0 else " (free shipping)"
             await update.message.reply_text(
                 f"Price: ${price}{shipping_text} = ${total_cost}\n"
-                f"With 10% markup: ${final_price}"
+                f"With {commission_text}: ${final_price}"
             )
 
 
