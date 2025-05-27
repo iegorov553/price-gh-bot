@@ -32,6 +32,48 @@ session.mount("https://", adapter)
 session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; PriceBot/1.0)"})
 TIMEOUT = 20
 
+def get_usd_to_rub_rate() -> Optional[Decimal]:
+    """Get USD to RUB exchange rate from Google with 5% markup"""
+    try:
+        # Using Google's currency conversion via search
+        url = "https://www.google.com/search?q=1+usd+to+rub"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=TIMEOUT)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, 'lxml')
+        
+        # Try multiple selectors for the exchange rate
+        selectors = [
+            "span.DFlfde.SwHCTb",  # Main rate display
+            "div.BNeawe.iBp4i.AP7Wnd",  # Alternative selector
+            "span.pclqee",  # Another possible selector
+        ]
+        
+        for selector in selectors:
+            rate_element = soup.select_one(selector)
+            if rate_element:
+                rate_text = rate_element.get_text(strip=True)
+                # Extract numeric value, handle both comma and dot as decimal separator
+                rate_match = re.search(r'(\d+[,.]?\d*)', rate_text)
+                if rate_match:
+                    rate_str = rate_match.group(1).replace(',', '.')
+                    # Ensure we have a valid decimal number
+                    if re.match(r'^\d+(\.\d+)?$', rate_str):
+                        base_rate = Decimal(rate_str)
+                        # Add 5% markup
+                        final_rate = (base_rate * Decimal('1.05')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                        logger.info(f"USD to RUB rate: {base_rate} -> {final_rate} (with 5% markup)")
+                        return final_rate
+        
+        logger.warning("Could not find exchange rate in Google response")
+        return None
+    except Exception as e:
+        logger.error(f"Error getting USD to RUB rate: {e}")
+        return None
+
 # Regex for full-string numeric price
 PRICE_RE = re.compile(r"^\d[\d,.]*$")
 EBAY_SELECTORS = [
@@ -226,7 +268,7 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Yo, send me an eBay or Grailed link and I'll calculate the price + shipping + commission (fixed $15 for items <$150, or 10% for items ≥$150)."
+        "Yo, send me an eBay or Grailed link and I'll calculate the price + shipping + commission (fixed $15 for items <$150, or 10% for items ≥$150). Final price shown in USD and RUB."
     )
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -237,6 +279,10 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     # Fetch all URLs concurrently for performance
     tasks = [asyncio.to_thread(get_price_and_shipping, u) for u in urls]
     results = await asyncio.gather(*tasks)
+    
+    # Get USD to RUB rate once for all conversions
+    usd_to_rub_rate = await asyncio.to_thread(get_usd_to_rub_rate)
+    
     for u, (price, shipping) in zip(urls, results):
         if not price:
             await update.message.reply_text(f"Couldn’t pull the price from {u} 🤷‍♀️")
@@ -253,9 +299,16 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 commission_text = "10% markup"
             
             shipping_text = f" + ${shipping} shipping" if shipping > 0 else " (free shipping)"
+            
+            # Convert to RUB if rate is available
+            rub_text = ""
+            if usd_to_rub_rate:
+                final_price_rub = (final_price * usd_to_rub_rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                rub_text = f" (₽{final_price_rub})"
+            
             await update.message.reply_text(
                 f"Price: ${price}{shipping_text} = ${total_cost}\n"
-                f"With {commission_text}: ${final_price}"
+                f"With {commission_text}: ${final_price}{rub_text}"
             )
 
 
