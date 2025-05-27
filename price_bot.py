@@ -608,17 +608,17 @@ def format_seller_profile_response(seller_data: Dict[str, Any]) -> str:
         last_update_text = f"{days_since_update} дн. назад"
     
     # Badge text
-    badge_text = "✅ Trusted Seller" if seller_data['trusted_badge'] else "❌ No badge"
+    badge_text = "✅ Проверенный продавец" if seller_data['trusted_badge'] else "❌ Нет бейджа"
     
     response_lines = [
-        f"{emoji} **Анализ продавца Grailed**",
+        f"{emoji} Анализ продавца Grailed",
         "",
-        f"📊 **Категория надёжности:** {reliability['category']} ({reliability['total_score']}/100)",
-        f"💭 {reliability['description']}",
+        f"Надёжность: {reliability['category']} ({reliability['total_score']}/100)",
+        f"{reliability['description']}",
         "",
-        "**📈 Детализация баллов:**",
+        "Детали:",
         f"• Активность: {reliability['activity_score']}/30 (обновления {last_update_text})",
-        f"• Рейтинг: {reliability['rating_score']}/35 (⭐ {seller_data['avg_rating']:.1f}/5.0)",
+        f"• Рейтинг: {reliability['rating_score']}/35 ({seller_data['avg_rating']:.1f}/5.0)",
         f"• Отзывы: {reliability['review_volume_score']}/25 ({seller_data['num_reviews']} отзывов)",
         f"• Бейдж: {reliability['badge_score']}/10 ({badge_text})",
     ]
@@ -688,7 +688,9 @@ def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decima
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Yo, send me an eBay or Grailed link and I'll calculate the price + shipping + commission (fixed $15 for items <$150, or 10% for items ≥$150). Final price shown in USD and RUB (official CBR rate + 5%)."
+        "Пришлите ссылку на товар с eBay или Grailed. Бот рассчитает стоимость с доставкой и комиссией.\n\n"
+        "Комиссия: $15 для товаров дешевле $150, или 10% для товаров от $150.\n"
+        "Цены показываются в долларах и рублях по курсу ЦБ РФ + 5%."
     )
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -704,12 +706,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 seller_data = await asyncio.to_thread(analyze_seller_profile, url)
                 if seller_data:
                     response = format_seller_profile_response(seller_data)
-                    await update.message.reply_text(response, parse_mode='Markdown')
+                    await update.message.reply_text(response)
                 else:
-                    await update.message.reply_text(f"Не удалось получить данные о продавце: {url}")
+                    await update.message.reply_text(f"Не удалось получить данные о продавце")
             except Exception as e:
                 logger.error(f"Error processing seller profile {url}: {e}")
-                await update.message.reply_text(f"Ошибка при анализе продавца: {url}")
+                await update.message.reply_text("Ошибка при анализе продавца")
             return  # Exit after processing seller profile
     
     # Continue with regular listing processing if no seller profiles found
@@ -732,7 +734,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     for u, (price, shipping, is_buyable, seller_data) in zip(urls, results):
         if not price:
-            await update.message.reply_text(f"Couldn’t pull the price from {u} 🤷‍♀️")
+            await update.message.reply_text("Не удалось получить цену товара")
         elif not is_buyable:
             # For items without buy-now option (only offer button)
             await update.message.reply_text(
@@ -746,12 +748,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             # New pricing logic: fixed $15 commission if item price < $150, otherwise 10% markup
             if price < Decimal('150'):
                 final_price = (total_cost + Decimal('15')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                commission_text = "$15 commission"
+                commission_text = "комиссия $15"
             else:
                 final_price = (total_cost * Decimal('1.10')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                commission_text = "10% markup"
+                commission_text = "наценка 10%"
             
-            shipping_text = f" + ${shipping} shipping" if shipping > 0 else " (free shipping)"
+            shipping_text = f" + ${shipping} доставка" if shipping > 0 else " (бесплатная доставка)"
             
             # Convert to RUB if rate is available
             rub_text = ""
@@ -764,8 +766,8 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             
             # Prepare base response message
             response_lines = [
-                f"Price: ${price}{shipping_text} = ${total_cost}",
-                f"With {commission_text}: ${final_price}{rub_text}"
+                f"Цена: ${price}{shipping_text} = ${total_cost}",
+                f"С учетом {commission_text}: ${final_price}{rub_text}"
             ]
             
             # Add seller reliability info for Grailed items with buyout price
