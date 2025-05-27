@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import aiohttp
 from telegram import Update
 from telegram.ext import ContextTypes
+from bs4 import BeautifulSoup
 
 from ..scrapers import ebay, grailed
 from ..services import currency, shipping, reliability
@@ -16,7 +17,7 @@ from .utils import (
     notify_admin, send_debug_to_admin, calculate_final_price, 
     format_price_response, format_seller_profile_response, create_session
 )
-from messages import (
+from ..bot.messages import (
     START_MESSAGE, ERROR_PRICE_NOT_FOUND, ERROR_SELLER_DATA_NOT_FOUND,
     ERROR_SELLER_ANALYSIS, OFFER_ONLY_MESSAGE, LOG_CBR_API_FAILED
 )
@@ -182,7 +183,7 @@ async def _resolve_shortener(url: str, session: aiohttp.ClientSession) -> str:
                 return str(response.url)
             
             html = await response.text()
-            soup = grailed.BeautifulSoup(html, 'lxml')
+            soup = BeautifulSoup(html, 'lxml')
             
             # Try meta refresh
             meta = soup.find('meta', attrs={'http-equiv': lambda v: v and v.lower() == 'refresh'})

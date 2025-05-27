@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from ..models import SellerData, ReliabilityScore
-from messages import SELLER_RELIABILITY, GHOST_INACTIVE_DESCRIPTION
+from ..bot.messages import SELLER_RELIABILITY, GHOST_INACTIVE_DESCRIPTION
 
 
 def evaluate_seller_reliability(seller_data: SellerData) -> ReliabilityScore:

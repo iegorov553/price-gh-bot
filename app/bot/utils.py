@@ -6,11 +6,11 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 import aiohttp
-from telegram import Application
+from telegram.ext import Application
 
 from ..config import config
 from ..models import PriceCalculation, CurrencyRate, ReliabilityScore
-from messages import (
+from .messages import (
     PRICE_LINE, FINAL_PRICE_LINE, COMMISSION_FIXED, COMMISSION_PERCENTAGE,
     SELLER_INFO_LINE, SELLER_DESCRIPTION_LINE, SELLER_RELIABILITY,
     SELLER_PROFILE_HEADER, SELLER_RELIABILITY_LINE, SELLER_DETAILS_HEADER,
