@@ -1,0 +1,34 @@
+# Marketplace commission and fee structure
+
+commission:
+  # Fixed commission for items under threshold
+  fixed:
+    amount: 15.0
+    threshold: 150.0
+    currency: "USD"
+  
+  # Percentage commission for items above threshold
+  percentage:
+    rate: 0.10  # 10%
+    minimum: 0.0
+    currency: "USD"
+
+# Shopfans shipping calculation
+shopfans:
+  base_cost: 13.99
+  per_kg_rate: 14.0
+  handling_fee:
+    light_items: 3.0  # for items <= 0.45kg
+    heavy_items: 5.0  # for items > 0.45kg
+  light_threshold: 0.45
+
+# Currency exchange
+currency:
+  markup_percentage: 5.0  # 5% markup on official rates
+  default_source: "cbr"
+  fallback_enabled: false
+
+# Default shipping costs
+shipping:
+  default_us: 15.0  # Default US shipping for Grailed if not found
+  free_keywords: ["free", "бесплатно"]

@@ -1,0 +1,225 @@
+# Shopfans shipping weight estimation table
+# Weight estimates in kilograms for different product categories
+
+# TOPS
+tops:
+  long_sleeve_tshirt: 0.30
+  short_sleeve_tshirt: 0.20
+  polo: 0.25
+  shirt: 0.35
+  sweater: 0.60
+  sweatshirt: 0.70
+  hoodie: 0.70
+  tank_top: 0.18
+  jersey: 0.30
+
+# BOTTOMS  
+bottoms:
+  casual_pants: 0.60
+  cropped_pants: 0.55
+  denim: 0.70
+  jeans: 0.70
+  leggings: 0.25
+  overalls: 0.60
+  jumpsuit: 0.60
+  romper: 0.60
+  shorts: 0.30
+  sweatpants: 0.65
+  joggers: 0.65
+  swimwear: 0.15
+
+# OUTERWEAR
+outerwear:
+  bomber_jacket: 0.90
+  cloak: 1.00
+  cape: 1.00
+  denim_jacket: 1.00
+  heavy_coat: 1.30
+  overcoat: 1.30
+  wool_coat: 1.30
+  leather_jacket: 1.50
+  light_jacket: 0.80
+  windbreaker: 0.80
+  parka: 1.40
+  raincoat: 1.10
+  trench_coat: 1.10
+  vest: 0.40
+
+# FOOTWEAR
+footwear:
+  boots: 1.80
+  casual_leather_shoes: 1.10
+  loafers: 1.10
+  formal_shoes: 1.20
+  dress_shoes: 1.20
+  oxford_shoes: 1.20
+  hi_top_sneakers: 1.60
+  high_top_sneakers: 1.60
+  low_top_sneakers: 1.30
+  sneakers: 1.40
+  running_shoes: 1.40
+  sandals: 0.50
+  slip_on: 0.90
+  slides: 0.90
+
+# ACCESSORIES
+accessories:
+  bag: 0.70
+  backpack: 0.70
+  tote: 0.70
+  duffle: 0.70
+  weekender: 0.70
+  messenger_bag: 0.70
+  briefcase: 0.70
+  crossbody: 0.70
+  shoulder_bag: 0.70
+  belt_bag: 0.70
+  fanny_pack: 0.70
+  camera_bag: 0.70
+  laptop_bag: 0.70
+  luggage: 3.00
+  suitcase: 3.00
+  belt: 0.25
+  glasses: 0.10
+  eyeglasses: 0.10
+  sunglasses: 0.10
+  gloves: 0.12
+  mittens: 0.12
+  scarf: 0.20
+  hat: 0.15
+  cap: 0.15
+  beanie: 0.15
+  jewelry: 0.15
+  ring: 0.15
+  bracelet: 0.15
+  necklace: 0.15
+  watch: 0.15
+  wallet: 0.15
+  socks: 0.05
+  underwear: 0.10
+  boxers: 0.10
+  briefs: 0.10
+  tie: 0.08
+  necktie: 0.08
+  bow_tie: 0.08
+  pocket_square: 0.08
+
+# TAILORING
+tailoring:
+  blazer: 0.80
+  sport_coat: 0.80
+  formal_shirt: 0.35
+  formal_trousers: 0.65
+  suit: 1.20
+  suit_jacket: 1.20
+  tuxedo: 2.50
+  waistcoat: 0.40
+  formal_vest: 0.40
+
+# Regex patterns for matching item titles
+patterns:
+  - pattern: "long sleeve t-?shirt|longsleeve"
+    weight: 0.30
+  - pattern: "short sleeve t-?shirt|t-?shirt|tee"
+    weight: 0.20
+  - pattern: "polo"
+    weight: 0.25
+  - pattern: "shirt|button.?up|button.?down|oxford"
+    weight: 0.35
+  - pattern: "sweater|knit|cardigan"
+    weight: 0.60
+  - pattern: "sweatshirt|hoodie"
+    weight: 0.70
+  - pattern: "tank top|sleeveless|singlet"
+    weight: 0.18
+  - pattern: "jersey"
+    weight: 0.30
+  - pattern: "casual pants|pants|trousers"
+    weight: 0.60
+  - pattern: "cropped pants|cropped trousers"
+    weight: 0.55
+  - pattern: "denim|jeans"
+    weight: 0.70
+  - pattern: "leggings"
+    weight: 0.25
+  - pattern: "overalls|jumpsuit|romper"
+    weight: 0.60
+  - pattern: "shorts"
+    weight: 0.30
+  - pattern: "sweatpants|joggers"
+    weight: 0.65
+  - pattern: "swimwear|swim trunk"
+    weight: 0.15
+  - pattern: "bomber( jacket)?"
+    weight: 0.90
+  - pattern: "cloak|cape"
+    weight: 1.00
+  - pattern: "denim jacket"
+    weight: 1.00
+  - pattern: "heavy coat|overcoat|wool coat"
+    weight: 1.30
+  - pattern: "leather jacket"
+    weight: 1.50
+  - pattern: "light jacket|windbreaker"
+    weight: 0.80
+  - pattern: "parka"
+    weight: 1.40
+  - pattern: "raincoat|trench coat"
+    weight: 1.10
+  - pattern: "vest"
+    weight: 0.40
+  - pattern: "boots"
+    weight: 1.80
+  - pattern: "casual leather shoe|loafers"
+    weight: 1.10
+  - pattern: "formal shoe|dress shoes|oxford"
+    weight: 1.20
+  - pattern: "hi[- ]?top sneaker|high[- ]?top"
+    weight: 1.60
+  - pattern: "low[- ]?top sneaker"
+    weight: 1.30
+  - pattern: "sneakers|running shoes"
+    weight: 1.40
+  - pattern: "sandals"
+    weight: 0.50
+  - pattern: "slip.?on|slides"
+    weight: 0.90
+  - pattern: "bag|backpack|tote|duffle|weekender|messenger bag|briefcase|crossbody|shoulder bag|belt bag|fanny pack|camera bag|laptop bag"
+    weight: 0.70
+  - pattern: "luggage|suitcase"
+    weight: 3.00
+  - pattern: "belt"
+    weight: 0.25
+  - pattern: "glasses|eyeglasses|sunglass"
+    weight: 0.10
+  - pattern: "gloves|mittens"
+    weight: 0.12
+  - pattern: "scarf|scarves"
+    weight: 0.20
+  - pattern: "hat|cap|beanie"
+    weight: 0.15
+  - pattern: "jewelry|ring|bracelet|necklace|watch"
+    weight: 0.15
+  - pattern: "wallet"
+    weight: 0.15
+  - pattern: "socks"
+    weight: 0.05
+  - pattern: "underwear|boxers|briefs"
+    weight: 0.10
+  - pattern: "tie|necktie|bow tie|pocket square"
+    weight: 0.08
+  - pattern: "blazer|sport coat"
+    weight: 0.80
+  - pattern: "formal shirt|formal shirting"
+    weight: 0.35
+  - pattern: "formal trousers"
+    weight: 0.65
+  - pattern: "suit(?!case)|suit jacket"
+    weight: 1.20
+  - pattern: "tuxedo"
+    weight: 2.50
+  - pattern: "waistcoat|formal vest"
+    weight: 0.40
+
+# Default weight for unmatched items
+default_weight: 0.60

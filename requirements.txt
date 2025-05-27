@@ -1,4 +1,6 @@
 python-telegram-bot[webhooks] --pre
-requests
+aiohttp
 beautifulsoup4
 lxml
+pydantic[dotenv]
+pyyaml

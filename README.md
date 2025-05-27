@@ -96,7 +96,7 @@ export PORT=8000  # Optional, defaults to 8000
 
 ### Local Development
 ```bash
-python price_bot.py
+python -m app.main
 ```
 The bot will run in polling mode for local testing.
 
@@ -154,29 +154,45 @@ railway up
 • Бейдж: 10/10 (✅ Проверенный продавец)
 ```
 
-## Architecture
+## Architecture - Refactored Modular Design
 
-### Core Files
-- **`price_bot.py`**: Main application logic with all scraping and analysis functions
-- **`messages.py`**: Centralized localized messages in Russian for easy editing and maintenance
+The bot has been **completely refactored** from a ~1000-line monolith into a well-structured, modular codebase:
+
+```
+app/
+├── __init__.py            # Package root
+├── main.py                # Application entry point
+├── models.py              # Pydantic data models
+├── config.py              # Configuration management
+├── bot/
+│   ├── handlers.py        # Telegram command & message handlers
+│   └── utils.py           # Bot utility functions
+├── scrapers/
+│   ├── ebay.py            # eBay scraper (get_item_data)
+│   └── grailed.py         # Grailed scraper + seller analysis
+├── services/
+│   ├── currency.py        # Exchange rate service (CBR API)
+│   ├── shipping.py        # Shopfans shipping estimation
+│   └── reliability.py    # Seller reliability evaluation
+└── config/
+    ├── shipping_table.yml # Product weight mapping
+    └── fees.yml           # Commission & shipping rates
+```
+
+### Key Improvements
+- **🏗️ Modular Architecture**: Clear separation of concerns across dedicated modules
+- **⚡ Async I/O**: Replaced `requests` with `aiohttp` throughout for better performance
+- **📊 Typed Models**: Pydantic data structures replacing untyped dictionaries
+- **⚙️ External Config**: YAML configuration files for easy updates without code changes
+- **🧪 Comprehensive Tests**: Unit tests for all business logic components
 
 ### Technical Stack
-- **HTTP session**: Retry logic and proper user agents for reliable scraping
+- **Async HTTP**: `aiohttp` with connection pooling and proper timeout handling
 - **Concurrent processing**: `asyncio.gather()` for parallel URL processing
-- **Robust parsing**: Multiple extraction strategies for evolving website structures:
-  - BeautifulSoup for HTML parsing with multiple CSS selectors
-  - JSON parsing with various field name patterns and fallback strategies
-  - Comprehensive error handling and detailed logging
+- **Type Safety**: Pydantic models for data validation and IDE support
+- **Configuration**: YAML files + Pydantic Settings for environment management
+- **Robust parsing**: Multiple extraction strategies for evolving website structures
 - **Financial precision**: Decimal arithmetic for accurate price calculations
-- **Date handling**: Multiple datetime formats (ISO, epoch, HTML attributes)
-
-### Data Extraction Strategy
-The bot uses a multi-layered approach for reliable data extraction from dynamic websites:
-
-1. **JSON Parsing**: Primary method using multiple regex patterns for various field names
-2. **HTML Fallback**: Secondary method parsing visible HTML elements when JSON fails  
-3. **Profile Fetching**: Tertiary method fetching seller data directly from profile pages
-4. **Comprehensive Logging**: Detailed debug information for troubleshooting extraction issues
 
 ## Error Handling
 
