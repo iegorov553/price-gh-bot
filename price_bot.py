@@ -228,18 +228,20 @@ def scrape_price_grailed(url: str) -> tuple[Optional[Decimal], bool]:
     if not price:
         price = _parse_json_ld(soup)
     
-    # Check for purchase/buy buttons
-    purchase_button = soup.find('button', string=re.compile(r'(Purchase|Buy Now|Buy)', re.I))
-    if not purchase_button:
-        purchase_button = soup.find('a', string=re.compile(r'(Purchase|Buy Now|Buy)', re.I))
-    
-    # Check for offer button
-    offer_button = soup.find('button', string=re.compile(r'(Offer|Make.*Offer)', re.I))
-    if not offer_button:
-        offer_button = soup.find('a', string=re.compile(r'(Offer|Make.*Offer)', re.I))
-    
-    # Item is buyable if both buttons exist, not buyable if only offer button exists
-    is_buyable = purchase_button is not None and offer_button is not None
+    # Check buyability from JSON data (Grailed uses React SPA)
+    is_buyable = False
+    try:
+        # Look for JSON data containing buyNow flag
+        for script in soup.find_all('script'):
+            if script.string and 'buyNow' in script.string:
+                # Try to extract buyNow flag from JSON
+                buy_now_match = re.search(r'"buyNow"\s*:\s*(true|false)', script.string)
+                if buy_now_match:
+                    is_buyable = buy_now_match.group(1) == 'true'
+                    break
+    except Exception:
+        # Fallback: assume buyable if price is found
+        is_buyable = price is not None
     
     return price, is_buyable
 
