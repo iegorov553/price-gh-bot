@@ -1,4 +1,10 @@
-"""Application entry point."""
+"""Application entry point.
+
+Main module that initializes and runs the Telegram bot application. Handles both
+webhook mode (for production deployment on Railway) and polling mode (for local
+development). Configures logging and registers bot handlers for commands and
+message processing.
+"""
 
 import logging
 import os
@@ -17,7 +23,15 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
-    """Main application entry point."""
+    """Main application entry point.
+    
+    Initializes the Telegram bot application with proper configuration,
+    registers command and message handlers, and starts the bot in either
+    webhook mode (production) or polling mode (development).
+    
+    Raises:
+        RuntimeError: If BOT_TOKEN environment variable is not set.
+    """
     if not config.bot.bot_token:
         raise RuntimeError('Set BOT_TOKEN environment variable')
     

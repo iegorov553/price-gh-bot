@@ -1,4 +1,9 @@
-"""Telegram bot messages."""
+"""Telegram bot message templates and constants.
+
+Contains all user-facing message templates in Russian, error messages, and
+formatting constants for bot responses. Centralizes message management for
+easy localization and consistent user experience across different bot features.
+"""
 
 # Bot commands and descriptions
 START_MESSAGE = (

@@ -6,3 +6,6 @@ pydantic[dotenv]
 pydantic-settings
 pyyaml
 requests
+pydocstyle
+mkdocs-material
+mkdocstrings[python]

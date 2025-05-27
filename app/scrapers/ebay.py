@@ -1,4 +1,12 @@
-"""eBay scraper implementation."""
+"""eBay listing scraper for extracting item prices, shipping costs, and details.
+
+This module provides functionality to scrape eBay listings for item information including
+prices, US shipping costs, titles, and buyability status. It handles various eBay page
+layouts and data formats using multiple extraction strategies with fallbacks.
+
+The scraper supports both regular HTML parsing and JSON-LD structured data extraction
+to ensure reliable data retrieval across different eBay page types.
+"""
 
 import json
 import re
@@ -28,7 +36,7 @@ EBAY_SHIPPING_SELECTORS = [
 
 
 def _clean_price(raw: str) -> Optional[Decimal]:
-    """Clean and parse price string."""
+    """Clean and parse price string into Decimal."""
     raw = raw.strip()
     if not PRICE_RE.match(raw):
         return None
@@ -39,7 +47,7 @@ def _clean_price(raw: str) -> Optional[Decimal]:
 
 
 def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
-    """Parse JSON-LD structured data for price."""
+    """Parse JSON-LD structured data for price information."""
     for script in soup.find_all('script', type='application/ld+json'):
         text = script.string
         if not text:
@@ -68,7 +76,7 @@ def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
 
 
 def _scrape_shipping_ebay(soup: BeautifulSoup) -> Optional[Decimal]:
-    """Extract eBay shipping cost."""
+    """Extract US shipping cost from eBay listing page."""
     for css, attr in EBAY_SHIPPING_SELECTORS:
         tag = soup.select_one(css)
         if tag:
@@ -86,7 +94,7 @@ def _scrape_shipping_ebay(soup: BeautifulSoup) -> Optional[Decimal]:
 
 
 def _extract_title(soup: BeautifulSoup) -> Optional[str]:
-    """Extract item title."""
+    """Extract item title from eBay listing page."""
     og = soup.find("meta", property="og:title")
     if og and og.get("content"):
         return og["content"]
@@ -97,15 +105,22 @@ def _extract_title(soup: BeautifulSoup) -> Optional[str]:
 
 
 async def get_item_data(url: str, session: aiohttp.ClientSession) -> ItemData:
-    """
-    Scrape eBay item data.
+    """Scrape comprehensive item data from an eBay listing.
+    
+    Extracts item price, US shipping cost, title, and buyability status from an eBay
+    listing page. Uses multiple extraction strategies including HTML parsing and
+    JSON-LD structured data to handle various eBay page layouts.
     
     Args:
-        url: eBay listing URL
-        session: aiohttp session for requests
+        url (str): The eBay listing URL to scrape.
+        session (aiohttp.ClientSession): HTTP session for making requests.
     
     Returns:
-        ItemData with scraped information
+        ItemData: Object containing extracted item information including:
+            - price: Item price in USD as Decimal, None if not found
+            - shipping_us: US shipping cost as Decimal, None if not found
+            - is_buyable: Always True for eBay items
+            - title: Item title string, None if not found
     """
     try:
         async with session.get(url) as response:
@@ -144,7 +159,17 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> ItemData:
 
 
 def is_ebay_url(url: str) -> bool:
-    """Check if URL is an eBay listing."""
+    """Check if a URL belongs to eBay domain.
+    
+    Validates whether the provided URL is from an eBay domain by parsing
+    the netloc and checking for 'ebay' in the domain components.
+    
+    Args:
+        url (str): The URL to check.
+        
+    Returns:
+        bool: True if the URL is from an eBay domain, False otherwise.
+    """
     try:
         parsed = urlparse(url)
         domain = parsed.netloc.lower().split(':')[0]

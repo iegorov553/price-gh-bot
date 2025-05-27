@@ -1,4 +1,9 @@
-"""Currency exchange rate service."""
+"""Currency exchange rate service.
+
+Handles fetching and caching of USD to RUB exchange rates from the Central
+Bank of Russia API. Applies configured markup and provides fallback handling
+for API failures. Includes in-memory caching to reduce API calls.
+"""
 
 import asyncio
 import logging
@@ -20,14 +25,16 @@ _cache_ttl = timedelta(hours=1)
 
 
 async def get_usd_to_rub_rate(session: aiohttp.ClientSession) -> Optional[CurrencyRate]:
-    """
-    Get USD to RUB exchange rate from Central Bank of Russia.
+    """Get USD to RUB exchange rate from Central Bank of Russia.
+    
+    Fetches current exchange rate from CBR XML API, applies configured markup,
+    and caches result for 1 hour. Returns None if API is unavailable.
     
     Args:
-        session: aiohttp session for requests
+        session: aiohttp session for making requests.
     
     Returns:
-        CurrencyRate object or None if failed
+        CurrencyRate object with rate and metadata, None if failed.
     """
     cache_key = "USD_RUB"
     now = datetime.now()
@@ -97,16 +104,19 @@ async def get_usd_to_rub_rate(session: aiohttp.ClientSession) -> Optional[Curren
 
 
 async def get_rate(from_currency: str, to_currency: str, session: aiohttp.ClientSession) -> Optional[CurrencyRate]:
-    """
-    Get exchange rate for currency pair.
+    """Get exchange rate for specified currency pair.
+    
+    Currently only supports USD to RUB conversion. Other currency pairs
+    will return None with a warning log.
     
     Args:
-        from_currency: Source currency code
-        to_currency: Target currency code
-        session: aiohttp session for requests
+        from_currency: Source currency code (e.g., 'USD').
+        to_currency: Target currency code (e.g., 'RUB').
+        session: aiohttp session for making requests.
     
     Returns:
-        CurrencyRate object or None if not supported/failed
+        CurrencyRate object with rate and metadata, None if currency pair
+        not supported or conversion failed.
     """
     if from_currency == "USD" and to_currency == "RUB":
         return await get_usd_to_rub_rate(session)
@@ -116,7 +126,12 @@ async def get_rate(from_currency: str, to_currency: str, session: aiohttp.Client
 
 
 def clear_cache():
-    """Clear the rate cache."""
+    """Clear the in-memory currency rate cache.
+    
+    Removes all cached exchange rates, forcing fresh API calls on next
+    rate requests. Useful for testing or when manual cache invalidation
+    is needed.
+    """
     global _rate_cache
     _rate_cache.clear()
     logger.info("Currency rate cache cleared")

@@ -1,4 +1,10 @@
-"""Tests for currency exchange service."""
+"""Tests for currency exchange service functionality.
+
+This module contains tests for the currency service that handles:
+- USD to RUB exchange rate fetching from CBR API
+- Rate caching and error handling
+- Currency conversion rate calculations with markup
+"""
 
 import pytest
 from unittest.mock import AsyncMock, patch

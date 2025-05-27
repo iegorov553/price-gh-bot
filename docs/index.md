@@ -1,0 +1,178 @@
+# Price Bot Documentation
+
+A Telegram bot that calculates total costs for eBay and Grailed listings including shipping to Russia and commission fees, with comprehensive seller reliability analysis.
+
+## Overview
+
+This bot provides intelligent price calculation and seller analysis for online marketplace purchases:
+
+- **Multi-platform support**: eBay and Grailed integration
+- **Smart commission system**: Tiered pricing based on item value
+- **Shipping estimation**: US domestic + Russia delivery via Shopfans
+- **Currency conversion**: Real-time USD to RUB rates from Central Bank of Russia
+- **Seller analysis**: Comprehensive reliability scoring for Grailed sellers
+
+## Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/iegorov553/price-gh-bot.git
+cd price-gh-bot
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variables
+export BOT_TOKEN="your_telegram_bot_token"
+```
+
+### Local Development
+
+```bash
+# Run in polling mode for development
+python -m app.main
+```
+
+### Production Deployment
+
+Deploy to Railway for production use with webhook mode:
+
+```bash
+railway up
+```
+
+## Architecture
+
+The application follows a modular async architecture:
+
+```mermaid
+graph TD
+    A[Telegram Update] --> B[Bot Handlers]
+    B --> C{URL Type?}
+    
+    C -->|eBay URL| D[eBay Scraper]
+    C -->|Grailed Listing| E[Grailed Scraper]
+    C -->|Grailed Profile| F[Grailed Seller Analysis]
+    
+    D --> G[Item Data]
+    E --> H[Item Data + Seller Data]
+    F --> I[Seller Analysis]
+    
+    G --> J[Shipping Service]
+    H --> J
+    H --> K[Reliability Service]
+    
+    J --> L[Currency Service]
+    K --> M[Response Builder]
+    L --> M
+    
+    M --> N[Formatted Response]
+    N --> O[Telegram Reply]
+    
+    P[CBR API] --> L
+    Q[Shopfans Estimator] --> J
+```
+
+### Key Components
+
+| Component | Purpose | Location |
+|-----------|---------|----------|
+| **Bot Handlers** | Message processing and user interaction | `app/bot/` |
+| **Scrapers** | eBay and Grailed data extraction | `app/scrapers/` |
+| **Services** | Business logic (currency, shipping, reliability) | `app/services/` |
+| **Models** | Type-safe data structures | `app/models.py` |
+| **Configuration** | Environment and YAML config management | `app/config.py` |
+
+## Features
+
+### Price Calculation
+
+1. **URL Detection**: Extract marketplace URLs from messages
+2. **Concurrent Scraping**: Parallel data fetching for performance
+3. **Shipping Estimation**: US + Russia delivery cost calculation
+4. **Commission Application**: Tiered fee structure
+5. **Currency Conversion**: Live USD to RUB rates with markup
+6. **Response Formatting**: Structured pricing breakdown
+
+### Seller Reliability Analysis (Grailed)
+
+Comprehensive 100-point scoring system:
+
+- **Activity (0-30 points)**: Days since last listing update
+- **Rating (0-35 points)**: Average seller rating (0-5.0 scale)
+- **Review Volume (0-25 points)**: Total number of reviews
+- **Badge (0-10 points)**: Trusted Seller verification
+
+**Categories:**
+- 💎 Diamond (85-100): Top-tier seller
+- 🥇 Gold (70-84): High reliability
+- 🥈 Silver (55-69): Normal reliability
+- 🥉 Bronze (40-54): Increased risk
+- 👻 Ghost (<40): Low reliability
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `BOT_TOKEN` | ✅ | Telegram bot token |
+| `PORT` | ❌ | Server port (default: 8000) |
+| `RAILWAY_PUBLIC_DOMAIN` | ❌ | Railway domain for webhooks |
+
+### YAML Configuration
+
+The bot supports external configuration via YAML files:
+
+- `app/config/fees.yml`: Commission rates and shipping costs
+- `app/config/shipping_table.yml`: Item weight patterns for shipping estimation
+
+## Development
+
+### Code Quality
+
+```bash
+# Linting and formatting
+ruff .
+
+# Docstring validation
+pydocstyle .
+
+# Type checking
+mypy app/
+
+# Testing
+pytest
+```
+
+### Documentation
+
+```bash
+# Serve documentation locally
+mkdocs serve
+
+# Build documentation
+mkdocs build
+```
+
+### Contributing
+
+1. Follow Google-style docstrings for all functions
+2. Maintain type safety with Pydantic models
+3. Add tests for new functionality
+4. Update documentation for API changes
+
+## Technical Stack
+
+- **Async Framework**: `aiohttp` with connection pooling
+- **Type Safety**: Pydantic models for data validation
+- **Configuration**: YAML + environment variable management
+- **Testing**: pytest with async support
+- **Documentation**: MkDocs with automatic API reference generation
+- **Deployment**: Railway platform with webhook support
+
+---
+
+For detailed API documentation, see the [API Reference](api/main.md) section.

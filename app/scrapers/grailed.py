@@ -1,4 +1,16 @@
-"""Grailed scraper implementation."""
+"""Grailed listing scraper and seller profile analyzer.
+
+This module handles scraping Grailed marketplace listings for item data, shipping costs,
+and buyability detection. It also provides comprehensive seller profile analysis including
+rating evaluation, review count tracking, trusted badge detection, and activity monitoring.
+
+Key features:
+- Item price and shipping cost extraction with multiple fallback strategies
+- Buyability detection for buy-now vs offer-only listings
+- Comprehensive seller reliability analysis and scoring
+- Robust JSON and HTML parsing with error handling
+- Profile URL extraction and seller activity tracking
+"""
 
 import json
 import re
@@ -364,15 +376,20 @@ async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSessi
 
 
 async def get_item_data(url: str, session: aiohttp.ClientSession) -> Tuple[ItemData, Optional[SellerData]]:
-    """
-    Scrape Grailed item data and seller information.
+    """Scrape Grailed item data and seller information.
+    
+    Extracts comprehensive item data including price, shipping costs, buyability status,
+    and title. Also analyzes seller profile for reliability metrics including rating,
+    review count, trusted badge status, and last activity.
     
     Args:
-        url: Grailed listing URL
-        session: aiohttp session for requests
+        url: Grailed listing URL to scrape
+        session: aiohttp ClientSession for making HTTP requests
     
     Returns:
-        Tuple of (ItemData, Optional[SellerData])
+        Tuple containing ItemData object and optional SellerData object.
+        ItemData includes price, shipping, buyability, and title.
+        SellerData includes rating, reviews, badge status, and last update.
     """
     try:
         async with session.get(url) as response:
@@ -406,7 +423,17 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> Tuple[ItemD
 
 
 def is_grailed_url(url: str) -> bool:
-    """Check if URL is a Grailed listing."""
+    """Check if URL is a Grailed listing.
+    
+    Validates whether a given URL belongs to the Grailed marketplace domain.
+    Used to route URLs to the appropriate scraper.
+    
+    Args:
+        url: URL string to validate
+    
+    Returns:
+        True if URL is from Grailed domain, False otherwise
+    """
     try:
         parsed = urlparse(url)
         domain = parsed.netloc.lower().split(':')[0]
@@ -416,7 +443,18 @@ def is_grailed_url(url: str) -> bool:
 
 
 def is_grailed_seller_profile(url: str) -> bool:
-    """Check if URL is a Grailed seller profile."""
+    """Check if URL is a Grailed seller profile.
+    
+    Determines if a URL points to a Grailed seller profile page rather than
+    a listing. Supports various profile URL formats including direct usernames
+    and legacy /users/ paths.
+    
+    Args:
+        url: URL string to check
+    
+    Returns:
+        True if URL is a Grailed seller profile, False otherwise
+    """
     try:
         parsed = urlparse(url)
         if 'grailed.com' not in parsed.netloc.lower():
@@ -444,15 +482,24 @@ def is_grailed_seller_profile(url: str) -> bool:
 
 
 async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSession) -> Optional[Dict[str, Any]]:
-    """
-    Analyze Grailed seller profile.
+    """Analyze Grailed seller profile for reliability metrics.
+    
+    Performs comprehensive analysis of a Grailed seller's profile to extract
+    reliability indicators including average rating, review count, trusted badge
+    status, and last activity date. Uses multiple parsing strategies with
+    JSON and HTML fallbacks for robust data extraction.
     
     Args:
-        profile_url: Seller profile URL
-        session: aiohttp session for requests
+        profile_url: Grailed seller profile URL to analyze
+        session: aiohttp ClientSession for making HTTP requests
     
     Returns:
-        Dict with seller analysis data or None if failed
+        Dictionary containing seller metrics:
+        - num_reviews: Number of seller reviews
+        - avg_rating: Average seller rating (0.0-5.0)
+        - trusted_badge: Whether seller has trusted badge
+        - last_updated: DateTime of last seller activity
+        Returns None if profile analysis fails.
     """
     try:
         async with session.get(profile_url) as response:
