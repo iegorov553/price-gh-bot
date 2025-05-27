@@ -10,16 +10,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture Overview
 
-This is a single-file Telegram bot (`price_bot.py`) that scrapes prices from eBay and Grailed listings and calculates a 30% markup. The bot operates in two modes:
+This is a single-file Telegram bot (`price_bot.py`) that scrapes prices from eBay and Grailed listings, adds US shipping costs, and calculates a 10% markup. The bot operates in two modes:
 - **Webhook mode**: When deployed with a public domain (Railway), uses webhooks for production
 - **Polling mode**: Falls back to long-polling when no public domain is available (local development)
 
 ### Core Components
 
-- **Price scrapers**: Separate functions for eBay (`scrape_price_ebay`) and Grailed (`scrape_price_grailed`) that use different CSS selectors and fallback strategies
+- **Price scrapers**: Combined function `get_price_and_shipping()` that extracts both item price and US shipping cost from eBay and Grailed listings
+- **Shipping scrapers**: Separate functions for eBay (`scrape_shipping_ebay`) and Grailed (`scrape_shipping_grailed`) that parse shipping costs
 - **Link resolution**: Handles Grailed app.link shorteners by following redirects
 - **Concurrent processing**: Uses `asyncio.gather()` to scrape multiple URLs in parallel when multiple links are detected
 - **HTTP session**: Configured with retries and proper user agent for reliable scraping
+- **Price calculation**: Formula: `(item_price + shipping_cost) * 1.10` instead of simple 30% markup
 
 ### Environment Variables
 

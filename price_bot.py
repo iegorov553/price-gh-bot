@@ -40,6 +40,13 @@ EBAY_SELECTORS = [
     ("span#mm-saleDscPrc", 'text'),
 ]
 
+EBAY_SHIPPING_SELECTORS = [
+    ("span#fshippingCost", 'text'),
+    ("span.vi-price .notranslate", 'text'),
+    ("span.u-flL.condText", 'text'),
+    ("#shipCostId", 'text'),
+]
+
 def _clean_price(raw: str) -> Optional[Decimal]:
     raw = raw.strip()
     if not PRICE_RE.match(raw):
@@ -75,6 +82,22 @@ def _parse_json_ld(soup: BeautifulSoup) -> Optional[Decimal]:
     return None
 
 
+def scrape_shipping_ebay(soup: BeautifulSoup) -> Optional[Decimal]:
+    for css, attr in EBAY_SHIPPING_SELECTORS:
+        tag = soup.select_one(css)
+        if tag:
+            raw = tag.get(attr) if attr != 'text' else tag.get_text(strip=True)
+            if 'free' in raw.lower() or 'бесплатно' in raw.lower():
+                return Decimal('0')
+            raw = re.sub(r'[^\d.,]', '', raw)
+            shipping = _clean_price(raw)
+            if shipping:
+                return shipping
+    if soup.find(text=re.compile(r'free shipping', re.I)):
+        return Decimal('0')
+    return None
+
+
 def scrape_price_ebay(url: str) -> Optional[Decimal]:
     try:
         r = session.get(url, timeout=TIMEOUT)
@@ -91,6 +114,32 @@ def scrape_price_ebay(url: str) -> Optional[Decimal]:
             if price:
                 return price
     return _parse_json_ld(soup)
+
+
+def scrape_shipping_grailed(soup: BeautifulSoup) -> Optional[Decimal]:
+    shipping_text = soup.find(text=re.compile(r'shipping', re.I))
+    if shipping_text:
+        parent = shipping_text.parent
+        if parent:
+            text = parent.get_text()
+            if 'free' in text.lower():
+                return Decimal('0')
+            shipping_match = re.search(r'\$(\d+(?:\.\d{2})?)', text)
+            if shipping_match:
+                return Decimal(shipping_match.group(1))
+    
+    shipping_elem = soup.find('div', string=re.compile(r'shipping', re.I))
+    if shipping_elem:
+        next_elem = shipping_elem.find_next_sibling()
+        if next_elem:
+            text = next_elem.get_text(strip=True)
+            if 'free' in text.lower():
+                return Decimal('0')
+            shipping_match = re.search(r'\$(\d+(?:\.\d{2})?)', text)
+            if shipping_match:
+                return Decimal(shipping_match.group(1))
+    
+    return Decimal('15')
 
 
 def scrape_price_grailed(url: str) -> Optional[Decimal]:
@@ -114,7 +163,7 @@ def scrape_price_grailed(url: str) -> Optional[Decimal]:
     return _parse_json_ld(soup)
 
 
-def get_price(url: str) -> Optional[Decimal]:
+def get_price_and_shipping(url: str) -> tuple[Optional[Decimal], Optional[Decimal]]:
     parsed = urlparse(url)
     # Resolve Grailed app.link shorteners
     if parsed.netloc.endswith('app.link'):
@@ -132,18 +181,52 @@ def get_price(url: str) -> Optional[Decimal]:
                     if a:
                         url = a['href']
         except Exception:
-            return None
+            return None, None
+    
+    try:
+        r = session.get(url, timeout=TIMEOUT)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, 'lxml')
+    except Exception as e:
+        logger.error(f"Request error: {e}")
+        return None, None
+    
     domain = urlparse(url).netloc.lower().split(':')[0]
     labels = domain.split('.')
+    
     if 'ebay' in labels:
-        return scrape_price_ebay(url)
+        price = None
+        for css, attr in EBAY_SELECTORS:
+            tag = soup.select_one(css)
+            if tag:
+                raw = tag.get(attr) if attr != 'text' else tag.get_text(strip=True)
+                price = _clean_price(raw)
+                if price:
+                    break
+        if not price:
+            price = _parse_json_ld(soup)
+        shipping = scrape_shipping_ebay(soup)
+        return price, shipping
+    
     if 'grailed' in labels:
-        return scrape_price_grailed(url)
-    return None
+        span = soup.find('span', attrs={'class': lambda c: c and 'price' in c.lower()})
+        price = None
+        if span:
+            price = _clean_price(span.get_text(strip=True))
+        if not price:
+            meta = soup.find('meta', property='product:price:amount')
+            if meta and meta.get('content'):
+                price = _clean_price(meta['content'])
+        if not price:
+            price = _parse_json_ld(soup)
+        shipping = scrape_shipping_grailed(soup)
+        return price, shipping
+    
+    return None, None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Yo, send me an eBay or Grailed link and I'll spit back the price +30%."
+        "Yo, send me an eBay or Grailed link and I'll calculate the price + shipping + 10%."
     )
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -152,14 +235,21 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not urls:
         return
     # Fetch all URLs concurrently for performance
-    tasks = [asyncio.to_thread(get_price, u) for u in urls]
+    tasks = [asyncio.to_thread(get_price_and_shipping, u) for u in urls]
     results = await asyncio.gather(*tasks)
-    for u, price in zip(urls, results):
+    for u, (price, shipping) in zip(urls, results):
         if not price:
             await update.message.reply_text(f"Couldn’t pull the price from {u} 🤷‍♀️")
         else:
-            markup = (price * Decimal('1.30')).quantize(Decimal('0.01'), ROUND_HALF_UP)
-            await update.message.reply_text(f"List price: {price} → with my 30% magic: {markup}")
+            shipping = shipping or Decimal('0')
+            total_cost = price + shipping
+            final_price = (total_cost * Decimal('1.10')).quantize(Decimal('0.01'), ROUND_HALF_UP)
+            
+            shipping_text = f" + ${shipping} shipping" if shipping > 0 else " (free shipping)"
+            await update.message.reply_text(
+                f"Price: ${price}{shipping_text} = ${total_cost}\n"
+                f"With 10% markup: ${final_price}"
+            )
 
 
 def main() -> None:
