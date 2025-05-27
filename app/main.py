@@ -3,8 +3,7 @@
 import logging
 import os
 
-from telegram import Application
-from telegram.ext import CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from .bot.handlers import start, handle_link
 from .config import config
