@@ -23,9 +23,7 @@ from messages import (
     SELLER_ACTIVITY_LINE, SELLER_RATING_LINE, SELLER_REVIEWS_LINE,
     SELLER_BADGE_LINE, TRUSTED_SELLER_BADGE, NO_BADGE, TIME_TODAY,
     TIME_YESTERDAY, TIME_DAYS_AGO, SELLER_INFO_LINE, SELLER_DESCRIPTION_LINE,
-    ADMIN_NOTIFICATION, LOG_CBR_API_FAILED, DEBUG_SELLER_PROFILE_DETECTED,
-    DEBUG_SELLER_PROFILE_NOT_DETECTED, DEBUG_SELLER_DATA_EXTRACTED,
-    DEBUG_SELLER_DATA_NOT_FOUND
+    ADMIN_NOTIFICATION, LOG_CBR_API_FAILED
 )
 
 import requests
@@ -163,6 +161,16 @@ async def notify_admin(application, message: str) -> None:
         logger.info(f"Admin notification sent: {message}")
     except Exception as e:
         logger.error(f"Failed to send admin notification: {e}")
+
+async def send_debug_to_admin(application, message: str) -> None:
+    """Send debug message to admin only (not to users)"""
+    try:
+        await application.bot.send_message(
+            chat_id=ADMIN_CHAT_ID,
+            text=f"🔧 Debug: {message}"
+        )
+    except Exception as e:
+        logger.debug(f"Failed to send debug message to admin: {e}")
 
 def get_usd_to_rub_rate() -> Optional[Decimal]:
     """Get USD to RUB exchange rate from Central Bank of Russia with 5% markup"""
@@ -426,42 +434,120 @@ def extract_seller_profile_url(soup: BeautifulSoup) -> Optional[str]:
 def fetch_seller_last_update(profile_url: str) -> Optional[datetime]:
     """Fetch the last update date from seller's profile page."""
     try:
-        logger.info(f"Fetching seller profile: {profile_url}")
+        logger.debug(f"Fetching seller last update from: {profile_url}")
         r = session.get(profile_url, timeout=TIMEOUT)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, 'lxml')
         
         latest_date = None
+        dates_found = []
         
-        # Look for listing dates in JSON data
+        # Look for listing dates in JSON data with multiple patterns
+        scripts_checked = 0
         for script in soup.find_all('script'):
-            if script.string and ('listing' in script.string or 'item' in script.string):
-                # Find all date patterns in the script
-                date_matches = re.findall(r'"(?:updatedAt|createdAt|lastUpdated)"\s*:\s*"([^"]+)"', script.string)
-                for date_str in date_matches:
-                    try:
-                        if 'T' in date_str:
-                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        else:
-                            date_obj = datetime.fromisoformat(date_str)
-                        
-                        if latest_date is None or date_obj > latest_date:
-                            latest_date = date_obj
-                    except Exception:
-                        continue
+            scripts_checked += 1
+            if not script.string:
+                continue
+                
+            script_content = script.string
+            
+            # Look for various date patterns
+            if any(keyword in script_content for keyword in ['date', 'time', 'created', 'updated', 'listing']):
+                logger.debug(f"Found script with date keywords (date script #{scripts_checked})")
+                
+                # Multiple date field patterns
+                date_patterns = [
+                    r'"(?:updatedAt|lastUpdated|dateUpdated)"\s*:\s*"([^"]+)"',
+                    r'"(?:createdAt|dateCreated|created)"\s*:\s*"([^"]+)"',
+                    r'"(?:publishedAt|datePublished)"\s*:\s*"([^"]+)"',
+                    r'"(?:date|timestamp)"\s*:\s*"([^"]+)"',
+                    r'"(?:listingDate|itemDate)"\s*:\s*"([^"]+)"',
+                    # ISO datetime patterns
+                    r'"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))"',
+                    # Epoch timestamps
+                    r'"(?:time|date)"\s*:\s*(\d{10,13})',
+                ]
+                
+                for pattern in date_patterns:
+                    date_matches = re.findall(pattern, script_content, re.IGNORECASE)
+                    for date_str in date_matches:
+                        try:
+                            # Handle different date formats
+                            if date_str.isdigit():
+                                # Epoch timestamp
+                                timestamp = int(date_str)
+                                if timestamp > 1000000000000:  # Milliseconds
+                                    timestamp = timestamp / 1000
+                                date_obj = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+                            elif 'T' in date_str:
+                                # ISO format
+                                date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                            else:
+                                # Try parsing as ISO date
+                                date_obj = datetime.fromisoformat(date_str)
+                                if date_obj.tzinfo is None:
+                                    date_obj = date_obj.replace(tzinfo=timezone.utc)
+                            
+                            dates_found.append(date_obj)
+                            if latest_date is None or date_obj > latest_date:
+                                latest_date = date_obj
+                                logger.debug(f"Found newer date: {latest_date}")
+                                
+                        except Exception as e:
+                            logger.debug(f"Error parsing date '{date_str}': {e}")
+                            continue
         
-        # Fallback: look for visible date elements
+        logger.debug(f"Checked {scripts_checked} scripts, found {len(dates_found)} dates")
+        
+        # Fallback: look for visible date elements in HTML
         if not latest_date:
+            logger.debug("No dates found in scripts, checking HTML elements...")
+            
             # Look for time elements, date spans, etc.
-            for time_elem in soup.find_all(['time', 'span'], attrs={'datetime': True}):
-                try:
-                    date_str = time_elem.get('datetime')
-                    date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                    if latest_date is None or date_obj > latest_date:
-                        latest_date = date_obj
-                except Exception:
-                    continue
+            date_selectors = [
+                'time[datetime]', '[data-date]', '[data-timestamp]',
+                '.date', '.timestamp', '.time', '[class*="date"]',
+                '[class*="time"]', '.listing-date', '.updated'
+            ]
+            
+            for selector in date_selectors:
+                elements = soup.select(selector)
+                for element in elements:
+                    # Try datetime attribute first
+                    date_str = element.get('datetime') or element.get('data-date') or element.get('data-timestamp')
+                    if not date_str:
+                        # Try element text
+                        date_str = element.get_text(strip=True)
+                        # Look for date-like patterns in text
+                        date_match = re.search(r'(\d{4}-\d{2}-\d{2})', date_str)
+                        if date_match:
+                            date_str = date_match.group(1)
+                    
+                    if date_str:
+                        try:
+                            if date_str.isdigit():
+                                timestamp = int(date_str)
+                                if timestamp > 1000000000000:
+                                    timestamp = timestamp / 1000
+                                date_obj = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+                            else:
+                                date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                                if date_obj.tzinfo is None:
+                                    date_obj = date_obj.replace(tzinfo=timezone.utc)
+                            
+                            if latest_date is None or date_obj > latest_date:
+                                latest_date = date_obj
+                                logger.debug(f"Found date in HTML: {latest_date}")
+                                
+                        except Exception as e:
+                            logger.debug(f"Error parsing HTML date '{date_str}': {e}")
+                            continue
         
+        if latest_date:
+            logger.debug(f"Latest update date found: {latest_date}")
+        else:
+            logger.debug("No update date found on profile page")
+            
         return latest_date
         
     except Exception as e:
@@ -489,35 +575,85 @@ def extract_seller_data_grailed(soup: BeautifulSoup) -> Optional[Dict[str, Any]]
         
         # Look for seller data in JSON within script tags
         scripts_checked = 0
+        found_data = False
+        
         for script in soup.find_all('script'):
             scripts_checked += 1
-            if script.string and 'seller' in script.string:
-                logger.debug(f"Found script with 'seller' keyword (script #{scripts_checked})")
+            if not script.string:
+                continue
                 
-                # Try to extract seller info from JSON
+            script_content = script.string
+            
+            # Check multiple patterns for seller data
+            if any(keyword in script_content for keyword in ['seller', 'user', 'rating', 'review']):
+                logger.debug(f"Found script with seller keywords (script #{scripts_checked})")
+                
                 try:
-                    # Look for patterns like "seller":{"rating":4.5,"reviewCount":23}
-                    seller_match = re.search(r'"seller"\s*:\s*\{[^}]*"rating"\s*:\s*([0-9.]+)[^}]*"reviewCount"\s*:\s*(\d+)[^}]*\}', script.string)
-                    if seller_match:
-                        avg_rating = float(seller_match.group(1))
-                        num_reviews = int(seller_match.group(2))
-                        logger.debug(f"Extracted rating: {avg_rating}, reviews: {num_reviews}")
+                    # Pattern 1: Look for JSON-LD or structured data
+                    json_ld_match = re.search(r'"@type"\s*:\s*"Person"[^}]*"name"\s*:\s*"([^"]+)"', script_content)
+                    if json_ld_match:
+                        logger.debug(f"Found structured person data: {json_ld_match.group(1)}")
+                    
+                    # Pattern 2: Modern React/GraphQL data patterns
+                    # Look for user objects with rating and review data
+                    user_patterns = [
+                        r'"user"\s*:\s*\{[^}]*"rating"\s*:\s*([0-9.]+)[^}]*"reviewCount"\s*:\s*(\d+)',
+                        r'"seller"\s*:\s*\{[^}]*"rating"\s*:\s*([0-9.]+)[^}]*"reviewCount"\s*:\s*(\d+)',
+                        r'"averageRating"\s*:\s*([0-9.]+)[^,}]*"totalReviews"\s*:\s*(\d+)',
+                        r'"rating"\s*:\s*([0-9.]+)[^,}]*"reviews"\s*:\s*(\d+)',
+                        r'rating["\']?\s*:\s*([0-9.]+)[^,}]*review[sC]ount["\']?\s*:\s*(\d+)',
+                    ]
+                    
+                    for pattern in user_patterns:
+                        seller_match = re.search(pattern, script_content, re.IGNORECASE)
+                        if seller_match:
+                            avg_rating = float(seller_match.group(1))
+                            num_reviews = int(seller_match.group(2))
+                            logger.debug(f"Pattern matched - Rating: {avg_rating}, Reviews: {num_reviews}")
+                            found_data = True
+                            break
+                    
+                    if found_data:
+                        # Look for trusted badge with various patterns
+                        trusted_patterns = [
+                            r'"trustedSeller"\s*:\s*true',
+                            r'"trusted"\s*:\s*true',
+                            r'"isTrusted"\s*:\s*true',
+                            r'"verified"\s*:\s*true',
+                            r'trustedSeller["\']?\s*:\s*true',
+                        ]
                         
-                        # Look for trusted badge
-                        trusted_badge = '"trustedSeller":true' in script.string or '"trusted":true' in script.string
-                        logger.debug(f"Trusted badge found: {trusted_badge}")
+                        for pattern in trusted_patterns:
+                            if re.search(pattern, script_content, re.IGNORECASE):
+                                trusted_badge = True
+                                logger.debug("Found trusted seller badge")
+                                break
+                        
                         break
+                        
                 except Exception as e:
-                    logger.debug(f"Error parsing seller data from script: {e}")
+                    logger.debug(f"Error parsing script #{scripts_checked}: {e}")
                     continue
         
         logger.debug(f"Checked {scripts_checked} scripts, found rating: {avg_rating}, reviews: {num_reviews}")
         
-        # Get seller profile URL and fetch last update date
-        profile_url = extract_seller_profile_url(soup)
-        logger.debug(f"Extracted seller profile URL: {profile_url}")
+        # If no data found in scripts, try to extract from profile directly
+        if not found_data:
+            logger.debug("No seller data found in listing scripts, will extract from profile")
+            profile_url = extract_seller_profile_url(soup)
+            logger.debug(f"Extracted seller profile URL: {profile_url}")
+            
+            if profile_url:
+                # Get data directly from seller profile
+                profile_data = analyze_seller_profile(profile_url)
+                if profile_data:
+                    logger.info(f"Retrieved seller data from profile: rating={profile_data.get('avg_rating', 0)}, reviews={profile_data.get('num_reviews', 0)}")
+                    return profile_data
         
+        # Get seller profile URL and fetch last update date
+        profile_url = extract_seller_profile_url(soup) if not 'profile_url' in locals() else profile_url
         last_updated = None
+        
         if profile_url:
             last_updated = fetch_seller_last_update(profile_url)
             logger.debug(f"Fetched last update: {last_updated}")
@@ -528,7 +664,7 @@ def extract_seller_data_grailed(soup: BeautifulSoup) -> Optional[Dict[str, Any]]
             last_updated = datetime.now(timezone.utc)
         
         # Only return data if we have basic seller info
-        if avg_rating > 0 or num_reviews > 0:
+        if avg_rating > 0 or num_reviews > 0 or found_data:
             logger.info(f"Successfully extracted seller data: rating={avg_rating}, reviews={num_reviews}, badge={trusted_badge}")
             return {
                 'num_reviews': num_reviews,
@@ -604,26 +740,99 @@ def analyze_seller_profile(profile_url: str) -> Optional[Dict[str, Any]]:
         avg_rating = 0.0
         num_reviews = 0
         trusted_badge = False
+        found_data = False
         
         # Look for seller data in JSON within script tags
+        scripts_checked = 0
         for script in soup.find_all('script'):
-            if script.string and ('rating' in script.string or 'review' in script.string):
+            scripts_checked += 1
+            if not script.string:
+                continue
+                
+            script_content = script.string
+            
+            # Check for seller-related data
+            if any(keyword in script_content for keyword in ['rating', 'review', 'user', 'seller', 'trusted']):
+                logger.debug(f"Found script with seller keywords (profile script #{scripts_checked})")
+                
                 try:
-                    # Look for patterns like "rating":4.5,"reviewCount":23
-                    rating_match = re.search(r'"rating"\s*:\s*([0-9.]+)', script.string)
-                    if rating_match:
-                        avg_rating = float(rating_match.group(1))
+                    # Multiple patterns for extracting rating and review data
+                    patterns = [
+                        # Standard patterns
+                        (r'"rating"\s*:\s*([0-9.]+)', r'"reviewCount"\s*:\s*(\d+)'),
+                        (r'"averageRating"\s*:\s*([0-9.]+)', r'"totalReviews"\s*:\s*(\d+)'),
+                        (r'"userRating"\s*:\s*([0-9.]+)', r'"userReviews"\s*:\s*(\d+)'),
+                        # Variations
+                        (r'rating["\']?\s*:\s*([0-9.]+)', r'review[sC]ount["\']?\s*:\s*(\d+)'),
+                        (r'"stars"\s*:\s*([0-9.]+)', r'"reviews"\s*:\s*(\d+)'),
+                    ]
                     
-                    review_match = re.search(r'"reviewCount"\s*:\s*(\d+)', script.string)
-                    if review_match:
-                        num_reviews = int(review_match.group(1))
+                    for rating_pattern, review_pattern in patterns:
+                        rating_match = re.search(rating_pattern, script_content, re.IGNORECASE)
+                        review_match = re.search(review_pattern, script_content, re.IGNORECASE)
+                        
+                        if rating_match and review_match:
+                            avg_rating = float(rating_match.group(1))
+                            num_reviews = int(review_match.group(1))
+                            logger.debug(f"Extracted from profile - Rating: {avg_rating}, Reviews: {num_reviews}")
+                            found_data = True
+                            break
+                        elif rating_match:
+                            avg_rating = float(rating_match.group(1))
+                            logger.debug(f"Found rating: {avg_rating}")
+                        elif review_match:
+                            num_reviews = int(review_match.group(1))
+                            logger.debug(f"Found reviews: {num_reviews}")
                     
                     # Look for trusted badge
-                    if '"trustedSeller":true' in script.string or '"trusted":true' in script.string:
-                        trusted_badge = True
-                        
-                except Exception:
+                    trusted_patterns = [
+                        r'"trustedSeller"\s*:\s*true',
+                        r'"trusted"\s*:\s*true',
+                        r'"isTrusted"\s*:\s*true',
+                        r'"verified"\s*:\s*true',
+                        r'"badge"\s*:\s*["\']?trusted["\']?',
+                        r'trustedSeller["\']?\s*:\s*true',
+                    ]
+                    
+                    for pattern in trusted_patterns:
+                        if re.search(pattern, script_content, re.IGNORECASE):
+                            trusted_badge = True
+                            logger.debug("Found trusted seller badge in profile")
+                            break
+                            
+                except Exception as e:
+                    logger.debug(f"Error parsing profile script #{scripts_checked}: {e}")
                     continue
+        
+        logger.debug(f"Profile analysis: checked {scripts_checked} scripts, rating={avg_rating}, reviews={num_reviews}, trusted={trusted_badge}")
+        
+        # If still no data, try HTML parsing for visible elements
+        if not found_data and avg_rating == 0 and num_reviews == 0:
+            logger.debug("No data found in scripts, trying HTML parsing...")
+            
+            # Look for rating in HTML elements
+            rating_selectors = [
+                '[data-rating]', '.rating', '.stars', '[class*="rating"]',
+                '[class*="star"]', '.review-score', '.seller-rating'
+            ]
+            
+            for selector in rating_selectors:
+                elements = soup.select(selector)
+                for element in elements:
+                    text = element.get_text(strip=True)
+                    rating_match = re.search(r'([0-9.]+)', text)
+                    if rating_match:
+                        try:
+                            potential_rating = float(rating_match.group(1))
+                            if 0 <= potential_rating <= 5:
+                                avg_rating = potential_rating
+                                logger.debug(f"Found rating in HTML: {avg_rating}")
+                                break
+                        except ValueError:
+                            continue
+                
+                if avg_rating > 0:
+                    break
         
         # Get last updated date from profile listings
         last_updated = fetch_seller_last_update(profile_url)
@@ -633,22 +842,22 @@ def analyze_seller_profile(profile_url: str) -> Optional[Dict[str, Any]]:
             logger.warning("Could not determine seller's last update date, using current time")
             last_updated = datetime.now(timezone.utc)
         
-        # Only proceed if we have basic seller info
-        if avg_rating > 0 or num_reviews > 0:
-            # Evaluate reliability
-            reliability = evaluate_seller_reliability(
-                num_reviews, avg_rating, trusted_badge, last_updated
-            )
-            
-            return {
-                'num_reviews': num_reviews,
-                'avg_rating': avg_rating,
-                'trusted_badge': trusted_badge,
-                'last_updated': last_updated,
-                'reliability': reliability
-            }
+        # For profiles, we might not have rating data but still want to show analysis
+        # Create minimal data even if no reviews/rating found
+        logger.info(f"Profile analysis complete - Rating: {avg_rating}, Reviews: {num_reviews}, Trusted: {trusted_badge}")
         
-        return None
+        # Evaluate reliability
+        reliability = evaluate_seller_reliability(
+            num_reviews, avg_rating, trusted_badge, last_updated
+        )
+        
+        return {
+            'num_reviews': num_reviews,
+            'avg_rating': avg_rating,
+            'trusted_badge': trusted_badge,
+            'last_updated': last_updated,
+            'reliability': reliability
+        }
         
     except Exception as e:
         logger.error(f"Error analyzing seller profile {profile_url}: {e}")
@@ -781,7 +990,6 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         logger.info(f"Checking URL: {url}")
         if is_grailed_seller_profile(url):
             logger.info(f"Processing seller profile: {url}")
-            await update.message.reply_text(DEBUG_SELLER_PROFILE_DETECTED.format(url=url))
             try:
                 seller_data = await asyncio.to_thread(analyze_seller_profile, url)
                 if seller_data:
@@ -792,6 +1000,8 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             except Exception as e:
                 logger.error(f"Error processing seller profile {url}: {e}")
                 await update.message.reply_text(ERROR_SELLER_ANALYSIS)
+                # Send debug info to admin only
+                await send_debug_to_admin(context.application, f"Seller profile error for {url}: {e}")
             return  # Exit after processing seller profile
         else:
             logger.debug(f"URL is not a seller profile: {url}")
@@ -889,6 +1099,8 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     logger.error(f"Error evaluating seller reliability: {e}")
             elif 'grailed' in u.lower():
                 logger.warning(f"No seller data found for Grailed item: {u}")
+                # Notify admin about missing seller data for debugging
+                await send_debug_to_admin(context.application, f"No seller data extracted for Grailed item: {u}")
             else:
                 logger.debug(f"Not a Grailed item, skipping seller analysis: {u}")
             

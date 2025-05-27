@@ -8,6 +8,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Run bot locally**: `python price_bot.py`
 - **Deploy to Railway**: Automatically handled by `railway.json` config
 
+## Web Scraping Guidelines
+
+**CRITICAL**: Always analyze target website structure before implementing scraping logic:
+
+1. **Page Structure Analysis**: Before writing any scraping code, use WebFetch tool to analyze the actual HTML/JSON structure of target pages
+2. **Multiple Pattern Support**: Implement multiple regex patterns and fallback strategies since websites frequently change their data formats
+3. **Dynamic Content**: Modern sites (like Grailed) use React SPA with dynamic JSON loading - account for various data formats and field names
+4. **Robust Extraction**: Use multiple extraction strategies:
+   - JSON parsing with various field name patterns
+   - HTML element parsing as fallback
+   - Comprehensive error handling and logging
+5. **Pattern Evolution**: Websites evolve - implement flexible patterns that can handle format changes without breaking
+
 ## Architecture Overview
 
 This Telegram bot consists of two main files: `price_bot.py` (main logic) and `messages.py` (localized messages). It scrapes prices from eBay and Grailed listings, adds US shipping costs, applies tiered commission structure, converts to RUB, and provides comprehensive Grailed seller reliability analysis. The bot operates in two modes:
@@ -59,11 +72,12 @@ The bot implements a comprehensive seller evaluation system for Grailed:
 - **Badge Score (0-10)**: Trusted Seller badge status
 
 #### Implementation Details
-- **Profile fetching**: `extract_seller_profile_url()` gets seller profile URL from listing page
-- **Last update tracking**: `fetch_seller_last_update()` fetches seller's profile page to find most recent listing update date
-- **Data extraction**: `extract_seller_data_grailed()` combines listing page data with profile data
+- **Profile fetching**: `extract_seller_profile_url()` gets seller profile URL from listing page using multiple JSON and HTML patterns
+- **Last update tracking**: `fetch_seller_last_update()` fetches seller's profile page to find most recent listing update date with robust date parsing
+- **Data extraction**: `extract_seller_data_grailed()` combines listing page data with profile data using multiple extraction strategies and fallback patterns
 - **Evaluation**: `evaluate_seller_reliability()` applies business rules to calculate scores and categories
 - **Response formatting**: `format_seller_profile_response()` creates user-friendly Russian messages
+- **Robust parsing**: All functions use multiple regex patterns, JSON field variations, and HTML fallbacks to handle Grailed's evolving page structure
 
 #### Categories
 - Diamond (85-100): Top-tier seller

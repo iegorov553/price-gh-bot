@@ -89,8 +89,5 @@ ADMIN_NOTIFICATION = "🚨 Price Bot Alert:\n{message}"
 # Log messages
 LOG_CBR_API_FAILED = "CBR API is unavailable. Currency conversion disabled. Check logs for details."
 
-# Debug messages
-DEBUG_SELLER_PROFILE_DETECTED = "🔍 Обнаружен профиль продавца: {url}"
-DEBUG_SELLER_PROFILE_NOT_DETECTED = "❌ URL не является профилем продавца: {url}"
-DEBUG_SELLER_DATA_EXTRACTED = "✅ Данные продавца получены: рейтинг {rating}, отзывов {reviews}"
-DEBUG_SELLER_DATA_NOT_FOUND = "❌ Не удалось извлечь данные продавца со страницы"
+# Debug messages (used only in logs, not sent to users)
+# These are kept for potential future admin notifications if needed

@@ -140,19 +140,53 @@ railway up
 
 ## Architecture
 
-- Single-file Python application (`price_bot.py`)
-- HTTP session with retry logic and proper user agents
-- Concurrent URL processing using `asyncio.gather()`
-- BeautifulSoup for HTML parsing with multiple CSS selectors
-- Decimal precision for accurate financial calculations
+### Core Files
+- **`price_bot.py`**: Main application logic with all scraping and analysis functions
+- **`messages.py`**: Centralized localized messages in Russian for easy editing and maintenance
+
+### Technical Stack
+- **HTTP session**: Retry logic and proper user agents for reliable scraping
+- **Concurrent processing**: `asyncio.gather()` for parallel URL processing
+- **Robust parsing**: Multiple extraction strategies for evolving website structures:
+  - BeautifulSoup for HTML parsing with multiple CSS selectors
+  - JSON parsing with various field name patterns and fallback strategies
+  - Comprehensive error handling and detailed logging
+- **Financial precision**: Decimal arithmetic for accurate price calculations
+- **Date handling**: Multiple datetime formats (ISO, epoch, HTML attributes)
+
+### Data Extraction Strategy
+The bot uses a multi-layered approach for reliable data extraction from dynamic websites:
+
+1. **JSON Parsing**: Primary method using multiple regex patterns for various field names
+2. **HTML Fallback**: Secondary method parsing visible HTML elements when JSON fails  
+3. **Profile Fetching**: Tertiary method fetching seller data directly from profile pages
+4. **Comprehensive Logging**: Detailed debug information for troubleshooting extraction issues
 
 ## Error Handling
 
 - **Currency conversion**: CBR API failures trigger admin notifications via Telegram
-- Multiple CSS selectors for robust price extraction
-- Request timeouts and retry mechanisms
-- Comprehensive logging for debugging
-- No fallback rates - shows USD only if CBR API is unavailable
+- **Robust extraction**: Multiple CSS selectors and JSON patterns for price extraction
+- **Request resilience**: Timeouts and retry mechanisms for network reliability
+- **Comprehensive logging**: Detailed debug information for troubleshooting scraping issues
+- **Fallback strategies**: Multiple extraction methods when primary parsing fails
+- **Conservative approach**: Shows USD only if CBR API is unavailable (no fallback rates)
+
+## Recent Updates
+
+### Enhanced Seller Data Extraction (Latest)
+- **Multi-pattern parsing**: Added comprehensive regex patterns for various JSON field formats
+- **Robust date handling**: Support for ISO dates, epoch timestamps, and HTML datetime attributes  
+- **Fallback strategies**: HTML parsing when JSON data is unavailable
+- **Profile URL detection**: Updated patterns for new Grailed URL structure (`/username` format)
+- **Detailed logging**: Enhanced debug information for troubleshooting extraction issues
+- **Messages module**: Centralized all user-facing text in `messages.py` for easy localization
+
+### Previous Features
+- Grailed seller reliability evaluation system with 4-criteria scoring
+- Tiered commission structure ($15 fixed vs 10% markup)
+- Central Bank of Russia currency conversion with admin notifications
+- Concurrent URL processing for multiple links
+- Buy-now vs offer-only detection for Grailed listings
 
 ## Development
 
