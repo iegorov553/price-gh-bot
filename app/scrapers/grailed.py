@@ -129,44 +129,78 @@ def _extract_price_and_buyability(url: str, soup: BeautifulSoup) -> Tuple[Option
 
 def _extract_seller_profile_url(soup: BeautifulSoup) -> Optional[str]:
     """Extract seller profile URL from listing page."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
-        # Try JSON data first
+        # Try JSON data first - expanded patterns
         for script in soup.find_all('script'):
-            if script.string and ('seller' in script.string or 'user' in script.string):
-                # Look for username patterns
-                username_match = re.search(
-                    r'"(?:seller|user)"\s*:\s*\{[^}]*"username"\s*:\s*"([^"]+)"', 
-                    script.string
-                )
-                if username_match:
-                    username = username_match.group(1)
-                    return f"https://www.grailed.com/{username}"
+            if not script.string:
+                continue
                 
-                # Look for direct profile URL patterns
-                profile_match = re.search(
-                    r'"(?:profileUrl|userUrl|sellerUrl)"\s*:\s*"([^"]+)"', 
-                    script.string
-                )
-                if profile_match:
-                    url = profile_match.group(1)
-                    if url.startswith('/'):
-                        return f"https://www.grailed.com{url}"
-                    return url
+            script_content = script.string
+            if any(keyword in script_content.lower() for keyword in ['seller', 'user', 'owner', 'profile']):
+                
+                # Extended username patterns
+                username_patterns = [
+                    r'"(?:seller|user|owner)"\s*:\s*\{[^}]*"username"\s*:\s*"([^"]+)"',
+                    r'"username"\s*:\s*"([^"]+)"[^}]*"(?:seller|user|owner)"',
+                    r'"(?:sellerName|userName|ownerName)"\s*:\s*"([^"]+)"',
+                    r'"name"\s*:\s*"([^"]+)"[^}]*"(?:seller|user)"',
+                    r'seller["\s]*:[^{]*{[^}]*username["\s]*:["\s]*([^"]+)',
+                    r'user["\s]*:[^{]*{[^}]*username["\s]*:["\s]*([^"]+)',
+                ]
+                
+                for pattern in username_patterns:
+                    username_match = re.search(pattern, script_content, re.IGNORECASE)
+                    if username_match:
+                        username = username_match.group(1).strip()
+                        if username and len(username) > 2:
+                            logger.debug(f"Found username: {username}")
+                            return f"https://www.grailed.com/{username}"
+                
+                # Direct profile URL patterns
+                url_patterns = [
+                    r'"(?:profileUrl|userUrl|sellerUrl|profile_url)"\s*:\s*"([^"]+)"',
+                    r'"url"\s*:\s*"([^"]*(?:/users/|/sellers/|grailed\.com/)[^"]*)"',
+                    r'href\s*=\s*["\']([^"\']*(?:/users/|/sellers/)[^"\']*)["\']',
+                ]
+                
+                for pattern in url_patterns:
+                    profile_match = re.search(pattern, script_content, re.IGNORECASE)
+                    if profile_match:
+                        url = profile_match.group(1).strip()
+                        if url:
+                            if url.startswith('/'):
+                                return f"https://www.grailed.com{url}"
+                            elif 'grailed.com' in url:
+                                return url
         
-        # Fallback: HTML links
+        # HTML link fallbacks - improved patterns
         for link in soup.find_all('a', href=True):
-            href = link.get('href', '')
-            if ('/users/' in href or '/sellers/' in href or 
-                (href.startswith('/') and href.count('/') == 2 and 
-                 not href.startswith('/listings') and not href.startswith('/search'))):
-                
+            href = link.get('href', '').strip()
+            text = link.get_text(strip=True).lower()
+            
+            # Check href patterns
+            if any(pattern in href for pattern in ['/users/', '/sellers/', '/user/']):
                 if href.startswith('/'):
                     return f"https://www.grailed.com{href}"
                 elif href.startswith('https://www.grailed.com/'):
                     return href
+            
+            # Check for seller/user links in text
+            if any(keyword in text for keyword in ['seller', 'user', 'profile', 'shop']):
+                if href.startswith('/') and href.count('/') >= 2:
+                    parts = href.strip('/').split('/')
+                    if len(parts) == 1 and not any(exclude in parts[0] for exclude in 
+                        ['listings', 'search', 'sell', 'buy', 'help', 'about', 'terms', 'privacy']):
+                        return f"https://www.grailed.com{href}"
         
+        logger.debug("No seller profile URL found")
         return None
-    except Exception:
+        
+    except Exception as e:
+        logger.error(f"Error extracting seller profile URL: {e}")
         return None
 
 
@@ -222,64 +256,110 @@ async def _fetch_seller_last_update(profile_url: str, session: aiohttp.ClientSes
 
 async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSession) -> Optional[SellerData]:
     """Extract seller data from listing page."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         avg_rating = 0.0
         num_reviews = 0
         trusted_badge = False
         
-        # Look for seller data in JSON
+        # Get seller profile URL first
+        profile_url = _extract_seller_profile_url(soup)
+        logger.debug(f"Extracted profile URL: {profile_url}")
+        
+        if not profile_url:
+            logger.warning("No seller profile URL found in listing")
+            return None
+        
+        # Look for seller data in listing JSON
         for script in soup.find_all('script'):
             if not script.string:
                 continue
                 
             script_content = script.string
-            if any(keyword in script_content for keyword in ['seller', 'user', 'rating', 'review']):
-                # Extract rating and review patterns
+            if any(keyword in script_content.lower() for keyword in ['seller', 'user', 'rating', 'review', 'owner']):
+                
+                # Enhanced user patterns with more flexible matching
                 user_patterns = [
-                    r'"user"\s*:\s*\{[^}]*"rating"\s*:\s*([0-9.]+)[^}]*"reviewCount"\s*:\s*(\d+)',
-                    r'"seller"\s*:\s*\{[^}]*"rating"\s*:\s*([0-9.]+)[^}]*"reviewCount"\s*:\s*(\d+)',
-                    r'"averageRating"\s*:\s*([0-9.]+)[^,}]*"totalReviews"\s*:\s*(\d+)',
-                    r'"rating"\s*:\s*([0-9.]+)[^,}]*"reviews"\s*:\s*(\d+)',
+                    r'"(?:user|seller|owner)"\s*:\s*\{[^}]*"(?:rating|averageRating)"\s*:\s*([0-9.]+)[^}]*"(?:reviewCount|totalReviews)"\s*:\s*(\d+)',
+                    r'"(?:rating|averageRating)"\s*:\s*([0-9.]+)[^,}]*"(?:reviewCount|totalReviews)"\s*:\s*(\d+)',
+                    r'"(?:averageRating|rating)"\s*:\s*([0-9.]+)[^,}]*"(?:totalReviews|reviews)"\s*:\s*(\d+)',
+                    r'(?:seller|user)[^}]*rating["\s]*:["\s]*([0-9.]+)[^}]*reviews?["\s]*:["\s]*(\d+)',
+                    r'rating["\s]*:["\s]*([0-9.]+)[^}]*(?:seller|user)[^}]*reviews?["\s]*:["\s]*(\d+)',
                 ]
                 
                 for pattern in user_patterns:
                     match = re.search(pattern, script_content, re.IGNORECASE)
                     if match:
-                        avg_rating = float(match.group(1))
-                        num_reviews = int(match.group(2))
-                        break
+                        try:
+                            rating_val = float(match.group(1))
+                            review_val = int(match.group(2))
+                            if 0 <= rating_val <= 5 and review_val >= 0:
+                                avg_rating = rating_val
+                                num_reviews = review_val
+                                logger.debug(f"Found seller data in listing: rating={avg_rating}, reviews={num_reviews}")
+                                break
+                        except (ValueError, IndexError):
+                            continue
                 
-                # Look for trusted badge
+                # Enhanced trusted badge patterns
                 trusted_patterns = [
-                    r'"trustedSeller"\s*:\s*true',
-                    r'"trusted"\s*:\s*true',
-                    r'"isTrusted"\s*:\s*true',
+                    r'"(?:trustedSeller|trusted|isTrusted|verified|verifiedSeller)"\s*:\s*true',
+                    r'"badge"\s*:\s*"trusted"',
+                    r'"status"\s*:\s*"trusted"',
+                    r'trusted["\s]*:["\s]*true',
+                    r'verified["\s]*:["\s]*true',
                 ]
                 
                 for pattern in trusted_patterns:
                     if re.search(pattern, script_content, re.IGNORECASE):
                         trusted_badge = True
+                        logger.debug("Found trusted badge in listing")
                         break
         
-        # Get seller profile and last update
-        profile_url = _extract_seller_profile_url(soup)
-        last_updated = datetime.now(timezone.utc)
+        # If no data found in listing, try to get from profile
+        if avg_rating == 0.0 and num_reviews == 0:
+            logger.debug("No seller data in listing, trying profile fetch")
+            try:
+                async with session.get(profile_url, timeout=10) as response:
+                    if response.status == 200:
+                        profile_html = await response.text()
+                        profile_soup = BeautifulSoup(profile_html, 'lxml')
+                        
+                        # Try basic profile extraction
+                        profile_data = await analyze_seller_profile(profile_url, session)
+                        if profile_data:
+                            avg_rating = profile_data.get('avg_rating', 0.0)
+                            num_reviews = profile_data.get('num_reviews', 0)
+                            trusted_badge = profile_data.get('trusted_badge', False)
+                            logger.debug(f"Got data from profile: rating={avg_rating}, reviews={num_reviews}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch profile data: {e}")
         
+        # Get last update
+        last_updated = datetime.now(timezone.utc)
         if profile_url:
             profile_last_update = await _fetch_seller_last_update(profile_url, session)
             if profile_last_update:
                 last_updated = profile_last_update
         
-        if avg_rating > 0 or num_reviews > 0:
-            return SellerData(
+        # Return data if we found any meaningful seller information
+        if avg_rating > 0 or num_reviews > 0 or trusted_badge or profile_url:
+            seller_data = SellerData(
                 num_reviews=num_reviews,
                 avg_rating=avg_rating,
                 trusted_badge=trusted_badge,
                 last_updated=last_updated
             )
+            logger.debug(f"Returning seller data: {seller_data}")
+            return seller_data
         
+        logger.debug("No meaningful seller data found")
         return None
-    except Exception:
+        
+    except Exception as e:
+        logger.error(f"Error extracting seller data: {e}")
         return None
 
 
@@ -387,38 +467,106 @@ async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSessio
     num_reviews = 0
     trusted_badge = False
     
-    # Extract seller data from profile
+    # Extract seller data from profile - improved patterns
+    import logging
+    logger = logging.getLogger(__name__)
+    
     for script in soup.find_all('script'):
         if not script.string:
             continue
             
         script_content = script.string
-        if any(keyword in script_content for keyword in ['rating', 'review', 'user', 'seller']):
-            patterns = [
-                (r'"rating"\s*:\s*([0-9.]+)', r'"reviewCount"\s*:\s*(\d+)'),
-                (r'"averageRating"\s*:\s*([0-9.]+)', r'"totalReviews"\s*:\s*(\d+)'),
+        if any(keyword in script_content.lower() for keyword in ['rating', 'review', 'user', 'seller', 'profile']):
+            
+            # Comprehensive rating patterns
+            rating_patterns = [
+                r'"(?:rating|averageRating|avgRating|sellerRating)"\s*:\s*([0-9.]+)',
+                r'"rating"\s*:\s*\{\s*"value"\s*:\s*([0-9.]+)',
+                r'rating["\s]*:["\s]*([0-9.]+)',
+                r'"stars"\s*:\s*([0-9.]+)',
+                r'"score"\s*:\s*([0-9.]+)',
             ]
             
-            for rating_pattern, review_pattern in patterns:
-                rating_match = re.search(rating_pattern, script_content, re.IGNORECASE)
-                review_match = re.search(review_pattern, script_content, re.IGNORECASE)
-                
-                if rating_match and review_match:
-                    avg_rating = float(rating_match.group(1))
-                    num_reviews = int(review_match.group(1))
-                    break
+            # Comprehensive review count patterns  
+            review_patterns = [
+                r'"(?:reviewCount|totalReviews|numReviews|reviews)"\s*:\s*(\d+)',
+                r'"count"\s*:\s*(\d+)[^}]*"(?:review|rating)"',
+                r'reviews?["\s]*:["\s]*(\d+)',
+                r'"feedbackCount"\s*:\s*(\d+)',
+                r'"ratingsCount"\s*:\s*(\d+)',
+            ]
             
-            # Check for trusted badge
+            # Try to find rating
+            for pattern in rating_patterns:
+                rating_match = re.search(pattern, script_content, re.IGNORECASE)
+                if rating_match:
+                    try:
+                        rating_value = float(rating_match.group(1))
+                        if 0 <= rating_value <= 5:  # Valid rating range
+                            avg_rating = rating_value
+                            logger.debug(f"Found rating: {avg_rating}")
+                            break
+                    except (ValueError, IndexError):
+                        continue
+            
+            # Try to find review count
+            for pattern in review_patterns:
+                review_match = re.search(pattern, script_content, re.IGNORECASE)
+                if review_match:
+                    try:
+                        review_count = int(review_match.group(1))
+                        if review_count >= 0:  # Valid count
+                            num_reviews = review_count
+                            logger.debug(f"Found review count: {num_reviews}")
+                            break
+                    except (ValueError, IndexError):
+                        continue
+            
+            # Enhanced trusted badge patterns
             trusted_patterns = [
-                r'"trustedSeller"\s*:\s*true',
-                r'"trusted"\s*:\s*true',
-                r'"isTrusted"\s*:\s*true',
+                r'"(?:trustedSeller|trusted|isTrusted|verified|verifiedSeller)"\s*:\s*true',
+                r'"badge"\s*:\s*"trusted"',
+                r'"status"\s*:\s*"trusted"',
+                r'"tier"\s*:\s*"trusted"',
+                r'trusted["\s]*:["\s]*true',
+                r'verified["\s]*:["\s]*true',
             ]
             
             for pattern in trusted_patterns:
                 if re.search(pattern, script_content, re.IGNORECASE):
                     trusted_badge = True
+                    logger.debug("Found trusted badge")
                     break
+    
+    # Also try HTML parsing as fallback
+    if avg_rating == 0.0 and num_reviews == 0:
+        logger.debug("Trying HTML fallback for seller data")
+        
+        # Look for rating in text content
+        rating_elements = soup.find_all(string=re.compile(r'[0-9.]+\s*(?:star|rating|\/5)'))
+        for element in rating_elements:
+            rating_match = re.search(r'([0-9.]+)', element)
+            if rating_match:
+                try:
+                    rating_value = float(rating_match.group(1))
+                    if 0 <= rating_value <= 5:
+                        avg_rating = rating_value
+                        break
+                except ValueError:
+                    continue
+        
+        # Look for review count in text
+        review_elements = soup.find_all(string=re.compile(r'\d+\s*(?:review|rating|feedback)'))
+        for element in review_elements:
+            review_match = re.search(r'(\d+)', element)
+            if review_match:
+                try:
+                    review_count = int(review_match.group(1))
+                    if review_count >= 0:
+                        num_reviews = review_count
+                        break
+                except ValueError:
+                    continue
     
     # Get last update
     last_updated = await _fetch_seller_last_update(profile_url, session)

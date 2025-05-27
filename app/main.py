@@ -11,7 +11,7 @@ from .config import config
 # Logging
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", 
-    level=logging.INFO
+    level=logging.DEBUG  # Enable debug logging
 )
 logger = logging.getLogger(__name__)
 
