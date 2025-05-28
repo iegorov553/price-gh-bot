@@ -338,6 +338,21 @@ async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSessi
                 from .headless import get_grailed_seller_data_headless
                 headless_data = await get_grailed_seller_data_headless(profile_url)
                 if headless_data:
+                    # Try to get more accurate last update time using profile analysis
+                    try:
+                        profile_last_update = await _fetch_seller_last_update(profile_url, session)
+                        if profile_last_update:
+                            # Update the headless data with more accurate timestamp
+                            headless_data = SellerData(
+                                num_reviews=headless_data.num_reviews,
+                                avg_rating=headless_data.avg_rating,
+                                trusted_badge=headless_data.trusted_badge,
+                                last_updated=profile_last_update
+                            )
+                            logger.debug(f"Updated headless data with profile timestamp: {profile_last_update}")
+                    except Exception as e:
+                        logger.debug(f"Failed to get profile timestamp, using headless timestamp: {e}")
+                    
                     logger.info(f"Successfully extracted seller data with headless browser: {headless_data}")
                     return headless_data
                 else:

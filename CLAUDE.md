@@ -102,6 +102,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Playwright integration** implemented as the ONLY working method for seller data extraction
 - **Static HTML methods removed**: All JSON parsing, regex patterns, and script extraction methods removed as they don't work with React SPA
 - **Dynamic content handling**: Headless browser waits for JavaScript execution and DOM manipulation to load seller data
+- **Activity timestamp extraction**: Parses "X days/weeks/months ago" text patterns from seller profile pages after scrolling to load listings
 - **Resource management**: Proper browser lifecycle with async context managers
 - **Performance optimization**: Minimal overhead with chromium headless mode in production
 - **Configuration**: Can be disabled via `ENABLE_HEADLESS_BROWSER=false` environment variable
@@ -110,19 +111,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Technical Implementation**:
 - **Single extraction method**: `app/scrapers/grailed.py` now uses only headless browser via `get_grailed_seller_data_headless()`
 - **Selector strategy**: Multiple CSS selectors and text patterns to find rating, reviews, and trusted badge
+- **Activity extraction**: Scrolls profile page to load listings, then extracts first "X time ago" pattern for accurate last activity timestamp
+- **Time conversion**: Converts relative time expressions ("5 days ago") to absolute timestamps for reliability scoring
 - **Error handling**: Comprehensive logging and fallback to "No Data" category
 - **Dependencies**: Requires `playwright` and `playwright install chromium`
 
 **Performance Notes**:
 - Headless browser adds ~20 seconds per profile analysis
 - Successfully extracts data that is impossible to get via static HTML
+- Accurate activity timestamps enable proper reliability scoring
 - Essential for accurate seller reliability analysis on Grailed
+
+**Activity Extraction Breakthrough (May 2025)**:
+- **Problem solved**: Replaced hardcoded "current time" with actual seller activity extraction
+- **Method**: Parse listing update text ("5 days ago", "2 months ago") from seller profile pages
+- **Implementation**: Scroll page to load dynamic listings, extract first time pattern with regex
+- **Validation**: Tested with DP1211 seller - correctly shows 5 days since last activity
+- **Impact**: Enables accurate activity scoring in reliability system (was previously giving all sellers maximum 30/30 activity points)
 
 **Lessons Learned (May 2025)**:
 - **React SPA architecture**: Makes static HTML parsing completely ineffective
 - **Dynamic data loading**: Seller data loaded via authenticated APIs after page render
-- **Multiple failed approaches**: JSON parsing, regex patterns, API attempts all failed
-- **Headless browser**: Only reliable method for extracting seller data from Grailed profiles
+- **Listing activity**: Must scroll profile pages to trigger listing load, then parse human-readable time text
+- **Multiple failed approaches**: JSON parsing, regex patterns, API attempts all failed for timestamps
+- **Headless browser**: Only reliable method for extracting seller data and activity from Grailed profiles
 
 ## Architecture Overview
 
@@ -141,7 +153,7 @@ The bot scrapes prices from eBay and Grailed listings, adds US shipping costs, e
 
 ### Core Components
 
-- **Messages module**: `app/bot/messages.py` containing all user-facing text in Russian for easy localization and editing
+- **Messages module**: `app/bot/messages.py` containing all user-facing text in Russian for easy localization and editing, with clean formatting and minimal emoji usage
 - **Price scrapers**: Functions in `app/scrapers/` that extract item price, US shipping cost, buyability status, and seller data from eBay and Grailed listings
 - **Buyability detection**: Grailed scraper analyzes JSON data to determine if items have fixed buy-now pricing or are offer-only
 - **Seller analysis**: Comprehensive system in `app/services/reliability.py` for evaluating Grailed seller reliability 
@@ -214,8 +226,15 @@ The bot implements a comprehensive seller evaluation system for Grailed:
 #### Message Types
 - **Buyable items**: Price calculation + seller reliability (for Grailed, when data available)
 - **Offer-only items**: Message explaining need to contact seller + displayed price for reference
-- **Profile analysis**: **Limited due to SPA constraints** - Shows "No Data" category with explanation and suggestion to use listing URLs
+- **Profile analysis**: Full seller reliability analysis using headless browser extraction
 - **Errors**: Simple Russian error messages with context about technical limitations
+
+#### Message Formatting (Updated May 2025)
+- **Clean design**: Removed excessive emoji usage for better readability
+- **Emoji positioning**: Moved emoji from headers to inline with category names
+- **Seller info format**: "Продавец: 💎 Diamond (95/100)" instead of "💎 Продавец: Diamond (95/100)"
+- **Badge display**: Simplified to "Проверенный продавец" / "Нет бейджа" without checkmark/cross emoji
+- **Header cleanup**: "Анализ продавца Grailed" without leading emoji
 
 ### Shopfans Shipping Estimation
 

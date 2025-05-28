@@ -60,8 +60,8 @@ SELLER_RELIABILITY = {
 }
 
 # Seller profile analysis
-SELLER_PROFILE_HEADER = "{emoji} Анализ продавца Grailed"
-SELLER_RELIABILITY_LINE = "Надёжность: {category} ({total_score}/100)"
+SELLER_PROFILE_HEADER = "Анализ продавца Grailed"
+SELLER_RELIABILITY_LINE = "Надёжность: {emoji} {category} ({total_score}/100)"
 SELLER_DETAILS_HEADER = "Детали:"
 SELLER_ACTIVITY_LINE = "• Активность: {activity_score}/30 (обновления {last_update_text})"
 SELLER_RATING_LINE = "• Рейтинг: {rating_score}/35 ({avg_rating:.1f}/5.0)"
@@ -69,8 +69,8 @@ SELLER_REVIEWS_LINE = "• Отзывы: {review_volume_score}/25 ({num_reviews}
 SELLER_BADGE_LINE = "• Бейдж: {badge_score}/10 ({badge_text})"
 
 # Badge status
-TRUSTED_SELLER_BADGE = "✅ Проверенный продавец"
-NO_BADGE = "❌ Нет бейджа"
+TRUSTED_SELLER_BADGE = "Проверенный продавец"
+NO_BADGE = "Нет бейджа"
 
 # Time descriptions
 TIME_TODAY = "сегодня"
@@ -78,8 +78,8 @@ TIME_YESTERDAY = "вчера"
 TIME_DAYS_AGO = "{days} дн. назад"
 
 # Seller info in price response
-SELLER_INFO_LINE = "{emoji} Продавец: {category} ({total_score}/100)"
-SELLER_DESCRIPTION_LINE = "📊 {description}"
+SELLER_INFO_LINE = "Продавец: {emoji} {category} ({total_score}/100)"
+SELLER_DESCRIPTION_LINE = "{description}"
 
 # Admin notification template
 ADMIN_NOTIFICATION = "🚨 Price Bot Alert:\n{message}"
