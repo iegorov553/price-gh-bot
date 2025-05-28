@@ -71,6 +71,7 @@ class BotConfig(BaseSettings):
         railway_domain: Railway public domain for webhooks.
         railway_url: Railway URL for webhooks (fallback).
         timeout: HTTP request timeout in seconds.
+        enable_headless_browser: Whether to use headless browser for extraction.
     """
     bot_token: str = Field(..., env="BOT_TOKEN")
     admin_chat_id: int = 26917201
@@ -78,6 +79,7 @@ class BotConfig(BaseSettings):
     railway_domain: str | None = Field(default=None, env="RAILWAY_PUBLIC_DOMAIN")
     railway_url: str | None = Field(default=None, env="RAILWAY_URL")
     timeout: int = 20
+    enable_headless_browser: bool = Field(default=True, env="ENABLE_HEADLESS_BROWSER")
 
     @property
     def webhook_domain(self) -> str | None:

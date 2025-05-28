@@ -9,3 +9,4 @@ requests
 pydocstyle
 mkdocs-material
 mkdocstrings[python]
+playwright

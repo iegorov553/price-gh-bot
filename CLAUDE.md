@@ -98,10 +98,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Clear user communication about technical limitations
 - Focus redirected to listing page data extraction where seller info is available
 
-**Future considerations**:
-- Consider headless browser (Playwright/Selenium) only if business value justifies complexity
-- Monitor for Grailed API changes or new public endpoints
-- Continue focusing on listing page data which remains reliable
+**Headless Browser Implementation (May 2025) - FINAL SOLUTION**:
+- **Playwright integration** implemented as the ONLY working method for seller data extraction
+- **Static HTML methods removed**: All JSON parsing, regex patterns, and script extraction methods removed as they don't work with React SPA
+- **Dynamic content handling**: Headless browser waits for JavaScript execution and DOM manipulation to load seller data
+- **Resource management**: Proper browser lifecycle with async context managers
+- **Performance optimization**: Minimal overhead with chromium headless mode in production
+- **Configuration**: Can be disabled via `ENABLE_HEADLESS_BROWSER=false` environment variable
+- **Graceful degradation**: Falls back to "No Data" category when headless browser disabled or fails
+
+**Technical Implementation**:
+- **Single extraction method**: `app/scrapers/grailed.py` now uses only headless browser via `get_grailed_seller_data_headless()`
+- **Selector strategy**: Multiple CSS selectors and text patterns to find rating, reviews, and trusted badge
+- **Error handling**: Comprehensive logging and fallback to "No Data" category
+- **Dependencies**: Requires `playwright` and `playwright install chromium`
+
+**Performance Notes**:
+- Headless browser adds ~20 seconds per profile analysis
+- Successfully extracts data that is impossible to get via static HTML
+- Essential for accurate seller reliability analysis on Grailed
+
+**Lessons Learned (May 2025)**:
+- **React SPA architecture**: Makes static HTML parsing completely ineffective
+- **Dynamic data loading**: Seller data loaded via authenticated APIs after page render
+- **Multiple failed approaches**: JSON parsing, regex patterns, API attempts all failed
+- **Headless browser**: Only reliable method for extracting seller data from Grailed profiles
 
 ## Architecture Overview
 
@@ -157,18 +178,18 @@ The bot uses the Central Bank of Russia (CBR) official XML API as the **only** s
 The bot implements a comprehensive seller evaluation system for Grailed:
 
 #### Scoring Criteria (Total: 100 points)
-- **Activity Score (0-30)**: Based on days since last listing update (fetched from seller profile)
+- **Activity Score (0-30)**: Based on days since last listing update
 - **Rating Score (0-35)**: Based on average seller rating (0.00-5.00)
 - **Review Volume Score (0-25)**: Based on number of reviews
 - **Badge Score (0-10)**: Trusted Seller badge status
 
 #### Implementation Details
-- **Profile fetching**: Functions in `app/scrapers/grailed.py` get seller profile URL from listing page using multiple JSON and HTML patterns
-- **Last update tracking**: Attempts to fetch seller's profile page but **limited by SPA architecture**
-- **Data extraction**: **Primarily from listing pages** due to profile page limitations - combines available listing data with fallback strategies
-- **Evaluation**: `app/services/reliability.py` applies business rules to calculate scores and categories, including "No Data" category for unavailable information
-- **Response formatting**: Creates user-friendly Russian messages via `app/bot/messages.py` with clear explanations of limitations
-- **Robust parsing**: All functions use multiple regex patterns, JSON field variations, and HTML fallbacks, but acknowledge fundamental SPA limitations
+- **Profile fetching**: Functions in `app/scrapers/grailed.py` get seller profile URL from listing page
+- **Data extraction**: **Headless browser only** - static HTML parsing doesn't work due to React SPA architecture
+- **Playwright integration**: Uses headless Chromium to execute JavaScript and access dynamically loaded content
+- **Evaluation**: `app/services/reliability.py` applies business rules to calculate scores and categories
+- **Response formatting**: Creates user-friendly Russian messages via `app/bot/messages.py`
+- **Configuration**: Can be enabled/disabled via `ENABLE_HEADLESS_BROWSER` environment variable
 
 #### Categories
 - Diamond (85-100): Top-tier seller
@@ -215,6 +236,8 @@ The shipping estimation system:
 - **Pre-commit hooks**: Automatic code formatting and quality checks
 - **API documentation**: Auto-generated with `mkdocs` and `mkdocstrings`
 - **Testing**: Unit tests with `pytest` framework
+- **Browser automation**: Playwright for headless browser testing and scraping
+- **Development dependencies**: Managed via `requirements-dev.txt` for testing environment
 
 ### Documentation Standards
 - All modules, classes, and functions must have Google-style docstrings
