@@ -15,7 +15,7 @@ Key features:
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
@@ -293,13 +293,82 @@ async def _extract_dynamic_seller_data(page: Page) -> SellerData | None:
             except Exception as e:
                 logger.debug(f"JavaScript extraction failed: {e}")
         
+        # Extract last activity timestamp from seller profile page
+        last_updated = datetime.now(UTC)  # fallback
+        try:
+            # First, wait for listings to load by scrolling
+            await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+            await page.wait_for_timeout(2000)
+            await page.evaluate('window.scrollTo(0, 0)')
+            await page.wait_for_timeout(1000)
+            
+            # Look for "X days/weeks/months ago" text patterns in the page
+            activity_text = await page.evaluate("""
+                () => {
+                    // Look for relative time patterns like "5 days ago"
+                    const timeAgoPattern = /\\b(\\d+)\\s+(second|minute|hour|day|week|month|year)s?\\s*ago\\b/gi;
+                    const bodyText = document.body.innerText || document.body.textContent || '';
+                    
+                    // Find all matches
+                    const matches = [];
+                    let match;
+                    while ((match = timeAgoPattern.exec(bodyText)) !== null) {
+                        matches.push({
+                            fullMatch: match[0],
+                            number: parseInt(match[1]),
+                            unit: match[2].toLowerCase()
+                        });
+                    }
+                    
+                    return {
+                        allMatches: matches,
+                        firstMatch: matches.length > 0 ? matches[0] : null,
+                        bodyTextSample: bodyText.substring(0, 300)
+                    };
+                }
+            """)
+            
+            if activity_text and activity_text['firstMatch']:
+                first_match = activity_text['firstMatch']
+                logger.debug(f"Found activity text: {first_match['fullMatch']}")
+                logger.debug(f"All matches: {[m['fullMatch'] for m in activity_text['allMatches']]}")
+                
+                # Convert relative time to actual datetime
+                now = datetime.now(UTC)
+                number = first_match['number']
+                unit = first_match['unit']
+                
+                if unit in ['second', 'seconds']:
+                    last_updated = now - timedelta(seconds=number)
+                elif unit in ['minute', 'minutes']:
+                    last_updated = now - timedelta(minutes=number)
+                elif unit in ['hour', 'hours']:
+                    last_updated = now - timedelta(hours=number)
+                elif unit in ['day', 'days']:
+                    last_updated = now - timedelta(days=number)
+                elif unit in ['week', 'weeks']:
+                    last_updated = now - timedelta(weeks=number)
+                elif unit in ['month', 'months']:
+                    # Approximate: 1 month = 30 days
+                    last_updated = now - timedelta(days=number * 30)
+                elif unit in ['year', 'years']:
+                    # Approximate: 1 year = 365 days
+                    last_updated = now - timedelta(days=number * 365)
+                
+                logger.debug(f"Converted '{first_match['fullMatch']}' to timestamp: {last_updated}")
+            else:
+                logger.debug(f"No activity text found. Sample: {activity_text.get('bodyTextSample', 'No text') if activity_text else 'No data'}")
+                
+        except Exception as e:
+            logger.debug(f"Failed to extract activity timestamp: {e}")
+        
         # Return results if we found any data
         if avg_rating > 0 or num_reviews > 0 or trusted_badge:
             return SellerData(
                 num_reviews=num_reviews,
                 avg_rating=avg_rating,
                 trusted_badge=trusted_badge,
-                last_updated=datetime.now(UTC)
+                last_updated=last_updated
             )
         
         return None
