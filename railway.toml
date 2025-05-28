@@ -1,5 +1,6 @@
 [build]
-buildCommand = "pip install -r requirements.txt"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "python -m app.main"
+startCommand = "python app/main.py"
