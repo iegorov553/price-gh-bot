@@ -19,15 +19,18 @@ RUN apt-get update && \
         libxdamage1 libgbm1 && \
     rm -rf /var/lib/apt/lists/*
 
-# Download only Chromium (+ system deps again just in case)
-RUN playwright install --with-deps chromium
+# Download only Chromium browsers and verify installation
+RUN playwright install chromium
+RUN playwright install-deps
+
+# Verify browsers are installed correctly
+RUN python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); print('Chromium path:', p.chromium.executable_path); p.stop()"
 
 # Copy application code
 COPY . .
 
 # Set environment variables
 ENV PYTHONPATH=/app
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Expose port
 EXPOSE 8000
