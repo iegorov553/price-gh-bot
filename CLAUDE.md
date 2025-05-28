@@ -119,8 +119,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Performance Notes**:
 - Headless browser adds ~20 seconds per profile analysis
 - Successfully extracts data that is impossible to get via static HTML
-- Accurate activity timestamps enable proper reliability scoring
+- Accurate activity timestamps enable proper reliability scoring (was giving all sellers 30/30 points)
 - Essential for accurate seller reliability analysis on Grailed
+- Scrolling mechanism ensures dynamic listing content loads before extraction
+- Resource-efficient with proper browser lifecycle management
 
 **Activity Extraction Breakthrough (May 2025)**:
 - **Problem solved**: Replaced hardcoded "current time" with actual seller activity extraction
@@ -166,8 +168,10 @@ The bot scrapes prices from eBay and Grailed listings, adds US shipping costs, e
 - **Admin notifications**: Sends Telegram alerts to admin when CBR API fails
 - **Tiered pricing logic**: 
   - Items < $150: Fixed $15 commission (`item_price + shipping + 15`)
-  - Items ≥ $150: 10% markup on item price only (`item_price * 0.10 + shipping + item_price`)
+  - Items ≥ $150: 10% of item price only (`item_price * 0.10 + shipping + item_price`)
   - **Commission calculation**: Based on item price only, excluding shipping costs
+  - **Customer benefit**: Saves $4-5 on higher value items compared to total-cost commission
+  - **Example**: $200 item + $40 shipping = $20 commission (was $24), saving $4
 - **Seller reliability scoring**: 4-criteria evaluation system (activity, rating, review volume, trusted badge) with Diamond/Gold/Silver/Bronze/Ghost categories
 
 ### Environment Variables
@@ -183,18 +187,43 @@ The bot uses the Central Bank of Russia (CBR) official XML API as the **only** s
 - **Endpoint**: `https://www.cbr.ru/scripts/XML_daily.asp`
 - **Format**: XML with daily official rates
 - **Processing**: Parses XML using `xml.etree.ElementTree`, finds USD entry, applies 5% markup
+- **Markup justification**: 5% covers currency exchange fees and market volatility
 - **Error handling**: No fallback sources - if CBR API is unavailable, currency conversion is disabled and admin is notified
 - **Admin notifications**: Telegram message sent to admin (ID: 26917201) when CBR API fails
+- **Caching**: Exchange rates cached for performance, updated daily
 
 ### Grailed Seller Reliability System
 
-The bot implements a comprehensive seller evaluation system for Grailed:
+The bot implements a comprehensive seller evaluation system for Grailed with sophisticated scoring algorithms:
 
 #### Scoring Criteria (Total: 100 points)
-- **Activity Score (0-30)**: Based on days since last listing update
-- **Rating Score (0-35)**: Based on average seller rating (0.00-5.00)
-- **Review Volume Score (0-25)**: Based on number of reviews
-- **Badge Score (0-10)**: Trusted Seller badge status
+
+**Activity Score (0-30 points)**: Based on days since last listing update
+- **Today (0 days)**: 30 points - Maximum activity score
+- **Yesterday (1 day)**: 30 points - Still considered very active
+- **2-7 days ago**: 24 points - Recent activity, good score
+- **8-30 days ago**: 12 points - Moderate activity, some concern
+- **>30 days ago**: 0 points - Inactive seller, triggers Ghost category
+
+**Rating Score (0-35 points)**: Based on average seller rating (0.00-5.00)
+- **4.8-5.0 stars**: 35 points - Excellent rating, maximum score
+- **4.5-4.7 stars**: 28 points - Very good rating
+- **4.0-4.4 stars**: 21 points - Good rating, acceptable
+- **3.5-3.9 stars**: 14 points - Average rating, some risk
+- **3.0-3.4 stars**: 7 points - Below average, higher risk
+- **<3.0 stars**: 0 points - Poor rating, significant risk
+
+**Review Volume Score (0-25 points)**: Based on number of completed transactions
+- **500+ reviews**: 25 points - Very established seller
+- **100-499 reviews**: 20 points - Well-established seller
+- **50-99 reviews**: 15 points - Moderately experienced
+- **20-49 reviews**: 10 points - Some experience
+- **10-19 reviews**: 5 points - Limited experience
+- **<10 reviews**: 0 points - New or inactive seller
+
+**Badge Score (0-10 points)**: Trusted Seller badge status
+- **Trusted Badge Present**: 10 points - Grailed-verified seller
+- **No Badge**: 0 points - Standard seller account
 
 #### Implementation Details
 - **Profile fetching**: Functions in `app/scrapers/grailed.py` get seller profile URL from listing page
@@ -204,13 +233,38 @@ The bot implements a comprehensive seller evaluation system for Grailed:
 - **Response formatting**: Creates user-friendly Russian messages via `app/bot/messages.py`
 - **Configuration**: Can be enabled/disabled via `ENABLE_HEADLESS_BROWSER` environment variable
 
-#### Categories
-- Diamond (85-100): Top-tier seller
-- Gold (70-84): High reliability
-- Silver (55-69): Normal reliability  
-- Bronze (40-54): Increased risk
-- Ghost (<40 or >30 days inactive): Low reliability
-- **No Data**: When seller information is unavailable due to Grailed's technical limitations
+#### Categories and Thresholds
+
+**💎 Diamond (85-100 points)**: Top-tier seller
+- Characteristics: Excellent rating (4.8+), high transaction volume (100+), recent activity, trusted badge
+- Risk Level: Minimal - Safe to purchase from
+- Typical Profile: Established seller with consistent positive feedback
+
+**🥇 Gold (70-84 points)**: High reliability
+- Characteristics: Good rating (4.5+), moderate transaction volume (50+), regular activity
+- Risk Level: Low - Reliable seller with good track record
+- Typical Profile: Active seller with solid reputation
+
+**🥈 Silver (55-69 points)**: Normal reliability
+- Characteristics: Acceptable rating (4.0+), some transaction history (20+), occasional activity
+- Risk Level: Moderate - Standard marketplace risk
+- Typical Profile: Average seller, proceed with normal caution
+
+**🥉 Bronze (40-54 points)**: Increased risk
+- Characteristics: Below-average metrics, limited history, infrequent activity
+- Risk Level: Higher - Exercise additional caution
+- Typical Profile: Newer or less active seller, verify details carefully
+
+**👻 Ghost (<40 points OR >30 days inactive)**: Low reliability
+- Characteristics: Poor metrics OR inactive for over 30 days
+- Risk Level: High - Significant concerns about seller
+- Typical Profile: Inactive or problematic seller, consider alternatives
+- Special Rule: Any seller inactive >30 days automatically becomes Ghost regardless of other scores
+
+**ℹ️ No Data**: When seller information is unavailable
+- Cause: Grailed's React SPA architecture or headless browser disabled
+- Risk Level: Unknown - Unable to assess seller reliability
+- Recommendation: Use listing URLs instead of profile URLs for better data extraction
 
 #### User Interface
 - **Listing analysis**: Seller reliability shown for buyable Grailed items (when data available)
