@@ -18,7 +18,16 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from playwright.async_api import Browser, BrowserContext, Page, async_playwright
+try:
+    from playwright.async_api import Browser, BrowserContext, Page, async_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    # Fallback types when playwright is not available
+    Browser = None
+    BrowserContext = None
+    Page = None
+    async_playwright = None
+    PLAYWRIGHT_AVAILABLE = False
 
 from ..models import SellerData
 
@@ -44,30 +53,62 @@ class HeadlessBrowser:
     
     async def start(self) -> None:
         """Start the headless browser."""
+        if not PLAYWRIGHT_AVAILABLE:
+            raise ImportError("Playwright not available - install with: pip install playwright")
+        
         try:
             self.playwright = await async_playwright().start()
             
-            # Launch browser with minimal overhead
+            # Launch browser with human-like configuration
             self.browser = await self.playwright.chromium.launch(
                 headless=True,
                 args=[
                     '--no-sandbox',
-                    '--disable-setuid-sandbox',
+                    '--disable-setuid-sandbox', 
                     '--disable-dev-shm-usage',
-                    '--disable-gpu',
                     '--no-first-run',
                     '--no-default-browser-check',
                     '--disable-background-timer-throttling',
                     '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding'
+                    '--disable-renderer-backgrounding',
+                    '--disable-extensions',
+                    '--disable-plugins',
+                    '--disable-javascript-harmony-shipping',
+                    '--disable-ipc-flooding-protection',
+                    '--aggressive-cache-discard',
+                    '--memory-pressure-off',
+                    # More human-like flags
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-features=VizDisplayCompositor'
                 ]
             )
             
-            # Create context with realistic user agent
+            # Create context with human-like behavior
             self.context = await self.browser.new_context(
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                viewport={'width': 1920, 'height': 1080}
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                viewport={'width': 1366, 'height': 768},  # Common desktop resolution
+                java_script_enabled=True,
+                locale='en-US',
+                timezone_id='America/New_York',
+                extra_http_headers={
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Cache-Control': 'max-age=0',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'none',
+                    'Sec-Fetch-User': '?1',
+                    'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                    'sec-ch-ua-mobile': '?0',
+                    'sec-ch-ua-platform': '"Windows"'
+                }
             )
+            
+            # Block unnecessary resources to speed up loading
+            await self.context.route('**/*', self._route_handler)
             
             logger.info("Headless browser started successfully")
             
@@ -96,11 +137,70 @@ class HeadlessBrowser:
         except Exception as e:
             logger.warning(f"Error during browser cleanup: {e}")
     
+    async def _route_handler(self, route):
+        """Block unnecessary resources to speed up page loading."""
+        resource_type = route.request.resource_type
+        url = route.request.url
+        
+        # Block heavy media but keep essential resources for human-like appearance
+        if resource_type in ['image', 'media', 'font']:
+            await route.abort()
+        # Block analytics and tracking - these are obviously bot-like
+        elif any(domain in url for domain in ['google-analytics', 'googletagmanager', 'facebook', 'twitter', 'doubleclick', 'adsystem', 'siftscience', 'pinterest']):
+            await route.abort()
+        # Allow CSS for proper rendering (important for human-like behavior)
+        # Allow JS for dynamic content
+        # Allow XHR/fetch for data loading
+        else:
+            await route.continue_()
+    
     async def get_page(self) -> Page:
-        """Get a new page from the browser context."""
+        """Get a new page from the browser context with stealth settings."""
         if not self.context:
             raise RuntimeError("Browser not started. Call start() first.")
-        return await self.context.new_page()
+        
+        page = await self.context.new_page()
+        
+        # Hide automation markers
+        await page.add_init_script("""
+            // Hide webdriver property
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined,
+            });
+            
+            // Mock chrome property
+            window.chrome = {
+                runtime: {},
+                loadTimes: function() {},
+                csi: function() {},
+                app: {}
+            };
+            
+            // Mock permissions
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+            );
+            
+            // Mock plugins
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5],
+            });
+            
+            // Mock languages
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en'],
+            });
+        """)
+        
+        return page
+
+
+# Global browser instance for reuse
+_global_browser: HeadlessBrowser | None = None
+_browser_lock = asyncio.Lock()
 
 
 async def extract_seller_data_headless(url: str, headless_browser: HeadlessBrowser) -> SellerData | None:
@@ -117,12 +217,19 @@ async def extract_seller_data_headless(url: str, headless_browser: HeadlessBrows
     try:
         page = await headless_browser.get_page()
         
-        # Navigate to the page
-        logger.debug(f"Loading page with headless browser: {url}")
-        await page.goto(url, wait_until='networkidle', timeout=30000)
+        # Navigate to the page with human-like behavior
+        logger.debug(f"Loading page with optimized headless browser: {url}")
         
-        # Wait for potential dynamic content to load
-        await asyncio.sleep(2)
+        # Add human-like randomness to loading
+        import random
+        
+        # Random delay before navigation (0.1-0.5s)
+        await asyncio.sleep(random.uniform(0.1, 0.5))
+        
+        await page.goto(url, wait_until='domcontentloaded', timeout=15000)
+        
+        # Human-like wait with slight randomness (0.8-1.2s)
+        await asyncio.sleep(random.uniform(0.8, 1.2))
         
         # Try to find seller data in the rendered page
         seller_data = await _extract_dynamic_seller_data(page)
@@ -162,9 +269,9 @@ async def _extract_dynamic_seller_data(page: Page) -> SellerData | None:
         num_reviews = 0
         trusted_badge = False
         
-        # Wait for any seller-related elements to load
+        # Quick check for seller elements - reduced timeout
         try:
-            await page.wait_for_selector('text=/rating|review|seller|feedback/i', timeout=10000)
+            await page.wait_for_selector('text=/rating|review|seller|feedback/i', timeout=3000)
         except Exception:
             logger.debug("No seller elements detected within timeout")
         
@@ -296,11 +403,20 @@ async def _extract_dynamic_seller_data(page: Page) -> SellerData | None:
         # Extract last activity timestamp from seller profile page
         last_updated = datetime.now(UTC)  # fallback
         try:
-            # First, wait for listings to load by scrolling
+            # Human-like scrolling to trigger content loading
+            import random
+            
+            # Gradual scroll down like a human
+            await page.evaluate('window.scrollTo(0, document.body.scrollHeight / 2)')
+            await page.wait_for_timeout(random.randint(400, 600))
             await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(random.randint(800, 1200))
+            
+            # Scroll back up gradually
+            await page.evaluate('window.scrollTo(0, document.body.scrollHeight / 2)')
+            await page.wait_for_timeout(random.randint(200, 400))
             await page.evaluate('window.scrollTo(0, 0)')
-            await page.wait_for_timeout(1000)
+            await page.wait_for_timeout(random.randint(300, 500))
             
             # Look for "X days/weeks/months ago" text patterns in the page
             activity_text = await page.evaluate("""
@@ -387,5 +503,32 @@ async def get_grailed_seller_data_headless(url: str) -> SellerData | None:
     Returns:
         SellerData object with extracted metrics, or None if extraction fails
     """
-    async with HeadlessBrowser() as browser:
+    try:
+        browser = await get_global_browser()
         return await extract_seller_data_headless(url, browser)
+    except Exception as e:
+        logger.error(f"Global browser extraction failed: {e}")
+        # Fallback to new browser instance
+        async with HeadlessBrowser() as browser:
+            return await extract_seller_data_headless(url, browser)
+
+
+async def get_global_browser() -> HeadlessBrowser:
+    """Get or create a global browser instance for reuse."""
+    global _global_browser
+    
+    async with _browser_lock:
+        if _global_browser is None:
+            _global_browser = HeadlessBrowser()
+            await _global_browser.start()
+        return _global_browser
+
+
+async def cleanup_global_browser() -> None:
+    """Cleanup the global browser instance."""
+    global _global_browser
+    
+    async with _browser_lock:
+        if _global_browser is not None:
+            await _global_browser.stop()
+            _global_browser = None

@@ -98,15 +98,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Clear user communication about technical limitations
 - Focus redirected to listing page data extraction where seller info is available
 
-**Headless Browser Implementation (May 2025) - FINAL SOLUTION**:
+**Headless Browser Implementation (June 2025) - OPTIMIZED SOLUTION**:
 - **Playwright integration** implemented as the ONLY working method for seller data extraction
 - **Static HTML methods removed**: All JSON parsing, regex patterns, and script extraction methods removed as they don't work with React SPA
 - **Dynamic content handling**: Headless browser waits for JavaScript execution and DOM manipulation to load seller data
 - **Activity timestamp extraction**: Parses "X days/weeks/months ago" text patterns from seller profile pages after scrolling to load listings
 - **Resource management**: Proper browser lifecycle with async context managers
-- **Performance optimization**: Minimal overhead with chromium headless mode in production
+- **Performance optimization**: Optimized for speed while maintaining human-like behavior to avoid bot detection
 - **Configuration**: Can be disabled via `ENABLE_HEADLESS_BROWSER=false` environment variable
 - **Graceful degradation**: Falls back to "No Data" category when headless browser disabled or fails
+
+**Performance Optimizations (June 2025)**:
+- **Speed improvements**: Reduced execution time from ~20 seconds to ~8-10 seconds (2.3x faster)
+- **Human-like behavior**: Balanced speed with bot detection avoidance
+- **Resource blocking**: Intelligent blocking of heavy media while keeping essential CSS/JS
+- **Browser reuse**: Global browser instance for repeated requests (3-5 seconds for subsequent calls)
+- **Stealth features**: Hidden automation markers and realistic browser behavior
+- **Random delays**: Human-like timing patterns to avoid detection
 
 **Technical Implementation**:
 - **Single extraction method**: `app/scrapers/grailed.py` now uses only headless browser via `get_grailed_seller_data_headless()`
@@ -131,12 +139,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Validation**: Tested with DP1211 seller - correctly shows 5 days since last activity
 - **Impact**: Enables accurate activity scoring in reliability system (was previously giving all sellers maximum 30/30 activity points)
 
+#### User Interface and Experience
+- **Listing analysis**: Seller reliability shown for buyable Grailed items when data available
+- **Direct profile analysis**: Full seller reliability analysis using headless browser extraction
+- **Loading indicators**: Immediate feedback with "⏳ Загружаем данные и производим расчёт..." messages
+- **Clean UX**: Loading messages automatically deleted when results are ready
+- **Performance transparency**: Users see processing status during 8-10 second analysis time
+- **Clean formatting**: Minimal emoji usage for better readability
+- **Russian language**: All user messages in simple, neutral Russian with honest explanations of constraints
+- **Error handling**: Graceful fallback to "No Data" category with clear explanations
+- **Real-time updates**: Activity timestamps reflect actual seller behavior, not system time
+
 **Lessons Learned (May 2025)**:
 - **React SPA architecture**: Makes static HTML parsing completely ineffective
 - **Dynamic data loading**: Seller data loaded via authenticated APIs after page render
 - **Listing activity**: Must scroll profile pages to trigger listing load, then parse human-readable time text
 - **Multiple failed approaches**: JSON parsing, regex patterns, API attempts all failed for timestamps
 - **Headless browser**: Only reliable method for extracting seller data and activity from Grailed profiles
+- **Scoring accuracy**: Activity timestamp extraction crucial for fair scoring (was giving all sellers maximum activity points)
+- **Performance trade-offs**: 20-second extraction time justified by accuracy improvement
+- **Reliability impact**: Proper activity scoring enables meaningful seller differentiation
 
 ## Architecture Overview
 

@@ -6,7 +6,9 @@ development). Configures logging and registers bot handlers for commands and
 message processing.
 """
 
+import asyncio
 import logging
+import signal
 
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
@@ -19,6 +21,16 @@ logging.basicConfig(
     level=logging.DEBUG  # Enable debug logging
 )
 logger = logging.getLogger(__name__)
+
+
+async def cleanup_resources():
+    """Cleanup application resources."""
+    try:
+        from .scrapers.headless import cleanup_global_browser
+        await cleanup_global_browser()
+        logger.info("Cleaned up global browser instance")
+    except Exception as e:
+        logger.warning(f"Error during cleanup: {e}")
 
 
 def main() -> None:

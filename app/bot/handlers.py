@@ -20,6 +20,8 @@ from ..bot.messages import (
     ERROR_PRICE_NOT_FOUND,
     ERROR_SELLER_ANALYSIS,
     ERROR_SELLER_DATA_NOT_FOUND,
+    LOADING_MESSAGE,
+    LOADING_SELLER_ANALYSIS,
     LOG_CBR_API_FAILED,
     OFFER_ONLY_MESSAGE,
     START_MESSAGE,
@@ -96,6 +98,9 @@ async def _handle_seller_profile(
         profile_url: Grailed seller profile URL to analyze.
         session: HTTP session for making requests.
     """
+    # Send loading message
+    loading_message = await update.message.reply_text(LOADING_SELLER_ANALYSIS)
+    
     try:
         seller_analysis = await grailed.analyze_seller_profile(profile_url, session)
         if seller_analysis:
@@ -111,11 +116,16 @@ async def _handle_seller_profile(
             seller_analysis['reliability'] = reliability_score.dict()
 
             response = format_seller_profile_response(seller_analysis)
+            
+            # Delete loading message and send final response
+            await loading_message.delete()
             await update.message.reply_text(response)
         else:
+            await loading_message.delete()
             await update.message.reply_text(ERROR_SELLER_DATA_NOT_FOUND)
     except Exception as e:
         logger.error(f"Error processing seller profile {profile_url}: {e}")
+        await loading_message.delete()
         await update.message.reply_text(ERROR_SELLER_ANALYSIS)
         await send_debug_to_admin(context.application, f"Seller profile error for {profile_url}: {e}")
 
@@ -137,6 +147,9 @@ async def _handle_listings(
         urls: List of marketplace URLs to process.
         session: HTTP session for making requests.
     """
+    # Send loading message
+    loading_message = await update.message.reply_text(LOADING_MESSAGE)
+    
     # Resolve Grailed app.link shorteners
     resolved_urls = []
     for url in urls:
@@ -165,6 +178,16 @@ async def _handle_listings(
         logger.error("CBR API failed - currency conversion unavailable")
         await notify_admin(context.application, LOG_CBR_API_FAILED)
 
+    # Check if we have any valid results
+    has_valid_results = any(result is not None for result in results)
+    
+    # Delete loading message before sending results
+    await loading_message.delete()
+    
+    # If no valid results, nothing to process
+    if not has_valid_results:
+        return
+    
     # Process results
     for url, result in zip(resolved_urls, results, strict=False):
         if result is None:

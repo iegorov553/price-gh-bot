@@ -513,7 +513,7 @@ async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSessio
     if config.bot.enable_headless_browser:
         try:
             from .headless import get_grailed_seller_data_headless
-            logger.debug(f"Analyzing profile with headless browser: {profile_url}")
+            logger.debug(f"Analyzing profile with optimized headless browser: {profile_url}")
             
             headless_data = await get_grailed_seller_data_headless(profile_url)
             if headless_data:
