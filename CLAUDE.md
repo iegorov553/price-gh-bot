@@ -149,6 +149,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Russian language**: All user messages in simple, neutral Russian with honest explanations of constraints
 - **Error handling**: Graceful fallback to "No Data" category with clear explanations
 - **Real-time updates**: Activity timestamps reflect actual seller behavior, not system time
+- **Enhanced price display**: Structured multi-line format showing each cost component separately for better readability
 
 **Lessons Learned (May 2025)**:
 - **React SPA architecture**: Makes static HTML parsing completely ineffective
@@ -306,12 +307,44 @@ The bot implements a comprehensive seller evaluation system for Grailed with sop
 - **Profile analysis**: Full seller reliability analysis using headless browser extraction
 - **Errors**: Simple Russian error messages with context about technical limitations
 
-#### Message Formatting (Updated May 2025)
+#### Message Formatting (Updated June 2025)
 - **Clean design**: Removed excessive emoji usage for better readability
 - **Emoji positioning**: Moved emoji from headers to inline with category names
 - **Seller info format**: "Продавец: 💎 Diamond (95/100)" instead of "💎 Продавец: Diamond (95/100)"
 - **Badge display**: Simplified to "Проверенный продавец" / "Нет бейджа" without checkmark/cross emoji
 - **Header cleanup**: "Анализ продавца Grailed" without leading emoji
+
+### Enhanced Price Display Format (June 2025)
+**Replaced single-line price display with structured multi-line format for better user understanding:**
+
+**Old format (confusing):**
+```
+Цена: $120 + $15 доставка по США + $25 доставка РФ = $160
+С учетом комиссии $15: $175 (₽18,375)
+```
+
+**New format (clear and structured):**
+```
+💰 Расчёт стоимости
+
+Товар: $120
+Доставка в США: $15
+Доставка в РФ: $25
+Итого: $160
+
+Комиссия: $15 (фикс. сумма)
+──────────────────
+Итого к оплате: $175
+В рублях: ₽18,375
+```
+
+**Implementation details:**
+- Each cost component displayed on separate line for clarity
+- Visual separator line between subtotal and final total
+- Commission type clearly indicated (fixed amount vs percentage)
+- RUB conversion prominently displayed on dedicated line
+- Handles different shipping scenarios (US+RU vs RU only)
+- Smart display: "Доставка в РФ: $25 (Shopfans)" when no US shipping
 
 ### Shopfans Shipping Estimation
 

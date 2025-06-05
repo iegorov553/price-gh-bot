@@ -94,7 +94,7 @@ graph TD
 3. **Shipping Estimation**: US + Russia delivery cost calculation
 4. **Commission Application**: Tiered fee structure
 5. **Currency Conversion**: Live USD to RUB rates with markup
-6. **Response Formatting**: Structured pricing breakdown
+6. **Enhanced Response Formatting**: Multi-line structured pricing breakdown with clear cost separation
 
 ### Seller Reliability Analysis (Grailed)
 
@@ -111,6 +111,44 @@ Comprehensive 100-point scoring system:
 - 🥈 Silver (55-69): Normal reliability
 - 🥉 Bronze (40-54): Increased risk
 - 👻 Ghost (<40): Low reliability
+
+## Example Responses
+
+### Enhanced Price Display
+
+The bot now uses a structured multi-line format for better readability:
+
+```
+💰 Расчёт стоимости
+
+Товар: $125.00
+Доставка в США: $15.00
+Доставка в РФ: $22.50
+Итого: $162.50
+
+Комиссия: $15 (фикс. сумма)
+──────────────────
+Итого к оплате: $177.50
+В рублях: ₽18,637
+
+Продавец: 💎 Diamond (92/100)
+Продавец топ-уровня, можно брать без лишних вопросов
+```
+
+### Seller Analysis
+
+```
+Анализ продавца Grailed
+
+Надёжность: 💎 Diamond (92/100)
+Продавец топ-уровня, можно брать без лишних вопросов
+
+Детали:
+• Активность: 30/30 (обновления сегодня)
+• Рейтинг: 35/35 (4.9/5.0)
+• Отзывы: 25/25 (245 отзывов)
+• Бейдж: 10/10 (Проверенный продавец)
+```
 
 ## Configuration
 

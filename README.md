@@ -12,6 +12,7 @@ A Telegram bot that helps users calculate the total cost of buying items from eB
 - **Activity tracking**: Real-time "X days ago" parsing from seller profiles for accurate activity scoring
 - **Shipping estimation**: Smart categorization and weight-based Shopfans pricing
 - **Buyability detection**: Identifies buy-now vs offer-only listings
+- **Enhanced price display**: Structured multi-line format showing each cost component separately
 - **Russian localization**: Clean, emoji-minimal user messages in Russian
 
 ## How It Works
@@ -209,8 +210,17 @@ The bot follows a modular architecture with headless browser integration:
 
 ### Price Calculation Response
 ```
-Цена: $89.99 + $12.50 доставка по США + $16.99 доставка РФ = $119.48
-С учетом комиссии $15: $134.48 (₽11,254)
+💰 Расчёт стоимости
+
+Товар: $89.99
+Доставка в США: $12.50
+Доставка в РФ: $16.99
+Итого: $119.48
+
+Комиссия: $15 (фикс. сумма)
+──────────────────
+Итого к оплате: $134.48
+В рублях: ₽11,254
 
 Продавец: 💎 Diamond (92/100)
 Продавец топ-уровня, можно брать без лишних вопросов
