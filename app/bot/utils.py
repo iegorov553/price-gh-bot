@@ -16,11 +16,14 @@ from ..config import config
 from ..models import CurrencyRate, PriceCalculation, ReliabilityScore
 from .messages import (
     ADMIN_NOTIFICATION,
-    COMMISSION_FIXED,
-    COMMISSION_PERCENTAGE,
-    FINAL_PRICE_LINE,
+    COMMISSION_LINE,
+    COMMISSION_TYPE_FIXED,
+    COMMISSION_TYPE_PERCENTAGE,
+    FINAL_TOTAL_LINE,
+    ITEM_PRICE_LINE,
     NO_BADGE,
-    PRICE_LINE,
+    PRICE_CALCULATION_HEADER,
+    RUB_CONVERSION_LINE,
     SELLER_ACTIVITY_LINE,
     SELLER_BADGE_LINE,
     SELLER_DESCRIPTION_LINE,
@@ -31,6 +34,11 @@ from .messages import (
     SELLER_RELIABILITY,
     SELLER_RELIABILITY_LINE,
     SELLER_REVIEWS_LINE,
+    SEPARATOR_LINE,
+    SHIPPING_ONLY_RU_LINE,
+    SHIPPING_RU_LINE,
+    SHIPPING_US_LINE,
+    SUBTOTAL_LINE,
     TIME_DAYS_AGO,
     TIME_TODAY,
     TIME_YESTERDAY,
@@ -42,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 async def notify_admin(application: Application, message: str) -> None:
     """Send notification to admin about system issues.
-    
+
     Args:
         application: Telegram Application instance for sending messages.
         message: Alert message to send to admin.
@@ -59,7 +67,7 @@ async def notify_admin(application: Application, message: str) -> None:
 
 async def send_debug_to_admin(application: Application, message: str) -> None:
     """Send debug message to admin for troubleshooting purposes.
-    
+
     Args:
         application: Telegram Application instance for sending messages.
         message: Debug message content to send to admin.
@@ -75,16 +83,16 @@ async def send_debug_to_admin(application: Application, message: str) -> None:
 
 def calculate_final_price(item_price: Decimal, shipping_us: Decimal, shipping_russia: Decimal) -> PriceCalculation:
     """Calculate final price with tiered commission structure.
-    
+
     Applies either fixed commission ($15) for items under $150 or 10% markup
     for items $150 and above. Commission is calculated only from item price,
     not including shipping costs.
-    
+
     Args:
         item_price: Base price of the item in USD.
         shipping_us: US domestic shipping cost in USD.
         shipping_russia: Russia delivery shipping cost in USD.
-        
+
     Returns:
         PriceCalculation: Complete price breakdown including commission and final price.
     """
@@ -116,59 +124,63 @@ def format_price_response(
     is_grailed: bool = False
 ) -> str:
     """Format price calculation into user-friendly response message.
-    
-    Creates formatted message with price breakdown, commission explanation,
-    RUB conversion (if available), and seller reliability info for Grailed items.
-    
+
+    Creates formatted message with clear price breakdown showing each component
+    separately for better readability and understanding.
+
     Args:
         calculation: Price calculation data including all cost components.
         exchange_rate: USD to RUB exchange rate for currency conversion.
         reliability: Seller reliability score for Grailed items.
         is_grailed: Whether this is a Grailed listing to show seller info.
-        
+
     Returns:
         str: Formatted message ready to send to user.
     """
-    # Prepare shipping text
+    # Start with header
+    response_lines = [PRICE_CALCULATION_HEADER, ""]
+
+    # Item price
+    response_lines.append(ITEM_PRICE_LINE.format(item_price=calculation.item_price))
+
+    # Shipping breakdown
     if calculation.shipping_us == 0:
-        shipping_text = f" + ${calculation.shipping_russia} доставка (Shopfans)"
+        # Only Russia shipping (direct from seller or Shopfans)
+        response_lines.append(SHIPPING_ONLY_RU_LINE.format(shipping_ru=calculation.shipping_russia))
     else:
-        shipping_text = (
-            f" + ${calculation.shipping_us} доставка по США"
-            f" + ${calculation.shipping_russia} доставка РФ"
-        )
+        # Both US and Russia shipping
+        response_lines.append(SHIPPING_US_LINE.format(shipping_us=calculation.shipping_us))
+        response_lines.append(SHIPPING_RU_LINE.format(shipping_ru=calculation.shipping_russia))
 
-    # Commission text
+    # Subtotal
+    response_lines.append(SUBTOTAL_LINE.format(subtotal=calculation.total_cost))
+    response_lines.append("")  # Empty line before commission
+
+    # Commission
     if calculation.item_price < Decimal(str(config.commission.fixed_threshold)):
-        commission_text = COMMISSION_FIXED
+        commission_type = COMMISSION_TYPE_FIXED
     else:
-        commission_text = COMMISSION_PERCENTAGE
+        commission_type = COMMISSION_TYPE_PERCENTAGE
 
-    # Convert to RUB if rate available
-    rub_text = ""
+    response_lines.append(COMMISSION_LINE.format(
+        commission=calculation.commission,
+        commission_type=commission_type
+    ))
+
+    # Separator and final total
+    response_lines.append(SEPARATOR_LINE)
+    response_lines.append(FINAL_TOTAL_LINE.format(final_price=calculation.final_price_usd))
+
+    # RUB conversion if available
     if exchange_rate:
         final_price_rub = (calculation.final_price_usd * exchange_rate.rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
-        rub_text = f" (₽{final_price_rub})"
-
-    # Base response
-    response_lines = [
-        PRICE_LINE.format(
-            price=calculation.item_price,
-            shipping_text=shipping_text,
-            total_cost=calculation.total_cost
-        ),
-        FINAL_PRICE_LINE.format(
-            commission_text=commission_text,
-            final_price=calculation.final_price_usd,
-            rub_text=rub_text
-        )
-    ]
+        response_lines.append(RUB_CONVERSION_LINE.format(rub_price=final_price_rub))
 
     # Add seller reliability for Grailed items
     if reliability and is_grailed:
         emoji = SELLER_RELIABILITY.get(reliability.category, {}).get('emoji', '❓')
 
-        response_lines.append("")  # Empty line
+        response_lines.append("")  # Empty line before seller info
         response_lines.append(SELLER_INFO_LINE.format(
             emoji=emoji,
             category=reliability.category,
@@ -183,14 +195,14 @@ def format_price_response(
 
 def format_seller_profile_response(seller_data: dict) -> str:
     """Format Grailed seller profile analysis into detailed message.
-    
+
     Creates comprehensive seller reliability breakdown including activity,
     rating, review volume, and badge status with user-friendly formatting.
-    
+
     Args:
         seller_data: Dictionary containing seller profile data with reliability
                     scores, last update timestamp, and badge status.
-                    
+
     Returns:
         str: Formatted seller analysis message in Russian.
     """
@@ -212,9 +224,10 @@ def format_seller_profile_response(seller_data: dict) -> str:
     badge_text = TRUSTED_SELLER_BADGE if seller_data['trusted_badge'] else NO_BADGE
 
     response_lines = [
-        SELLER_PROFILE_HEADER.format(emoji=emoji),
+        SELLER_PROFILE_HEADER,
         "",
         SELLER_RELIABILITY_LINE.format(
+            emoji=emoji,
             category=reliability['category'],
             total_score=reliability['total_score']
         ),
@@ -244,10 +257,10 @@ def format_seller_profile_response(seller_data: dict) -> str:
 
 def create_session() -> aiohttp.ClientSession:
     """Create configured aiohttp session for web scraping.
-    
+
     Sets up session with connection limits, timeouts, and user agent
     header optimized for reliable web scraping operations.
-    
+
     Returns:
         aiohttp.ClientSession: Configured HTTP session for making requests.
     """
