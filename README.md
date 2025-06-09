@@ -6,7 +6,7 @@ A Telegram bot that helps users calculate the total cost of buying items from eB
 
 - **Multi-marketplace support**: eBay and Grailed price scraping with dynamic content extraction
 - **Complete cost calculation**: Item price + US shipping + Russia delivery + commission
-- **Smart commission structure**: Fixed $15 for items <$150, 10% of item price (excluding shipping) for items ≥$150
+- **Smart commission structure**: Fixed $15 for items <$150 (including US shipping), 10% of (item price + US shipping) for items ≥$150
 - **Currency conversion**: USD to RUB with real-time exchange rates from Central Bank of Russia (5% markup)
 - **Advanced seller analysis**: Comprehensive Grailed seller scoring using headless browser extraction
 - **Activity tracking**: Real-time "X days ago" parsing from seller profiles for accurate activity scoring
@@ -22,7 +22,7 @@ A Telegram bot that helps users calculate the total cost of buying items from eB
 3. **Price Scraping**: Extracts item price and shipping costs from dynamic content
 4. **Activity Analysis**: Parses "5 days ago" patterns from seller profiles for accurate last update tracking
 5. **Shipping Calculation**: Estimates Russia delivery via Shopfans weight-based rates
-6. **Smart Commission**: Fixed $15 for items <$150, 10% of item price only (excluding shipping) for items ≥$150
+6. **Smart Commission**: Fixed $15 for items <$150 (including US shipping), 10% of (item price + US shipping) for items ≥$150
 7. **Currency Conversion**: Converts final price to Russian Rubles with 5% markup
 8. **Comprehensive Seller Analysis** (Grailed): 4-criteria reliability scoring with Diamond/Gold/Silver/Bronze categories
 
@@ -158,7 +158,7 @@ commission:
     amount: 15.0      # Fixed commission for items <$150
     threshold: 150.0  # Threshold for commission type
   percentage:
-    rate: 0.10        # 10% commission for items ≥$150 (applied to item price only)
+    rate: 0.10        # 10% commission for items ≥$150 (applied to item price + US shipping)
 ```
 
 ## Development

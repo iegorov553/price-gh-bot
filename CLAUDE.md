@@ -190,11 +190,11 @@ The bot scrapes prices from eBay and Grailed listings, adds US shipping costs, e
 - **Currency conversion**: `app/services/currency.py` fetches USD to RUB exchange rate from Central Bank of Russia XML API with 5% markup
 - **Admin notifications**: Sends Telegram alerts to admin when CBR API fails
 - **Tiered pricing logic**: 
-  - Items < $150: Fixed $15 commission (`item_price + shipping + 15`)
-  - Items ≥ $150: 10% of item price only (`item_price * 0.10 + shipping + item_price`)
-  - **Commission calculation**: Based on item price only, excluding shipping costs
-  - **Customer benefit**: Saves $4-5 on higher value items compared to total-cost commission
-  - **Example**: $200 item + $40 shipping = $20 commission (was $24), saving $4
+  - Items < $150 (including US shipping): Fixed $15 commission
+  - Items ≥ $150 (including US shipping): 10% of (item price + US shipping)
+  - **Commission calculation**: Based on item price + US shipping costs (both values from listing)
+  - **Updated logic (June 2025)**: Commission now includes US shipping in calculation base for fairer pricing
+  - **Example**: $120 item + $40 US shipping = $160 base, 10% commission = $16 (was $15 fixed)
 - **Seller reliability scoring**: 4-criteria evaluation system (activity, rating, review volume, trusted badge) with Diamond/Gold/Silver/Bronze/Ghost categories
 
 ### Environment Variables

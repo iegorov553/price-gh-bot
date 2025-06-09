@@ -85,8 +85,8 @@ def calculate_final_price(item_price: Decimal, shipping_us: Decimal, shipping_ru
     """Calculate final price with tiered commission structure.
 
     Applies either fixed commission ($15) for items under $150 or 10% markup
-    for items $150 and above. Commission is calculated only from item price,
-    not including shipping costs.
+    for items $150 and above. Commission is calculated from item price plus
+    US shipping cost (both values from the listing).
 
     Args:
         item_price: Base price of the item in USD.
@@ -98,13 +98,16 @@ def calculate_final_price(item_price: Decimal, shipping_us: Decimal, shipping_ru
     """
     total_cost = item_price + shipping_us + shipping_russia
 
-    # Apply commission based on item price only (not including shipping)
-    if item_price < Decimal(str(config.commission.fixed_threshold)):
+    # Commission base includes item price + US shipping (both from listing)
+    commission_base = item_price + shipping_us
+
+    # Apply commission based on item price + US shipping
+    if commission_base < Decimal(str(config.commission.fixed_threshold)):
         commission = Decimal(str(config.commission.fixed_amount))
         final_price = (total_cost + commission).quantize(Decimal('0.01'), ROUND_HALF_UP)
     else:
         commission_rate = Decimal(str(config.commission.percentage_rate))
-        commission = (item_price * commission_rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
+        commission = (commission_base * commission_rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
         final_price = (total_cost + commission).quantize(Decimal('0.01'), ROUND_HALF_UP)
 
     return PriceCalculation(

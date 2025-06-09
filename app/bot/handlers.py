@@ -100,7 +100,7 @@ async def _handle_seller_profile(
     """
     # Send loading message
     loading_message = await update.message.reply_text(LOADING_SELLER_ANALYSIS)
-    
+
     try:
         seller_analysis = await grailed.analyze_seller_profile(profile_url, session)
         if seller_analysis:
@@ -116,7 +116,7 @@ async def _handle_seller_profile(
             seller_analysis['reliability'] = reliability_score.dict()
 
             response = format_seller_profile_response(seller_analysis)
-            
+
             # Delete loading message and send final response
             await loading_message.delete()
             await update.message.reply_text(response)
@@ -149,7 +149,7 @@ async def _handle_listings(
     """
     # Send loading message
     loading_message = await update.message.reply_text(LOADING_MESSAGE)
-    
+
     # Resolve Grailed app.link shorteners
     resolved_urls = []
     for url in urls:
@@ -180,14 +180,14 @@ async def _handle_listings(
 
     # Check if we have any valid results
     has_valid_results = any(result is not None for result in results)
-    
+
     # Delete loading message before sending results
     await loading_message.delete()
-    
+
     # If no valid results, nothing to process
     if not has_valid_results:
         return
-    
+
     # Process results
     for url, result in zip(resolved_urls, results, strict=False):
         if result is None:

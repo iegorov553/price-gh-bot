@@ -6,9 +6,7 @@ development). Configures logging and registers bot handlers for commands and
 message processing.
 """
 
-import asyncio
 import logging
-import signal
 
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 

@@ -7,7 +7,7 @@ A Telegram bot that calculates total costs for eBay and Grailed listings includi
 This bot provides intelligent price calculation and seller analysis for online marketplace purchases:
 
 - **Multi-platform support**: eBay and Grailed integration
-- **Smart commission system**: Tiered pricing based on item value
+- **Smart commission system**: Tiered pricing based on item value (including US shipping for items ≥$150)
 - **Shipping estimation**: US domestic + Russia delivery via Shopfans
 - **Currency conversion**: Real-time USD to RUB rates from Central Bank of Russia
 - **Seller analysis**: Comprehensive reliability scoring for Grailed sellers

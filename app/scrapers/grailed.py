@@ -159,17 +159,17 @@ def _extract_seller_profile_url(soup: BeautifulSoup) -> str | None:
                     r'"username"\s*:\s*"([^"]+)"[^}]*"(?:seller|user|owner)"',
                     r'"(?:sellerName|userName|ownerName|sellerUsername)"\s*:\s*"([^"]+)"',
                     r'"name"\s*:\s*"([^"]+)"[^}]*"(?:seller|user)"',
-                    
+
                     # Nested object patterns
                     r'seller["\s]*:[^{]*{[^}]*username["\s]*:["\s]*([^"]+)',
                     r'user["\s]*:[^{]*{[^}]*username["\s]*:["\s]*([^"]+)',
                     r'owner["\s]*:[^{]*{[^}]*username["\s]*:["\s]*([^"]+)',
-                    
+
                     # Alternative structures
                     r'"seller"\s*:\s*"([^"]+)"',  # Direct seller string
                     r'"sellerSlug"\s*:\s*"([^"]+)"',
                     r'"userSlug"\s*:\s*"([^"]+)"',
-                    
+
                     # Profile path patterns in JSON
                     r'"(?:profilePath|userPath|sellerPath)"\s*:\s*"/?([^"]+)"',
                     r'"/([^/"]+)"\s*.*"(?:seller|user|profile)"',
@@ -240,7 +240,7 @@ def _extract_seller_profile_url(soup: BeautifulSoup) -> str | None:
             '.seller-link', '.user-link', '.profile-link',
             'a.seller', 'a.user', '[data-seller]', '[data-user]'
         ]
-        
+
         for selector in profile_selectors:
             try:
                 elements = soup.select(selector)
@@ -352,7 +352,7 @@ async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSessi
                             logger.debug(f"Updated headless data with profile timestamp: {profile_last_update}")
                     except Exception as e:
                         logger.debug(f"Failed to get profile timestamp, using headless timestamp: {e}")
-                    
+
                     logger.info(f"Successfully extracted seller data with headless browser: {headless_data}")
                     return headless_data
                 else:
@@ -372,7 +372,7 @@ async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSessi
             trusted_badge=False,
             last_updated=datetime.now(UTC)
         )
-        
+
         logger.warning("No seller metrics available - Grailed uses React SPA with client-side data loading")
         return seller_data
 
@@ -507,14 +507,14 @@ async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSessio
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+
     # Try headless browser extraction first if enabled
     from ..config import config
     if config.bot.enable_headless_browser:
         try:
             from .headless import get_grailed_seller_data_headless
             logger.debug(f"Analyzing profile with optimized headless browser: {profile_url}")
-            
+
             headless_data = await get_grailed_seller_data_headless(profile_url)
             if headless_data:
                 logger.info(f"Successfully extracted profile data with headless browser: {headless_data}")
@@ -526,14 +526,14 @@ async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSessio
                 }
             else:
                 logger.warning(f"Headless browser found no data for profile: {profile_url}")
-                
+
         except ImportError:
             logger.warning("Playwright not available for profile analysis - install with: pip install playwright")
         except Exception as e:
             logger.warning(f"Headless browser profile analysis failed: {e}")
     else:
         logger.debug("Headless browser disabled in configuration")
-    
+
     # Fallback to minimal data
     logger.debug(f"Returning minimal data for profile: {profile_url}")
     return {
