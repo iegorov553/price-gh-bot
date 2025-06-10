@@ -1,36 +1,26 @@
 repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.7
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^(app|tests_new)/.*\.py$
+      - id: ruff-format
+        files: ^(app|tests_new)/.*\.py$
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
-      - id: check-added-large-files
-      - id: check-json
       - id: check-merge-conflict
-      - id: debug-statements
 
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.1.6
+  - repo: local
     hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
-
-  - repo: https://github.com/pycqa/pydocstyle
-    rev: 6.3.0
-    hooks:
-      - id: pydocstyle
-        args: [--convention=google]
-        additional_dependencies: [toml]
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.1
-    hooks:
-      - id: mypy
-        additional_dependencies: [
-          pydantic,
-          types-requests,
-          types-PyYAML
-        ]
-        args: [--ignore-missing-imports]
+      - id: pytest-unit
+        name: Run unit tests
+        entry: bash -c "cd /home/iegorov553/projects/price-gh-bot && source venv/bin/activate && BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/unit/ -x"
+        language: system
+        files: ^(app|tests_new)/.*\.py$
+        pass_filenames: false

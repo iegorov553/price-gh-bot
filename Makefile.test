@@ -1,0 +1,221 @@
+# Test automation Makefile for price-gh-bot
+# Provides convenient commands for running different types of tests
+
+.PHONY: test test-unit test-integration test-e2e test-all test-docker test-coverage
+.PHONY: test-update-data test-verify lint format install-dev setup-pre-commit
+.PHONY: clean-test clean-docker help
+
+# Default target
+help:
+	@echo "🧪 Test Commands for price-gh-bot"
+	@echo "=================================="
+	@echo ""
+	@echo "📋 Basic Test Commands:"
+	@echo "  make test-unit         - Run fast unit tests"
+	@echo "  make test-integration  - Run integration tests with mocks"
+	@echo "  make test-e2e          - Run end-to-end tests with real URLs"
+	@echo "  make test-all          - Run all tests in sequence"
+	@echo "  make test-coverage     - Run tests with coverage report"
+	@echo ""
+	@echo "🐳 Docker Test Commands:"
+	@echo "  make test-docker       - Run all tests in Docker containers"
+	@echo "  make test-docker-unit  - Run only unit tests in Docker"
+	@echo "  make test-docker-dev   - Start development Docker environment"
+	@echo ""
+	@echo "🔧 Development Commands:"
+	@echo "  make lint              - Run linting and formatting checks"
+	@echo "  make format            - Auto-format code"
+	@echo "  make install-dev       - Install development dependencies"
+	@echo "  make setup-pre-commit  - Setup pre-commit hooks"
+	@echo ""
+	@echo "📊 Data Management:"
+	@echo "  make test-update-data  - Update test data from real sources"
+	@echo "  make test-verify       - Verify test URLs are still accessible"
+	@echo ""
+	@echo "🧹 Cleanup Commands:"
+	@echo "  make clean-test        - Clean test artifacts"
+	@echo "  make clean-docker      - Clean Docker test containers"
+	@echo ""
+
+# Environment setup
+VENV_PATH = venv
+PYTHON = $(VENV_PATH)/bin/python3
+PIP = $(VENV_PATH)/bin/pip
+PYTEST = $(VENV_PATH)/bin/pytest
+TEST_ENV = BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU ENABLE_HEADLESS_BROWSER=false
+
+# Basic test commands
+test: test-unit
+	@echo "✅ Quick tests completed"
+
+test-unit:
+	@echo "🏃‍♂️ Running unit tests..."
+	@$(TEST_ENV) $(PYTEST) tests_new/unit/ -v --tb=short --maxfail=5
+
+test-integration:
+	@echo "🔗 Running integration tests..."
+	@$(TEST_ENV) $(PYTEST) tests_new/integration/ -v --tb=short --maxfail=3
+
+test-e2e:
+	@echo "🌐 Running end-to-end tests..."
+	@BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU ENABLE_HEADLESS_BROWSER=true $(PYTEST) tests_new/e2e/ -v --tb=short --maxfail=1 --timeout=120
+
+test-all:
+	@echo "🚀 Running comprehensive test suite..."
+	@$(MAKE) test-unit
+	@$(MAKE) test-integration  
+	@$(MAKE) test-e2e
+	@echo "🎉 All tests completed successfully!"
+
+test-coverage:
+	@echo "📊 Running tests with coverage..."
+	@$(TEST_ENV) $(PYTEST) tests_new/ -v --cov=app --cov-report=html --cov-report=term --cov-fail-under=70
+
+# Docker test commands
+test-docker:
+	@echo "🐳 Running all tests in Docker..."
+	@docker-compose -f docker-compose.test.yml up test-all --build --abort-on-container-exit
+
+test-docker-unit:
+	@echo "🐳 Running unit tests in Docker..."
+	@docker-compose -f docker-compose.test.yml up test-unit --build --abort-on-container-exit
+
+test-docker-integration:
+	@echo "🐳 Running integration tests in Docker..."
+	@docker-compose -f docker-compose.test.yml up test-integration --build --abort-on-container-exit
+
+test-docker-e2e:
+	@echo "🐳 Running E2E tests in Docker..."
+	@docker-compose -f docker-compose.test.yml up test-e2e --build --abort-on-container-exit
+
+test-docker-dev:
+	@echo "🐳 Starting development Docker environment..."
+	@docker-compose -f docker-compose.test.yml up test-dev --build -d
+	@echo "📝 Use: docker exec -it $$(docker-compose -f docker-compose.test.yml ps -q test-dev) bash"
+
+test-docker-coverage:
+	@echo "🐳 Running coverage tests in Docker..."
+	@docker-compose -f docker-compose.test.yml up test-coverage --build --abort-on-container-exit
+
+# Development commands
+lint:
+	@echo "🔍 Running linting checks..."
+	@$(VENV_PATH)/bin/ruff check app/ tests_new/
+	@$(VENV_PATH)/bin/mypy app/
+	@$(VENV_PATH)/bin/pydocstyle app/
+
+format:
+	@echo "✨ Formatting code..."
+	@$(VENV_PATH)/bin/ruff check app/ tests_new/ --fix
+	@$(VENV_PATH)/bin/ruff format app/ tests_new/
+
+install-dev:
+	@echo "📦 Installing development dependencies..."
+	@$(PIP) install -r requirements.txt -r requirements-dev.txt
+	@$(VENV_PATH)/bin/playwright install chromium
+
+setup-pre-commit:
+	@echo "🪝 Setting up pre-commit hooks..."
+	@$(VENV_PATH)/bin/pre-commit install
+	@$(VENV_PATH)/bin/pre-commit install --hook-type commit-msg
+
+# Data management commands
+test-update-data:
+	@echo "📊 Updating test data from real sources..."
+	@$(TEST_ENV) $(PYTHON) tests_new/utils/data_updater.py
+
+test-verify:
+	@echo "🔍 Verifying test URLs are accessible..."
+	@$(TEST_ENV) $(PYTHON) -c "
+import asyncio
+from tests_new.utils.data_updater import TestDataUpdater
+async def main():
+    updater = TestDataUpdater()
+    await updater.verify_test_urls()
+asyncio.run(main())
+"
+
+# Benchmark tests
+test-benchmark:
+	@echo "⚡ Running performance benchmarks..."
+	@$(TEST_ENV) $(PYTEST) tests_new/ -k "benchmark" --benchmark-json=benchmark.json
+
+# Test with different Python versions (if available)
+test-py311:
+	@echo "🐍 Testing with Python 3.11..."
+	@python3.11 -m pytest tests_new/unit/ -v --tb=short
+
+test-py312:
+	@echo "🐍 Testing with Python 3.12..."
+	@python3.12 -m pytest tests_new/unit/ -v --tb=short
+
+# CI simulation
+test-ci:
+	@echo "🏭 Simulating CI pipeline..."
+	@$(MAKE) lint
+	@$(MAKE) test-unit
+	@$(MAKE) test-integration
+	@$(MAKE) test-docker-unit
+	@echo "🎯 CI simulation completed"
+
+# Cleanup commands
+clean-test:
+	@echo "🧹 Cleaning test artifacts..."
+	@rm -rf .pytest_cache
+	@rm -rf htmlcov
+	@rm -f .coverage
+	@rm -f coverage.xml
+	@rm -f benchmark.json
+	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+
+clean-docker:
+	@echo "🐳 Cleaning Docker test containers..."
+	@docker-compose -f docker-compose.test.yml down --volumes --remove-orphans
+	@docker system prune -f
+
+clean-all: clean-test clean-docker
+	@echo "✨ All test artifacts cleaned"
+
+# Quick development cycle
+dev-cycle:
+	@echo "🔄 Running development cycle..."
+	@$(MAKE) format
+	@$(MAKE) test-unit
+	@$(MAKE) lint
+	@echo "✅ Development cycle completed"
+
+# Security tests
+test-security:
+	@echo "🔒 Running security tests..."
+	@$(VENV_PATH)/bin/safety check
+	@$(VENV_PATH)/bin/bandit -r app/ -f json -o bandit-report.json
+	@echo "📄 Security report: bandit-report.json"
+
+# Documentation tests
+test-docs:
+	@echo "📚 Testing documentation..."
+	@$(VENV_PATH)/bin/mkdocs build --strict
+	@echo "✅ Documentation builds successfully"
+
+# Performance profiling
+test-profile:
+	@echo "⚡ Profiling test performance..."
+	@$(TEST_ENV) $(PYTEST) tests_new/unit/ --profile --profile-svg
+
+# Test discovery
+test-discover:
+	@echo "🔍 Discovering tests..."
+	@$(PYTEST) --collect-only tests_new/
+
+# Verbose test run with all details
+test-verbose:
+	@echo "🔊 Running verbose tests..."
+	@$(TEST_ENV) $(PYTEST) tests_new/ -v -s --tb=long
+
+# Test specific file or pattern
+test-file:
+	@echo "📄 Testing specific file: $(FILE)"
+	@$(TEST_ENV) $(PYTEST) $(FILE) -v --tb=short
+
+# Example: make test-file FILE=tests_new/unit/test_commission_contracts.py

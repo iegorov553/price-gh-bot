@@ -42,6 +42,7 @@ plugins:
 
 nav:
   - Home: index.md
+  - Testing Guide: TESTING.md
   - API Reference:
     - Main Application: api/main.md
     - Models: api/models.md

@@ -1,0 +1,48 @@
+# Coverage configuration
+
+[run]
+source = app
+branch = True
+parallel = True
+concurrency = thread,multiprocessing
+
+# Files to include/exclude
+include = app/*
+omit = 
+    app/__init__.py
+    app/config.py
+    venv/*
+    tests_new/*
+    */site-packages/*
+    */__pycache__/*
+    */migrations/*
+
+[report]
+# Reporting options
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
+
+ignore_errors = True
+show_missing = True
+precision = 2
+sort = Cover
+
+# Minimum coverage thresholds
+fail_under = 70
+
+[html]
+directory = htmlcov
+title = Price-GH-Bot Test Coverage
+
+[xml]
+output = coverage.xml
+
+[json]
+output = coverage.json

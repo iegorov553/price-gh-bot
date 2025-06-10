@@ -15,6 +15,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Pre-commit hooks**: `pre-commit run --all-files`
 - **Deploy to Railway**: Automatically handled by `railway.toml` config
 
+## Comprehensive Testing System
+
+**📖 Complete Testing Documentation**: [docs/TESTING.md](docs/TESTING.md)
+
+The project includes a robust multi-level testing framework:
+
+### Quick Test Commands
+- **Unit tests (fast)**: `BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/unit/ -v`
+- **Integration tests**: `BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/integration/ -v`
+- **E2E tests (slow)**: `BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/e2e/ -v`
+- **All tests**: `make test-all` (requires Makefile.test setup)
+- **Docker tests**: `docker-compose -f docker-compose.test.yml up test-all`
+
+### Test Categories
+- **Unit Tests** (`tests_new/unit/`): Fast isolated tests for business logic (commission, shipping, currency)
+- **Integration Tests** (`tests_new/integration/`): Component interaction tests with mocked external services
+- **E2E Tests** (`tests_new/e2e/`): Full workflow tests with real eBay/Grailed URLs and APIs
+
+### Key Features
+- **Contract Testing**: Validates business logic against defined requirements
+- **Auto-updating Test Data**: Synchronizes test expectations with real external services
+- **CI/CD Integration**: GitHub Actions pipeline with comprehensive quality checks
+- **Docker Isolation**: Containerized testing environment for consistency
+- **Performance Monitoring**: Benchmarks and coverage reporting
+- **Pre-commit Hooks**: Automated quality checks before commits
+
+### Test Data Management
+- **Automated Updates**: `python tests_new/utils/data_updater.py`
+- **URL Verification**: `make test-verify`
+- **Custom Fixtures**: Located in `tests_new/fixtures/`
+
+See [docs/TESTING.md](docs/TESTING.md) for complete documentation including setup, usage examples, debugging guides, and best practices.
+
 ## Web Scraping Guidelines
 
 **CRITICAL**: Always analyze target website structure before implementing scraping logic:

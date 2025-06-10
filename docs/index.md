@@ -185,6 +185,36 @@ mypy app/
 pytest
 ```
 
+### Comprehensive Testing
+
+**📖 Complete Testing Documentation**: [TESTING.md](TESTING.md)
+
+The project includes a sophisticated 3-level testing framework:
+
+```bash
+# Fast unit tests during development
+BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/unit/ -v
+
+# Integration tests with component interaction
+BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/integration/ -v
+
+# End-to-end tests with real external services
+BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/e2e/ -v
+
+# All tests via Makefile
+make test-all
+
+# Docker isolated testing
+docker-compose -f docker-compose.test.yml up test-all
+```
+
+**Key Testing Features:**
+- Contract testing for business logic validation
+- Auto-updating test data synchronized with external services
+- GitHub Actions CI/CD pipeline with comprehensive checks
+- Docker containerized testing for consistency
+- Performance benchmarking and coverage reporting
+
 ### Documentation
 
 ```bash

@@ -1,0 +1,127 @@
+version: '3.8'
+
+services:
+  # Unit tests - fast isolated tests
+  test-unit:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: test
+    environment:
+      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - ENABLE_HEADLESS_BROWSER=false
+      - LOG_LEVEL=WARNING
+    command: ["pytest", "tests_new/unit/", "-v", "--tb=short", "-x"]
+    volumes:
+      - .:/app:ro
+    networks:
+      - test-network
+  
+  # Integration tests - component interaction tests with mocks
+  test-integration:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: test
+    environment:
+      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - ENABLE_HEADLESS_BROWSER=false
+      - LOG_LEVEL=INFO
+    command: ["pytest", "tests_new/integration/", "-v", "--tb=short", "-x"]
+    volumes:
+      - .:/app:ro
+    networks:
+      - test-network
+    depends_on:
+      - test-unit
+  
+  # E2E tests - full workflow with real external services
+  test-e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: test
+    environment:
+      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - ENABLE_HEADLESS_BROWSER=true
+      - LOG_LEVEL=INFO
+    command: ["pytest", "tests_new/e2e/", "-v", "--tb=short", "-x", "--timeout=60"]
+    volumes:
+      - .:/app:ro
+    networks:
+      - test-network
+    depends_on:
+      - test-integration
+  
+  # All tests in sequence
+  test-all:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: test
+    environment:
+      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - ENABLE_HEADLESS_BROWSER=true
+      - LOG_LEVEL=INFO
+    command: [
+      "bash", "-c", 
+      "echo '🧪 Running comprehensive test suite...' && \
+       pytest tests_new/unit/ -v --tb=short -x && \
+       echo '✅ Unit tests passed' && \
+       pytest tests_new/integration/ -v --tb=short -x && \
+       echo '✅ Integration tests passed' && \
+       pytest tests_new/e2e/ -v --tb=short -x --timeout=60 && \
+       echo '🎉 All tests passed!'"
+    ]
+    volumes:
+      - .:/app:ro
+    networks:
+      - test-network
+  
+  # Development environment for interactive testing
+  test-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: test-dev
+    environment:
+      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - ENABLE_HEADLESS_BROWSER=true
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./tests_new:/app/tests_new
+      - ./app:/app/app
+      - ./requirements.txt:/app/requirements.txt
+      - ./requirements-dev.txt:/app/requirements-dev.txt
+    ports:
+      - "8000:8000"  # In case we need to test webhook mode
+    networks:
+      - test-network
+    stdin_open: true
+    tty: true
+  
+  # Test with coverage reporting
+  test-coverage:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      target: test
+    environment:
+      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - ENABLE_HEADLESS_BROWSER=true
+      - LOG_LEVEL=WARNING
+    command: [
+      "pytest", "tests_new/", 
+      "-v", "--tb=short",
+      "--cov=app", "--cov-report=html", "--cov-report=term",
+      "--cov-fail-under=80"
+    ]
+    volumes:
+      - .:/app:ro
+      - ./htmlcov:/app/htmlcov  # Coverage report output
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge

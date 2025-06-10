@@ -171,18 +171,30 @@ commission:
 - **Documentation**: `mkdocs serve`
 - **Docstring Checking**: `pydocstyle app/`
 
-### Testing Headless Browser
+### Comprehensive Testing
+
+**📖 Complete Testing Documentation**: [docs/TESTING.md](docs/TESTING.md)
 
 ```bash
-# Test specific seller profile
-python test_headless.py
+# Quick tests during development
+BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/unit/ -v
 
-# Test commission calculation
-python verify_commission.py
+# Full test suite (unit + integration + e2e)
+make test-all
 
-# Run full test suite
+# Docker isolated testing
+docker-compose -f docker-compose.test.yml up test-all
+
+# Legacy tests (deprecated, use tests_new/ instead)
 pytest tests/ -v
 ```
+
+The project features a robust **3-level testing system**:
+- **Unit tests**: Fast isolated business logic tests
+- **Integration tests**: Component interaction tests with mocks  
+- **E2E tests**: Full workflow tests with real external services
+
+Key features: auto-updating test data, CI/CD integration, contract testing, and comprehensive coverage reporting.
 
 ## Architecture
 
