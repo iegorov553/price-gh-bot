@@ -20,6 +20,9 @@ from ..bot.messages import (
     ERROR_PRICE_NOT_FOUND,
     ERROR_SELLER_ANALYSIS,
     ERROR_SELLER_DATA_NOT_FOUND,
+    GRAILED_LISTING_ISSUE,
+    GRAILED_SITE_DOWN,
+    GRAILED_SITE_SLOW,
     LOADING_MESSAGE,
     LOADING_SELLER_ANALYSIS,
     LOG_CBR_API_FAILED,
@@ -196,7 +199,11 @@ async def _handle_listings(
         item_data, seller_data = result
 
         if not item_data.price:
-            await update.message.reply_text(ERROR_PRICE_NOT_FOUND)
+            # Enhanced error handling with site availability check for Grailed
+            if grailed.is_grailed_url(url):
+                await _handle_grailed_scraping_failure(update, session)
+            else:
+                await update.message.reply_text(ERROR_PRICE_NOT_FOUND)
             continue
 
         if not item_data.is_buyable:
@@ -323,3 +330,50 @@ async def _return_none():
         None to indicate no data extracted.
     """
     return None
+
+
+async def _handle_grailed_scraping_failure(
+    update: Update,
+    session: aiohttp.ClientSession
+) -> None:
+    """Handle Grailed scraping failure with enhanced diagnostics.
+    
+    When Grailed listing scraping fails, this function checks if the entire
+    Grailed website is accessible to provide more helpful error messages to users.
+    
+    Args:
+        update: Telegram update object containing message data.
+        session: HTTP session for making requests.
+    """
+    logger.info("Checking Grailed availability after scraping failure")
+    
+    try:
+        # Check if Grailed site is available
+        availability = await grailed.check_grailed_availability(session)
+        
+        if not availability['is_available']:
+            status_code = availability.get('status_code', 'неизвестно')
+            response_time = availability.get('response_time_ms', 0)
+            
+            if availability.get('error_message') and 'timeout' in availability['error_message'].lower():
+                # Site is slow or timing out
+                message = GRAILED_SITE_SLOW.format(response_time=response_time)
+            else:
+                # Site is down or returning errors
+                message = GRAILED_SITE_DOWN.format(
+                    status_code=status_code,
+                    response_time=response_time
+                )
+            
+            await update.message.reply_text(message)
+            logger.warning(f"Grailed site availability issue: {availability}")
+            
+        else:
+            # Site is working, likely issue with specific listing
+            await update.message.reply_text(GRAILED_LISTING_ISSUE)
+            logger.info("Grailed site is accessible, likely listing-specific issue")
+            
+    except Exception as e:
+        # Fallback to generic error if availability check fails
+        logger.error(f"Error during Grailed availability check: {e}")
+        await update.message.reply_text(ERROR_PRICE_NOT_FOUND)

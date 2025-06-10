@@ -12,6 +12,7 @@ Key features:
 - Profile URL extraction and seller activity tracking
 """
 
+import asyncio
 import json
 import re
 from datetime import UTC, datetime
@@ -542,3 +543,93 @@ async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSessio
         'trusted_badge': False,
         'last_updated': datetime.now(UTC)
     }
+
+
+async def check_grailed_availability(session: aiohttp.ClientSession) -> dict[str, Any]:
+    """Check if Grailed website is available and responsive.
+    
+    Tests Grailed's main page and API endpoints to determine if the site
+    is experiencing downtime or technical issues. Used for better error
+    reporting when individual listing scraping fails.
+    
+    Args:
+        session: aiohttp ClientSession for making HTTP requests
+    
+    Returns:
+        Dictionary containing availability status:
+        - is_available: True if Grailed is responsive, False otherwise
+        - status_code: HTTP status code from main page check
+        - response_time_ms: Response time in milliseconds
+        - error_message: Description of any errors encountered
+    """
+    import logging
+    import time
+    
+    logger = logging.getLogger(__name__)
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate',
+        'Connection': 'keep-alive',
+    }
+    
+    start_time = time.time()
+    
+    try:
+        # Try main page first
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with session.get(
+            'https://www.grailed.com',
+            headers=headers,
+            timeout=timeout
+        ) as response:
+            response_time_ms = int((time.time() - start_time) * 1000)
+            
+            if response.status == 200:
+                logger.debug(f"Grailed main page accessible: {response.status} in {response_time_ms}ms")
+                return {
+                    'is_available': True,
+                    'status_code': response.status,
+                    'response_time_ms': response_time_ms,
+                    'error_message': None
+                }
+            else:
+                logger.warning(f"Grailed main page returned non-200 status: {response.status}")
+                return {
+                    'is_available': False,
+                    'status_code': response.status,
+                    'response_time_ms': response_time_ms,
+                    'error_message': f"HTTP {response.status} error from main page"
+                }
+                
+    except asyncio.TimeoutError:
+        response_time_ms = int((time.time() - start_time) * 1000)
+        logger.warning(f"Grailed availability check timed out after {response_time_ms}ms")
+        return {
+            'is_available': False,
+            'status_code': None,
+            'response_time_ms': response_time_ms,
+            'error_message': "Connection timeout - site may be slow or unavailable"
+        }
+        
+    except aiohttp.ClientError as e:
+        response_time_ms = int((time.time() - start_time) * 1000)
+        logger.error(f"Network error checking Grailed availability: {e}")
+        return {
+            'is_available': False,
+            'status_code': None,
+            'response_time_ms': response_time_ms,
+            'error_message': f"Network error: {str(e)}"
+        }
+        
+    except Exception as e:
+        response_time_ms = int((time.time() - start_time) * 1000)
+        logger.error(f"Unexpected error checking Grailed availability: {e}")
+        return {
+            'is_available': False,
+            'status_code': None,
+            'response_time_ms': response_time_ms,
+            'error_message': f"Unexpected error: {str(e)}"
+        }

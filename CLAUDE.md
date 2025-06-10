@@ -180,6 +180,11 @@ See [docs/TESTING.md](docs/TESTING.md) for complete documentation including setu
 - **Performance transparency**: Users see processing status during 8-10 second analysis time
 - **Clean formatting**: Minimal emoji usage for better readability
 - **Russian language**: All user messages in simple, neutral Russian with honest explanations of constraints
+- **Enhanced error diagnostics**: Intelligent error handling with site availability checking
+  - Automatic Grailed availability check when listing scraping fails
+  - Context-aware error messages distinguishing between site downtime and listing issues
+  - Response time monitoring for performance diagnostics
+  - Three-tier error classification: site down, site slow, or listing-specific issues
 - **Error handling**: Graceful fallback to "No Data" category with clear explanations
 - **Real-time updates**: Activity timestamps reflect actual seller behavior, not system time
 - **Enhanced price display**: Structured multi-line format showing each cost component separately for better readability
