@@ -76,23 +76,34 @@ class ShippingQuote(BaseModel):
 
 
 class PriceCalculation(BaseModel):
-    """Complete price breakdown with all fees.
+    """Complete price breakdown with new structured format.
+    
+    New structure supports:
+    - Intermediate subtotal (item + US shipping + commission)
+    - Additional costs (RF customs duty + RF shipping)
+    - Final total (subtotal + additional costs)
     
     Attributes:
         item_price: Original item price in USD.
         shipping_us: US domestic shipping cost.
-        shipping_russia: Russia delivery cost via Shopfans.
-        total_cost: Sum of item + all shipping costs.
         commission: Applied commission fee.
-        final_price_usd: Total cost including commission.
+        commission_type: Type of commission ("fixed" or "percentage").
+        subtotal: Item + US shipping + commission.
+        customs_duty: Russian customs duty (15% over 200 EUR).
+        shipping_russia: Russia delivery cost via Shopfans.
+        additional_costs: Customs duty + Russia shipping.
+        final_price_usd: Subtotal + additional costs.
         final_price_rub: Final price converted to rubles (if available).
         exchange_rate: USD to RUB rate used for conversion.
     """
     item_price: Decimal
     shipping_us: Decimal = Decimal("0")
-    shipping_russia: Decimal = Decimal("0")
-    total_cost: Decimal
     commission: Decimal
+    commission_type: str = "fixed"  # "fixed" or "percentage"
+    subtotal: Decimal
+    customs_duty: Decimal = Decimal("0")
+    shipping_russia: Decimal = Decimal("0")
+    additional_costs: Decimal
     final_price_usd: Decimal
     final_price_rub: Decimal | None = None
     exchange_rate: Decimal | None = None

@@ -8,8 +8,10 @@ This bot provides intelligent price calculation and seller analysis for online m
 
 - **Multi-platform support**: eBay and Grailed integration
 - **Smart commission system**: Tiered pricing based on item value (including US shipping for items ≥$150)
+- **Russian customs duty**: Automatic 15% calculation for imports exceeding 200 EUR threshold
+- **Multi-currency support**: EUR/USD and USD/RUB conversion via Central Bank of Russia API
 - **Shipping estimation**: US domestic + Russia delivery via Shopfans
-- **Currency conversion**: Real-time USD to RUB rates from Central Bank of Russia
+- **Structured pricing**: Two-tier breakdown with intermediate subtotal and additional costs
 - **Seller analysis**: Comprehensive reliability scoring for Grailed sellers
 
 ## Quick Start

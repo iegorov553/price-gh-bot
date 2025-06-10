@@ -51,21 +51,23 @@ OFFER_ONLY_MESSAGE = (
 COMMISSION_FIXED = "комиссии $15"
 COMMISSION_PERCENTAGE = "комиссии 10%"
 
-# Price calculation format - detailed breakdown
+# Price calculation format - new structured breakdown
 PRICE_CALCULATION_HEADER = "💰 Расчёт стоимости"
 ITEM_PRICE_LINE = "Товар: ${item_price}"
 SHIPPING_US_LINE = "Доставка в США: ${shipping_us}"
-SHIPPING_RU_LINE = "Доставка в РФ: ${shipping_ru}"
-SHIPPING_ONLY_RU_LINE = "Доставка в РФ: ${shipping_ru} (Shopfans)"
-SUBTOTAL_LINE = "Итого: ${subtotal}"
 COMMISSION_LINE = "Комиссия: ${commission} ({commission_type})"
 SEPARATOR_LINE = "──────────────────"
+SUBTOTAL_LINE = "Промежуточный итог: ${subtotal}"
+CUSTOMS_DUTY_LINE = "Пошлина РФ: ${customs_duty} (15% с превышения 200€)"
+SHIPPING_RU_LINE = "Доставка в РФ: ${shipping_ru}"
+SHIPPING_ONLY_RU_LINE = "Доставка в РФ: ${shipping_ru} (Shopfans)"
+ADDITIONAL_COSTS_LINE = "Дополнительные расходы: ${additional_costs}"
 FINAL_TOTAL_LINE = "Итого к оплате: ${final_price}"
 RUB_CONVERSION_LINE = "В рублях: ₽{rub_price}"
 
 # Commission types
 COMMISSION_TYPE_FIXED = "фикс. сумма"
-COMMISSION_TYPE_PERCENTAGE = "10% от товара"
+COMMISSION_TYPE_PERCENTAGE = "10% от товара+доставка США"
 
 # Seller reliability categories
 SELLER_RELIABILITY = {

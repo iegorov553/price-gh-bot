@@ -5,14 +5,15 @@ A Telegram bot that helps users calculate the total cost of buying items from eB
 ## Features
 
 - **Multi-marketplace support**: eBay and Grailed price scraping with dynamic content extraction
-- **Complete cost calculation**: Item price + US shipping + Russia delivery + commission
+- **Complete cost calculation**: Item price + US shipping + Russian customs duty + Russia delivery + commission
 - **Smart commission structure**: Fixed $15 for items <$150 (including US shipping), 10% of (item price + US shipping) for items ≥$150
-- **Currency conversion**: USD to RUB with real-time exchange rates from Central Bank of Russia (5% markup)
+- **Russian customs duty**: Automatic 15% duty calculation for imports exceeding 200 EUR threshold
+- **Multi-currency support**: EUR/USD rates for customs, USD/RUB for final conversion (Central Bank of Russia API)
 - **Advanced seller analysis**: Comprehensive Grailed seller scoring using headless browser extraction
 - **Activity tracking**: Real-time "X days ago" parsing from seller profiles for accurate activity scoring
 - **Shipping estimation**: Smart categorization and weight-based Shopfans pricing
 - **Buyability detection**: Identifies buy-now vs offer-only listings
-- **Enhanced price display**: Structured multi-line format showing each cost component separately
+- **Enhanced price display**: Two-tier structured format with intermediate subtotal and additional costs breakdown
 - **Russian localization**: Clean, emoji-minimal user messages in Russian
 
 ## How It Works
@@ -21,10 +22,11 @@ A Telegram bot that helps users calculate the total cost of buying items from eB
 2. **Dynamic Content Extraction**: Uses Playwright headless browser for React SPA data extraction
 3. **Price Scraping**: Extracts item price and shipping costs from dynamic content
 4. **Activity Analysis**: Parses "5 days ago" patterns from seller profiles for accurate last update tracking
-5. **Shipping Calculation**: Estimates Russia delivery via Shopfans weight-based rates
-6. **Smart Commission**: Fixed $15 for items <$150 (including US shipping), 10% of (item price + US shipping) for items ≥$150
-7. **Currency Conversion**: Converts final price to Russian Rubles with 5% markup
-8. **Comprehensive Seller Analysis** (Grailed): 4-criteria reliability scoring with Diamond/Gold/Silver/Bronze categories
+5. **Intermediate Subtotal**: Item + US shipping + commission calculation
+6. **Customs Duty**: Automatically calculates 15% duty on amount exceeding 200 EUR using real-time EUR/USD rates
+7. **Additional Costs**: Russian customs duty + Shopfans delivery estimation
+8. **Currency Conversion**: Converts final total to Russian Rubles with 5% markup
+9. **Comprehensive Seller Analysis** (Grailed): 4-criteria reliability scoring with Diamond/Gold/Silver/Bronze categories
 
 ## Seller Reliability System
 
@@ -220,22 +222,46 @@ The bot follows a modular architecture with headless browser integration:
 
 ## Examples
 
-### Price Calculation Response
+### Price Calculation Examples
+
+**Item Above Customs Threshold (>200€):**
 ```
 💰 Расчёт стоимости
 
-Товар: $89.99
-Доставка в США: $12.50
-Доставка в РФ: $16.99
-Итого: $119.48
-
-Комиссия: $15 (фикс. сумма)
+Товар: $250
+Доставка в США: $20
+Комиссия: $27.00 (10% от товара+доставка США)
 ──────────────────
-Итого к оплате: $134.48
-В рублях: ₽11,254
+Промежуточный итог: $297.00
 
-Продавец: 💎 Diamond (92/100)
+Пошлина РФ: $6.23 (15% с превышения 200€)
+Доставка в РФ: $25
+──────────────────
+Дополнительные расходы: $31.23
+
+Итого к оплате: $328.23
+В рублях: ₽27,088.82
+
+Продавец: 💎 Diamond (95/100)
 Продавец топ-уровня, можно брать без лишних вопросов
+```
+
+**Item Below Customs Threshold (<200€):**
+```
+💰 Расчёт стоимости
+
+Товар: $100
+Доставка в США: $15
+Комиссия: $15.0 (фикс. сумма)
+──────────────────
+Промежуточный итог: $130.00
+
+Доставка в РФ: $20
+──────────────────
+Дополнительные расходы: $20.00
+
+Итого к оплате: $150.00
+В рублях: ₽12,379.50
 ```
 
 ### Seller Analysis Response

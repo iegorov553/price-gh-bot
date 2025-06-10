@@ -233,6 +233,12 @@ The bot scrapes prices from eBay and Grailed listings, adds US shipping costs, e
   - **Commission calculation**: Based on item price + US shipping costs (both values from listing)
   - **Updated logic (June 2025)**: Commission now includes US shipping in calculation base for fairer pricing
   - **Example**: $120 item + $40 US shipping = $160 base, 10% commission = $16 (was $15 fixed)
+- **Russian Customs Duty (December 2025)**: 
+  - **Threshold**: 200 EUR for personal imports
+  - **Rate**: 15% of amount exceeding 200 EUR threshold
+  - **Calculation base**: Item price + US shipping costs (same as commission base)
+  - **Currency conversion**: EUR/USD rate from Central Bank of Russia XML API
+  - **Example**: $250 item + $20 shipping = $270 (~240€), duty = 15% × (240€ - 200€) = 15% × 40€ ≈ $6.75
 - **Seller reliability scoring**: 4-criteria evaluation system (activity, rating, review volume, trusted badge) with Diamond/Gold/Silver/Bronze/Ghost categories
 
 ### Environment Variables
@@ -241,17 +247,26 @@ The bot scrapes prices from eBay and Grailed listings, adds US shipping costs, e
 - `PORT`: Server port (defaults to 8000)
 - `RAILWAY_PUBLIC_DOMAIN` or `RAILWAY_URL`: Used to determine webhook mode vs polling mode
 
-### Currency Exchange Rate Source
+### Currency Exchange Rate Sources
 
-The bot uses the Central Bank of Russia (CBR) official XML API as the **only** source for USD to RUB exchange rates:
+The bot uses the Central Bank of Russia (CBR) official XML API for all currency conversions:
 
+**USD to RUB (for final price conversion):**
 - **Endpoint**: `https://www.cbr.ru/scripts/XML_daily.asp`
 - **Format**: XML with daily official rates
 - **Processing**: Parses XML using `xml.etree.ElementTree`, finds USD entry, applies 5% markup
 - **Markup justification**: 5% covers currency exchange fees and market volatility
-- **Error handling**: No fallback sources - if CBR API is unavailable, currency conversion is disabled and admin is notified
+
+**EUR to USD (for customs duty threshold):**
+- **Endpoint**: Same CBR XML API
+- **Calculation**: Cross-rate EUR/USD = EUR/RUB ÷ USD/RUB
+- **Purpose**: Convert 200 EUR customs threshold to USD for duty calculation
+- **No markup**: Cross-rate used as-is for threshold conversion
+
+**Common features:**
+- **Error handling**: No fallback sources - if CBR API is unavailable, affected features are disabled and admin is notified
 - **Admin notifications**: Telegram message sent to admin (ID: 26917201) when CBR API fails
-- **Caching**: Exchange rates cached for performance, updated daily
+- **Caching**: Exchange rates cached for 1 hour for performance optimization
 
 ### Grailed Seller Reliability System
 
@@ -352,37 +367,53 @@ The bot implements a comprehensive seller evaluation system for Grailed with sop
 - **Badge display**: Simplified to "Проверенный продавец" / "Нет бейджа" without checkmark/cross emoji
 - **Header cleanup**: "Анализ продавца Grailed" without leading emoji
 
-### Enhanced Price Display Format (June 2025)
-**Replaced single-line price display with structured multi-line format for better user understanding:**
+### Enhanced Price Display Format (Updated December 2025)
+**Implemented structured multi-line format with Russian customs duty integration:**
 
-**Old format (confusing):**
-```
-Цена: $120 + $15 доставка по США + $25 доставка РФ = $160
-С учетом комиссии $15: $175 (₽18,375)
-```
-
-**New format (clear and structured):**
+**Current format with customs duty:**
 ```
 💰 Расчёт стоимости
 
-Товар: $120
-Доставка в США: $15
-Доставка в РФ: $25
-Итого: $160
-
-Комиссия: $15 (фикс. сумма)
+Товар: $250
+Доставка в США: $20
+Комиссия: $27.00 (10% от товара+доставка США)
 ──────────────────
-Итого к оплате: $175
-В рублях: ₽18,375
+Промежуточный итог: $297.00
+
+Пошлина РФ: $6.23 (15% с превышения 200€)
+Доставка в РФ: $25
+──────────────────
+Дополнительные расходы: $31.23
+
+Итого к оплате: $328.23
+В рублях: ₽27,088.82
+```
+
+**Format for items below customs threshold:**
+```
+💰 Расчёт стоимости
+
+Товар: $100
+Доставка в США: $15
+Комиссия: $15.0 (фикс. сумма)
+──────────────────
+Промежуточный итог: $130.00
+
+Доставка в РФ: $20
+──────────────────
+Дополнительные расходы: $20.00
+
+Итого к оплате: $150.00
+В рублях: ₽12,379.50
 ```
 
 **Implementation details:**
-- Each cost component displayed on separate line for clarity
-- Visual separator line between subtotal and final total
-- Commission type clearly indicated (fixed amount vs percentage)
-- RUB conversion prominently displayed on dedicated line
-- Handles different shipping scenarios (US+RU vs RU only)
-- Smart display: "Доставка в РФ: $25 (Shopfans)" when no US shipping
+- **Two-tier structure**: Intermediate subtotal → Additional costs → Final total
+- **Customs duty calculation**: Automatically applied when item + US shipping > 200€
+- **Commission clarity**: Shows calculation base ("10% от товара+доставка США")
+- **Visual separation**: Clear separators between calculation stages
+- **Smart display**: Customs duty line only appears when applicable
+- **Multi-scenario support**: Handles all combinations of US/RU shipping and customs duty
 
 ### Shopfans Shipping Estimation
 

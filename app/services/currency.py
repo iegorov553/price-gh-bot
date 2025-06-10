@@ -101,15 +101,99 @@ async def get_usd_to_rub_rate(session: aiohttp.ClientSession) -> CurrencyRate | 
         return None
 
 
+async def get_eur_to_usd_rate(session: aiohttp.ClientSession) -> CurrencyRate | None:
+    """Get EUR to USD exchange rate from Central Bank of Russia.
+    
+    Calculates EUR/USD cross-rate using EUR/RUB and USD/RUB from CBR API.
+    EUR/USD = EUR/RUB ÷ USD/RUB
+    
+    Args:
+        session: aiohttp session for making requests.
+    
+    Returns:
+        CurrencyRate object with EUR/USD rate, None if failed.
+    """
+    cache_key = "EUR_USD"
+    now = datetime.now()
+
+    # Check cache first
+    if cache_key in _rate_cache:
+        cached_rate, cached_time = _rate_cache[cache_key]
+        if now - cached_time < _cache_ttl:
+            logger.debug("Using cached EUR to USD rate")
+            return cached_rate
+
+    try:
+        logger.info("Fetching EUR to USD exchange rate from Central Bank of Russia...")
+
+        url = "https://www.cbr.ru/scripts/XML_daily.asp"
+        async with session.get(url, timeout=20) as response:
+            response.raise_for_status()
+            content = await response.read()
+
+        # Parse XML response
+        root = ET.fromstring(content)
+        logger.info(f"Successfully parsed CBR XML for EUR/USD, date: {root.get('Date')}")
+
+        eur_rate = None
+        usd_rate = None
+
+        # Find EUR and USD currency entries
+        for valute in root.findall('Valute'):
+            char_code = valute.find('CharCode')
+            if char_code is not None:
+                value_elem = valute.find('Value')
+                nominal_elem = valute.find('Nominal')
+
+                if value_elem is not None and nominal_elem is not None:
+                    # CBR uses comma as decimal separator
+                    value_str = value_elem.text.replace(',', '.')
+                    nominal_str = nominal_elem.text
+                    rate_to_rub = Decimal(value_str) / Decimal(nominal_str)
+
+                    if char_code.text == 'EUR':
+                        eur_rate = rate_to_rub
+                        logger.info(f"CBR EUR rate: {eur_rate} RUB per EUR")
+                    elif char_code.text == 'USD':
+                        usd_rate = rate_to_rub
+                        logger.info(f"CBR USD rate: {usd_rate} RUB per USD")
+
+        if eur_rate is None or usd_rate is None:
+            raise ValueError("EUR or USD currency not found in CBR response")
+
+        # Calculate EUR/USD cross-rate: EUR/USD = EUR/RUB ÷ USD/RUB
+        eur_usd_rate = (eur_rate / usd_rate).quantize(Decimal('0.0001'), ROUND_HALF_UP)
+        logger.info(f"Calculated EUR to USD rate: {eur_usd_rate}")
+
+        rate = CurrencyRate(
+            from_currency="EUR",
+            to_currency="USD",
+            rate=eur_usd_rate,
+            source="cbr",
+            fetched_at=now,
+            markup_percentage=0  # No markup for cross-rate
+        )
+
+        # Cache the result
+        _rate_cache[cache_key] = (rate, now)
+
+        return rate
+
+    except Exception as e:
+        error_msg = f"CBR API failed for EUR/USD: {e}"
+        logger.error(error_msg)
+        return None
+
+
 async def get_rate(from_currency: str, to_currency: str, session: aiohttp.ClientSession) -> CurrencyRate | None:
     """Get exchange rate for specified currency pair.
     
-    Currently only supports USD to RUB conversion. Other currency pairs
-    will return None with a warning log.
+    Supports USD to RUB and EUR to USD conversions from CBR API.
+    Other currency pairs will return None with a warning log.
     
     Args:
-        from_currency: Source currency code (e.g., 'USD').
-        to_currency: Target currency code (e.g., 'RUB').
+        from_currency: Source currency code (e.g., 'USD', 'EUR').
+        to_currency: Target currency code (e.g., 'RUB', 'USD').
         session: aiohttp session for making requests.
     
     Returns:
@@ -118,6 +202,8 @@ async def get_rate(from_currency: str, to_currency: str, session: aiohttp.Client
     """
     if from_currency == "USD" and to_currency == "RUB":
         return await get_usd_to_rub_rate(session)
+    elif from_currency == "EUR" and to_currency == "USD":
+        return await get_eur_to_usd_rate(session)
 
     logger.warning(f"Currency pair {from_currency}/{to_currency} not supported")
     return None

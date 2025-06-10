@@ -215,10 +215,11 @@ async def _handle_listings(
 
         # Calculate shipping and final price
         shopfans_quote = shipping.estimate_shopfans_shipping(item_data.title or "")
-        calculation = calculate_final_price(
+        calculation = await calculate_final_price(
             item_data.price,
             item_data.shipping_us or 0,
-            shopfans_quote.cost_usd
+            shopfans_quote.cost_usd,
+            session
         )
 
         # Add exchange rate if available
@@ -346,15 +347,15 @@ async def _handle_grailed_scraping_failure(
         session: HTTP session for making requests.
     """
     logger.info("Checking Grailed availability after scraping failure")
-    
+
     try:
         # Check if Grailed site is available
         availability = await grailed.check_grailed_availability(session)
-        
+
         if not availability['is_available']:
             status_code = availability.get('status_code', 'неизвестно')
             response_time = availability.get('response_time_ms', 0)
-            
+
             if availability.get('error_message') and 'timeout' in availability['error_message'].lower():
                 # Site is slow or timing out
                 message = GRAILED_SITE_SLOW.format(response_time=response_time)
@@ -364,15 +365,15 @@ async def _handle_grailed_scraping_failure(
                     status_code=status_code,
                     response_time=response_time
                 )
-            
+
             await update.message.reply_text(message)
             logger.warning(f"Grailed site availability issue: {availability}")
-            
+
         else:
             # Site is working, likely issue with specific listing
             await update.message.reply_text(GRAILED_LISTING_ISSUE)
             logger.info("Grailed site is accessible, likely listing-specific issue")
-            
+
     except Exception as e:
         # Fallback to generic error if availability check fails
         logger.error(f"Error during Grailed availability check: {e}")

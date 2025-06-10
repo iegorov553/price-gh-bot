@@ -15,10 +15,12 @@ from telegram.ext import Application
 from ..config import config
 from ..models import CurrencyRate, PriceCalculation, ReliabilityScore
 from .messages import (
+    ADDITIONAL_COSTS_LINE,
     ADMIN_NOTIFICATION,
     COMMISSION_LINE,
     COMMISSION_TYPE_FIXED,
     COMMISSION_TYPE_PERCENTAGE,
+    CUSTOMS_DUTY_LINE,
     FINAL_TOTAL_LINE,
     ITEM_PRICE_LINE,
     NO_BADGE,
@@ -81,41 +83,65 @@ async def send_debug_to_admin(application: Application, message: str) -> None:
         logger.debug(f"Failed to send debug message to admin: {e}")
 
 
-def calculate_final_price(item_price: Decimal, shipping_us: Decimal, shipping_russia: Decimal) -> PriceCalculation:
-    """Calculate final price with tiered commission structure.
+async def calculate_final_price(
+    item_price: Decimal,
+    shipping_us: Decimal,
+    shipping_russia: Decimal,
+    session: aiohttp.ClientSession
+) -> PriceCalculation:
+    """Calculate final price with new structured breakdown including RF customs duty.
 
-    Applies either fixed commission ($15) for items under $150 or 10% markup
-    for items $150 and above. Commission is calculated from item price plus
-    US shipping cost (both values from the listing).
+    New calculation structure:
+    1. Item + US shipping + commission = Subtotal
+    2. RF customs duty + RF shipping = Additional costs
+    3. Subtotal + Additional costs = Final total
+
+    Commission is calculated from item price + US shipping (both values from listing).
+    RF customs duty applies 15% on amount exceeding 200 EUR threshold.
 
     Args:
         item_price: Base price of the item in USD.
         shipping_us: US domestic shipping cost in USD.
         shipping_russia: Russia delivery shipping cost in USD.
+        session: aiohttp session for currency API requests.
 
     Returns:
-        PriceCalculation: Complete price breakdown including commission and final price.
+        PriceCalculation: Complete price breakdown with new structured format.
     """
-    total_cost = item_price + shipping_us + shipping_russia
-
     # Commission base includes item price + US shipping (both from listing)
     commission_base = item_price + shipping_us
 
     # Apply commission based on item price + US shipping
     if commission_base < Decimal(str(config.commission.fixed_threshold)):
         commission = Decimal(str(config.commission.fixed_amount))
-        final_price = (total_cost + commission).quantize(Decimal('0.01'), ROUND_HALF_UP)
+        commission_type = "fixed"
     else:
         commission_rate = Decimal(str(config.commission.percentage_rate))
         commission = (commission_base * commission_rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
-        final_price = (total_cost + commission).quantize(Decimal('0.01'), ROUND_HALF_UP)
+        commission_type = "percentage"
+
+    # Calculate subtotal: item + US shipping + commission
+    subtotal = (item_price + shipping_us + commission).quantize(Decimal('0.01'), ROUND_HALF_UP)
+
+    # Calculate RF customs duty
+    from ..services.customs import calculate_rf_customs_duty
+    customs_duty = await calculate_rf_customs_duty(item_price, shipping_us, session)
+
+    # Calculate additional costs: customs duty + RF shipping
+    additional_costs = (customs_duty + shipping_russia).quantize(Decimal('0.01'), ROUND_HALF_UP)
+
+    # Calculate final total: subtotal + additional costs
+    final_price = (subtotal + additional_costs).quantize(Decimal('0.01'), ROUND_HALF_UP)
 
     return PriceCalculation(
         item_price=item_price,
         shipping_us=shipping_us,
-        shipping_russia=shipping_russia,
-        total_cost=total_cost,
         commission=commission,
+        commission_type=commission_type,
+        subtotal=subtotal,
+        customs_duty=customs_duty,
+        shipping_russia=shipping_russia,
+        additional_costs=additional_costs,
         final_price_usd=final_price
     )
 
@@ -126,13 +152,15 @@ def format_price_response(
     reliability: ReliabilityScore | None = None,
     is_grailed: bool = False
 ) -> str:
-    """Format price calculation into user-friendly response message.
+    """Format price calculation into user-friendly response with new structured format.
 
-    Creates formatted message with clear price breakdown showing each component
-    separately for better readability and understanding.
+    Creates formatted message using new structured breakdown:
+    1. Item + US shipping + commission = Subtotal
+    2. RF customs duty + RF shipping = Additional costs  
+    3. Subtotal + Additional costs = Final total
 
     Args:
-        calculation: Price calculation data including all cost components.
+        calculation: Price calculation data with new structured format.
         exchange_rate: USD to RUB exchange rate for currency conversion.
         reliability: Seller reliability score for Grailed items.
         is_grailed: Whether this is a Grailed listing to show seller info.
@@ -146,32 +174,40 @@ def format_price_response(
     # Item price
     response_lines.append(ITEM_PRICE_LINE.format(item_price=calculation.item_price))
 
-    # Shipping breakdown
-    if calculation.shipping_us == 0:
-        # Only Russia shipping (direct from seller or Shopfans)
-        response_lines.append(SHIPPING_ONLY_RU_LINE.format(shipping_ru=calculation.shipping_russia))
-    else:
-        # Both US and Russia shipping
+    # US shipping (if exists)
+    if calculation.shipping_us > 0:
         response_lines.append(SHIPPING_US_LINE.format(shipping_us=calculation.shipping_us))
-        response_lines.append(SHIPPING_RU_LINE.format(shipping_ru=calculation.shipping_russia))
-
-    # Subtotal
-    response_lines.append(SUBTOTAL_LINE.format(subtotal=calculation.total_cost))
-    response_lines.append("")  # Empty line before commission
 
     # Commission
-    if calculation.item_price < Decimal(str(config.commission.fixed_threshold)):
-        commission_type = COMMISSION_TYPE_FIXED
-    else:
-        commission_type = COMMISSION_TYPE_PERCENTAGE
-
+    commission_type = COMMISSION_TYPE_FIXED if calculation.commission_type == "fixed" else COMMISSION_TYPE_PERCENTAGE
     response_lines.append(COMMISSION_LINE.format(
         commission=calculation.commission,
         commission_type=commission_type
     ))
 
-    # Separator and final total
+    # Separator and subtotal
     response_lines.append(SEPARATOR_LINE)
+    response_lines.append(SUBTOTAL_LINE.format(subtotal=calculation.subtotal))
+    response_lines.append("")  # Empty line
+
+    # RF customs duty (if applicable)
+    if calculation.customs_duty > 0:
+        response_lines.append(CUSTOMS_DUTY_LINE.format(customs_duty=calculation.customs_duty))
+
+    # RF shipping
+    if calculation.shipping_us == 0:
+        # Only Russia shipping (direct from seller or Shopfans)
+        response_lines.append(SHIPPING_ONLY_RU_LINE.format(shipping_ru=calculation.shipping_russia))
+    else:
+        # Russia shipping when US shipping also exists
+        response_lines.append(SHIPPING_RU_LINE.format(shipping_ru=calculation.shipping_russia))
+
+    # Additional costs summary
+    response_lines.append(SEPARATOR_LINE)
+    response_lines.append(ADDITIONAL_COSTS_LINE.format(additional_costs=calculation.additional_costs))
+    response_lines.append("")  # Empty line
+
+    # Final total
     response_lines.append(FINAL_TOTAL_LINE.format(final_price=calculation.final_price_usd))
 
     # RUB conversion if available
