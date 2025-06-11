@@ -11,7 +11,7 @@ A Telegram bot that helps users calculate the total cost of buying items from eB
 - **Multi-currency support**: EUR/USD rates for customs, USD/RUB for final conversion (Central Bank of Russia API)
 - **Advanced seller analysis**: Comprehensive Grailed seller scoring using headless browser extraction
 - **Activity tracking**: Real-time "X days ago" parsing from seller profiles for accurate activity scoring
-- **Shipping estimation**: Smart categorization and weight-based Shopfans pricing
+- **Tiered shipping estimation**: Dynamic Shopfans pricing with route selection based on order value (Europe/Turkey/Kazakhstan routes)
 - **Buyability detection**: Identifies buy-now vs offer-only listings
 - **Enhanced price display**: Two-tier structured format with intermediate subtotal and additional costs breakdown
 - **Russian localization**: Clean, emoji-minimal user messages in Russian
@@ -24,7 +24,7 @@ A Telegram bot that helps users calculate the total cost of buying items from eB
 4. **Activity Analysis**: Parses "5 days ago" patterns from seller profiles for accurate last update tracking
 5. **Intermediate Subtotal**: Item + US shipping + commission calculation
 6. **Customs Duty**: Automatically calculates 15% duty on amount exceeding 200 EUR using real-time EUR/USD rates
-7. **Additional Costs**: Russian customs duty + Shopfans delivery estimation
+7. **Additional Costs**: Russian customs duty + tiered Shopfans delivery (Europe/Turkey/Kazakhstan routes)
 8. **Currency Conversion**: Converts final total to Russian Rubles with 5% markup
 9. **Comprehensive Seller Analysis** (Grailed): 4-criteria reliability scoring with Diamond/Gold/Silver/Bronze categories
 
@@ -162,6 +162,36 @@ commission:
   percentage:
     rate: 0.10        # 10% commission for items ≥$150 (applied to item price + US shipping)
 ```
+
+### Tiered Shipping Configuration (Updated December 2025)
+
+The bot now uses dynamic shipping rates based on order value (item price + US shipping):
+
+```yaml
+# fees.yml
+shopfans:
+  per_kg_rates:
+    europe: 30.86     # < $200 - via Europe
+    turkey: 35.27     # >= $200 - via Turkey  
+    kazakhstan: 41.89 # >= $1000 - via Kazakhstan
+  rate_thresholds:
+    turkey: 200.0     # >= $200 uses Turkey route
+    kazakhstan: 1000.0 # >= $1000 uses Kazakhstan route
+  handling_fee:
+    light_items: 3.0  # for items <= 1.36kg (3 pounds)
+    heavy_items: 5.0  # for items > 1.36kg (3 pounds)
+  light_threshold: 1.36  # 3 pounds = 1.36 kg
+```
+
+**Route Selection Logic:**
+- **Europe Route** (< $200): Standard shipping at 30.86$/kg
+- **Turkey Route** (≥ $200): Enhanced logistics at 35.27$/kg
+- **Kazakhstan Route** (≥ $1000): Premium shipping at 41.89$/kg
+
+**Example Calculations:**
+- $150 order, 0.6kg: max($13.99, 30.86 × 0.6) + $3 = $21.52
+- $250 order, 0.6kg: max($13.99, 35.27 × 0.6) + $3 = $24.16  
+- $1200 order, 0.6kg: max($13.99, 41.89 × 0.6) + $3 = $28.13
 
 ## Development
 

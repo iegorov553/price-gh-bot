@@ -19,18 +19,26 @@ except ImportError:
 
 
 class ShippingConfig(BaseSettings):
-    """Shopfans shipping cost calculation parameters.
+    """Shopfans shipping cost calculation parameters with tiered pricing.
     
     Attributes:
         base_cost: Minimum shipping cost in USD.
-        per_kg_rate: Cost per kilogram in USD.
+        per_kg_rate_europe: Cost per kilogram for Europe route (< $200).
+        per_kg_rate_turkey: Cost per kilogram for Turkey route (>= $200).
+        per_kg_rate_kazakhstan: Cost per kilogram for Kazakhstan route (>= $1000).
+        turkey_threshold: Order total threshold for Turkey route.
+        kazakhstan_threshold: Order total threshold for Kazakhstan route.
         light_threshold: Weight threshold for light item handling fee.
         light_handling_fee: Additional fee for items under threshold.
         heavy_handling_fee: Additional fee for items over threshold.
     """
     base_cost: float = 13.99
-    per_kg_rate: float = 14.0
-    light_threshold: float = 0.45
+    per_kg_rate_europe: float = 30.86
+    per_kg_rate_turkey: float = 35.27
+    per_kg_rate_kazakhstan: float = 41.89
+    turkey_threshold: float = 200.0
+    kazakhstan_threshold: float = 1000.0
+    light_threshold: float = 1.36  # 3 pounds
     light_handling_fee: float = 3.0
     heavy_handling_fee: float = 5.0
 
@@ -136,10 +144,16 @@ class Config:
             )
 
             shopfans_data = fees_data.get("shopfans", {})
+            per_kg_rates = shopfans_data.get("per_kg_rates", {})
+            rate_thresholds = shopfans_data.get("rate_thresholds", {})
             self.shipping = ShippingConfig(
                 base_cost=shopfans_data.get("base_cost", 13.99),
-                per_kg_rate=shopfans_data.get("per_kg_rate", 14.0),
-                light_threshold=shopfans_data.get("light_threshold", 0.45),
+                per_kg_rate_europe=per_kg_rates.get("europe", 30.86),
+                per_kg_rate_turkey=per_kg_rates.get("turkey", 35.27),
+                per_kg_rate_kazakhstan=per_kg_rates.get("kazakhstan", 41.89),
+                turkey_threshold=rate_thresholds.get("turkey", 200.0),
+                kazakhstan_threshold=rate_thresholds.get("kazakhstan", 1000.0),
+                light_threshold=shopfans_data.get("light_threshold", 1.36),
                 light_handling_fee=shopfans_data.get("handling_fee", {}).get("light_items", 3.0),
                 heavy_handling_fee=shopfans_data.get("handling_fee", {}).get("heavy_items", 5.0)
             )

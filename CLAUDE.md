@@ -415,16 +415,39 @@ The bot implements a comprehensive seller evaluation system for Grailed with sop
 - **Smart display**: Customs duty line only appears when applicable
 - **Multi-scenario support**: Handles all combinations of US/RU shipping and customs duty
 
-### Shopfans Shipping Estimation
+### Shopfans Shipping Estimation (Updated December 2025)
 
 ⚠️ **IMPORTANT**: Shipping weight estimates in `app/services/shipping.py` should be reviewed and updated quarterly based on actual shipment tracking data to maintain accuracy.
 
-The shipping estimation system:
+**Tiered Shipping System Based on Order Value:**
+
+The shipping estimation system now uses dynamic pricing based on total order value (item price + US shipping):
+
+**Route Selection:**
+- **< $200**: Europe route (30.86$/kg) - Standard shipping via European logistics
+- **≥ $200**: Turkey route (35.27$/kg) - Enhanced routing via Turkey for medium-value orders  
+- **≥ $1000**: Kazakhstan route (41.89$/kg) - Premium logistics via Kazakhstan for high-value orders
+
+**Handling Fee Structure:**
+- **≤ 1.36kg (3 pounds)**: $3 handling fee - Light items warehouse processing
+- **> 1.36kg (3 pounds)**: $5 handling fee - Heavy items additional handling
+
+**Calculation Formula:**
+```
+shipping_cost = max($13.99, route_rate × weight_kg) + handling_fee
+```
+
+**Implementation Details:**
 - Uses regex pattern matching on item titles to determine product categories
-- Maps categories to estimated weights in kilograms
-- Applies Shopfans Lite pricing formula: `max($13.99, $14 × weight) + handling_fee`
-- Handling fee: $3 for items ≤ 0.45kg, $5 for heavier items
+- Maps categories to estimated weights in kilograms from `app/config/shipping_table.yml`
+- Route selection automatically determined by total order value (item + US shipping)
+- Weight threshold updated from 0.45kg to 1.36kg (3 pounds) for more accurate handling fees
 - Default weight: 0.60kg for unmatched items
+
+**Example Calculations:**
+- $150 order, 0.6kg: max($13.99, 30.86 × 0.6) + $3 = $21.52
+- $250 order, 0.6kg: max($13.99, 35.27 × 0.6) + $3 = $24.16  
+- $1200 order, 0.6kg: max($13.99, 41.89 × 0.6) + $3 = $28.13
 
 ## Code Quality and Documentation
 

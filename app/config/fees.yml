@@ -13,14 +13,22 @@ commission:
     minimum: 0.0
     currency: "USD"
 
-# Shopfans shipping calculation
+# Shopfans shipping calculation with tiered pricing
 shopfans:
   base_cost: 13.99
-  per_kg_rate: 14.0
+  # Tiered per-kg rates based on total order value (item + US shipping)
+  per_kg_rates:
+    europe: 30.86    # < $200 - via Europe
+    turkey: 35.27    # >= $200 - via Turkey  
+    kazakhstan: 41.89 # >= $1000 - via Kazakhstan
+  # Rate thresholds based on item + US shipping cost
+  rate_thresholds:
+    turkey: 200.0    # >= $200 uses Turkey route
+    kazakhstan: 1000.0 # >= $1000 uses Kazakhstan route
   handling_fee:
-    light_items: 3.0  # for items <= 0.45kg
-    heavy_items: 5.0  # for items > 0.45kg
-  light_threshold: 0.45
+    light_items: 3.0  # for items <= 1.36kg (3 pounds)
+    heavy_items: 5.0  # for items > 1.36kg (3 pounds)
+  light_threshold: 1.36  # 3 pounds = 1.36 kg
 
 # Currency exchange
 currency:

@@ -214,7 +214,8 @@ async def _handle_listings(
             continue
 
         # Calculate shipping and final price
-        shopfans_quote = shipping.estimate_shopfans_shipping(item_data.title or "")
+        total_order_value = item_data.price + (item_data.shipping_us or 0)
+        shopfans_quote = shipping.estimate_shopfans_shipping(item_data.title or "", total_order_value)
         calculation = await calculate_final_price(
             item_data.price,
             item_data.shipping_us or 0,
