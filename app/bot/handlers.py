@@ -243,15 +243,20 @@ async def _handle_listings(
             await send_debug_to_admin(context.application, f"No seller data extracted for Grailed item: {url}")
 
         # Format and send response
+        use_markdown = bool(item_data.title and url)
         response = format_price_response(
             calculation,
             exchange_rate,
             reliability_score,
             is_grailed_item,
             item_data.title,
-            url
+            url,
+            use_markdown
         )
-        await update.message.reply_text(response)
+
+        # Use MarkdownV2 only if response contains hyperlinks
+        parse_mode = "MarkdownV2" if use_markdown else None
+        await update.message.reply_text(response, parse_mode=parse_mode)
 
 
 async def _resolve_shortener(url: str, session: aiohttp.ClientSession) -> str:

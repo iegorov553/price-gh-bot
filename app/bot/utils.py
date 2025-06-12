@@ -50,6 +50,45 @@ from .messages import (
 logger = logging.getLogger(__name__)
 
 
+def escape_markdown_v2(text: str) -> str:
+    """Escape special characters for MarkdownV2 format.
+    
+    Escapes characters that have special meaning in Telegram's MarkdownV2:
+    _*[]()~`>#+-=|{}.!
+    
+    Note: This function preserves markdown links in format [text](url)
+    
+    Args:
+        text: Text to escape
+        
+    Returns:
+        Escaped text safe for MarkdownV2
+    """
+    import re
+
+    # Characters that need escaping in MarkdownV2
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+
+    # Temporarily replace markdown links to preserve them
+    links = []
+    def replace_link(match):
+        links.append(match.group(0))
+        return f"__LINK_{len(links)-1}__"
+
+    # Find and temporarily replace markdown links
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', replace_link, text)
+
+    # Escape special characters
+    for char in escape_chars:
+        text = text.replace(char, f'\\{char}')
+
+    # Restore markdown links
+    for i, link in enumerate(links):
+        text = text.replace(f"\\_\\_LINK\\_{i}\\_\\_", link)
+
+    return text
+
+
 async def notify_admin(application: Application, message: str) -> None:
     """Send notification to admin about system issues.
 
@@ -152,7 +191,8 @@ def format_price_response(
     reliability: ReliabilityScore | None = None,
     is_grailed: bool = False,
     item_title: str | None = None,
-    item_url: str | None = None
+    item_url: str | None = None,
+    use_markdown: bool = False
 ) -> str:
     """Format price calculation into user-friendly response with new structured format.
 
@@ -169,6 +209,7 @@ def format_price_response(
         is_grailed: Whether this is a Grailed listing to show seller info.
         item_title: Item title to display with hyperlink.
         item_url: Item URL for hyperlink.
+        use_markdown: Whether to escape text for MarkdownV2 format.
 
     Returns:
         str: Formatted message ready to send to user.
@@ -244,7 +285,13 @@ def format_price_response(
             description=reliability.description
         ))
 
-    return "\n".join(response_lines)
+    response = "\n".join(response_lines)
+
+    # Apply MarkdownV2 escaping if needed
+    if use_markdown:
+        response = escape_markdown_v2(response)
+
+    return response
 
 
 def format_seller_profile_response(seller_data: dict) -> str:
