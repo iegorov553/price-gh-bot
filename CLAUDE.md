@@ -217,7 +217,7 @@ The bot scrapes prices from eBay and Grailed listings, adds US shipping costs, e
 ### Core Components
 
 - **Messages module**: `app/bot/messages.py` containing all user-facing text in Russian for easy localization and editing, with clean formatting and minimal emoji usage
-- **Price scrapers**: Functions in `app/scrapers/` that extract item price, US shipping cost, buyability status, and seller data from eBay and Grailed listings
+- **Price scrapers**: Functions in `app/scrapers/` that extract item price, US shipping cost, buyability status, item title, and seller data from eBay and Grailed listings
 - **Buyability detection**: Grailed scraper analyzes JSON data to determine if items have fixed buy-now pricing or are offer-only
 - **Seller analysis**: Comprehensive system in `app/services/reliability.py` for evaluating Grailed seller reliability 
 - **Profile processing**: Functions to extract seller profile URLs and fetch seller data from their profile pages
@@ -355,12 +355,13 @@ The bot implements a comprehensive seller evaluation system for Grailed with sop
 3. **Buyability detection**: Grailed items analyzed for buy-now vs offer-only status using JSON parsing
 
 #### Message Types
-- **Buyable items**: Price calculation + seller reliability (for Grailed, when data available)
+- **Buyable items**: Item title with hyperlink + price calculation + seller reliability (for Grailed, when data available)
 - **Offer-only items**: Message explaining need to contact seller + displayed price for reference
 - **Profile analysis**: Full seller reliability analysis using headless browser extraction
 - **Errors**: Simple Russian error messages with context about technical limitations
 
-#### Message Formatting (Updated June 2025)
+#### Message Formatting (Updated December 2025)
+- **Item title display**: Added product name with clickable hyperlink to original listing page
 - **Clean design**: Removed excessive emoji usage for better readability
 - **Emoji positioning**: Moved emoji from headers to inline with category names
 - **Seller info format**: "Продавец: 💎 Diamond (95/100)" instead of "💎 Продавец: Diamond (95/100)"
@@ -368,10 +369,12 @@ The bot implements a comprehensive seller evaluation system for Grailed with sop
 - **Header cleanup**: "Анализ продавца Grailed" without leading emoji
 
 ### Enhanced Price Display Format (Updated December 2025)
-**Implemented structured multi-line format with Russian customs duty integration:**
+**Implemented structured multi-line format with Russian customs duty integration and item title display:**
 
-**Current format with customs duty:**
+**Current format with item title and customs duty:**
 ```
+📦 [Chrome Hearts Cemetery Cross Ring Size 7](https://www.grailed.com/listings/59397754-chrome-hearts-chrome-hearts-cemetery-cross-ring-sz-7)
+
 💰 Расчёт стоимости
 
 Товар: $250
@@ -408,12 +411,14 @@ The bot implements a comprehensive seller evaluation system for Grailed with sop
 ```
 
 **Implementation details:**
+- **Item title display**: Shows product name with clickable hyperlink to original listing (when available)
 - **Two-tier structure**: Intermediate subtotal → Additional costs → Final total
 - **Customs duty calculation**: Automatically applied when item + US shipping > 200€
 - **Commission clarity**: Shows calculation base ("10% от товара+доставка США")
 - **Visual separation**: Clear separators between calculation stages
 - **Smart display**: Customs duty line only appears when applicable
 - **Multi-scenario support**: Handles all combinations of US/RU shipping and customs duty
+- **Backward compatibility**: Title display is optional - falls back gracefully when title unavailable
 
 ### Shopfans Shipping Estimation (Updated December 2025)
 

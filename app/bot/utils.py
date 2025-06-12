@@ -150,26 +150,41 @@ def format_price_response(
     calculation: PriceCalculation,
     exchange_rate: CurrencyRate | None = None,
     reliability: ReliabilityScore | None = None,
-    is_grailed: bool = False
+    is_grailed: bool = False,
+    item_title: str | None = None,
+    item_url: str | None = None
 ) -> str:
     """Format price calculation into user-friendly response with new structured format.
 
     Creates formatted message using new structured breakdown:
-    1. Item + US shipping + commission = Subtotal
-    2. RF customs duty + RF shipping = Additional costs  
-    3. Subtotal + Additional costs = Final total
+    1. Item title with hyperlink (if available)
+    2. Item + US shipping + commission = Subtotal
+    3. RF customs duty + RF shipping = Additional costs
+    4. Subtotal + Additional costs = Final total
 
     Args:
         calculation: Price calculation data with new structured format.
         exchange_rate: USD to RUB exchange rate for currency conversion.
         reliability: Seller reliability score for Grailed items.
         is_grailed: Whether this is a Grailed listing to show seller info.
+        item_title: Item title to display with hyperlink.
+        item_url: Item URL for hyperlink.
 
     Returns:
         str: Formatted message ready to send to user.
     """
-    # Start with header
-    response_lines = [PRICE_CALCULATION_HEADER, ""]
+    # Start with item title and hyperlink if available
+    response_lines = []
+
+    if item_title and item_url:
+        # Add item title with hyperlink
+        response_lines.extend([
+            f"📦 [{item_title}]({item_url})",
+            ""
+        ])
+
+    # Add header
+    response_lines.extend([PRICE_CALCULATION_HEADER, ""])
 
     # Item price
     response_lines.append(ITEM_PRICE_LINE.format(item_price=calculation.item_price))

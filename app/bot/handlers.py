@@ -247,7 +247,9 @@ async def _handle_listings(
             calculation,
             exchange_rate,
             reliability_score,
-            is_grailed_item
+            is_grailed_item,
+            item_data.title,
+            url
         )
         await update.message.reply_text(response)
 
