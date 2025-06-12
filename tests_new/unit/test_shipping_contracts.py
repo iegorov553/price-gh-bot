@@ -17,7 +17,7 @@ class TestShippingContracts:
         """Test that shipping estimation follows pattern matching contracts."""
         for title, expected_weight, description in shipping_test_cases:
             # Act
-            result = estimate_shopfans_shipping(title)
+            result = estimate_shopfans_shipping(title, Decimal("150"))
             
             # Assert weight estimation
             assert result.weight_kg == Decimal(str(expected_weight)), (
@@ -42,11 +42,11 @@ class TestShippingContracts:
         ]
         
         for weight, description in test_weights:
-            result = estimate_shopfans_shipping("test item")
+            result = estimate_shopfans_shipping("test item", Decimal("150"))
             
-            # Manually calculate expected cost using known formula
-            base_cost = max(Decimal("13.99"), Decimal("14.0") * weight)
-            if weight <= Decimal("0.45"):
+            # Manually calculate expected cost using NEW formula (Europe route: 30.86$/kg)
+            base_cost = max(Decimal("13.99"), Decimal("30.86") * weight)
+            if weight <= Decimal("1.36"):  # New threshold: 1.36kg (3 pounds)
                 handling_fee = Decimal("3.0")
             else:
                 handling_fee = Decimal("5.0")
@@ -55,7 +55,7 @@ class TestShippingContracts:
             
             # Test with a generic item that gets default weight
             if weight == Decimal("0.60"):  # Default weight
-                generic_result = estimate_shopfans_shipping("unknown item type")
+                generic_result = estimate_shopfans_shipping("unknown item type", Decimal("150"))
                 assert generic_result.cost_usd == expected_cost, (
                     f"Cost calculation failed for {description}\n"
                     f"Weight: {weight}kg\n"
@@ -74,7 +74,7 @@ class TestShippingContracts:
         ]
         
         for title, expected_weight, item_type in test_cases:
-            result = estimate_shopfans_shipping(title)
+            result = estimate_shopfans_shipping(title, Decimal("150"))
             
             assert result.weight_kg == Decimal(str(expected_weight)), (
                 f"Pattern matching failed for {item_type}\n"
@@ -94,7 +94,7 @@ class TestShippingContracts:
         
         expected_weight = Decimal("0.80")
         for title in test_cases:
-            result = estimate_shopfans_shipping(title)
+            result = estimate_shopfans_shipping(title, Decimal("150"))
             assert result.weight_kg == expected_weight, (
                 f"Case insensitive matching failed for: '{title}'"
             )
@@ -104,16 +104,16 @@ class TestShippingContracts:
         weight = Decimal("1.0")
         
         # Test Russia shipping (supported)
-        russia_result = calc_shipping("russia", weight)
+        russia_result = calc_shipping("russia", weight, Decimal("150"))
         assert russia_result.cost_usd > Decimal("0")
         assert "Russia" in russia_result.description
         
         # Test Russia with different case
-        russia_upper = calc_shipping("RUSSIA", weight)
+        russia_upper = calc_shipping("RUSSIA", weight, Decimal("150"))
         assert russia_upper.cost_usd == russia_result.cost_usd
         
         # Test unsupported country
-        unsupported_result = calc_shipping("germany", weight)
+        unsupported_result = calc_shipping("germany", weight, Decimal("150"))
         assert unsupported_result.cost_usd == Decimal("0")
         assert "not supported" in unsupported_result.description.lower()
     
@@ -123,7 +123,7 @@ class TestShippingContracts:
         costs = []
         
         for weight in weights:
-            result = calc_shipping("russia", weight)
+            result = calc_shipping("russia", weight, Decimal("150"))
             costs.append(result.cost_usd)
         
         # Verify monotonic increase (allowing for equal costs at boundaries)
@@ -137,7 +137,7 @@ class TestShippingContracts:
     def test_empty_and_none_title_handling(self, mock_config):
         """Test shipping estimation with empty or None titles."""
         # Test empty string
-        empty_result = estimate_shopfans_shipping("")
+        empty_result = estimate_shopfans_shipping("", Decimal("150"))
         assert empty_result.weight_kg == Decimal("0.60")  # Default weight
         
         # Test None (should be handled gracefully)
@@ -160,7 +160,7 @@ class TestShippingContracts:
         expected_weights = [0.80, 1.40, 0.25, 0.80, 1.40]
         
         for title, expected_weight in zip(special_titles, expected_weights):
-            result = estimate_shopfans_shipping(title)
+            result = estimate_shopfans_shipping(title, Decimal("150"))
             assert result.weight_kg == Decimal(str(expected_weight)), (
                 f"Special character handling failed for: '{title}'"
             )

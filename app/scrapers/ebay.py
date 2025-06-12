@@ -104,15 +104,15 @@ def _extract_title(soup: BeautifulSoup) -> str | None:
 
 async def get_item_data(url: str, session: aiohttp.ClientSession) -> ItemData:
     """Scrape comprehensive item data from an eBay listing.
-    
+
     Extracts item price, US shipping cost, title, and buyability status from an eBay
     listing page. Uses multiple extraction strategies including HTML parsing and
     JSON-LD structured data to handle various eBay page layouts.
-    
+
     Args:
         url (str): The eBay listing URL to scrape.
         session (aiohttp.ClientSession): HTTP session for making requests.
-    
+
     Returns:
         ItemData: Object containing extracted item information including:
             - price: Item price in USD as Decimal, None if not found
@@ -158,13 +158,13 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> ItemData:
 
 def is_ebay_url(url: str) -> bool:
     """Check if a URL belongs to eBay domain.
-    
+
     Validates whether the provided URL is from an eBay domain by parsing
     the netloc and checking for 'ebay' in the domain components.
-    
+
     Args:
         url (str): The URL to check.
-        
+
     Returns:
         bool: True if the URL is from an eBay domain, False otherwise.
     """

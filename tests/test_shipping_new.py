@@ -139,17 +139,17 @@ def test_calc_shipping_unsupported_country():
 def test_route_thresholds():
     """Test that route selection works correctly at thresholds."""
     weight = Decimal("1.0")  # 1kg for consistent comparison
-    
+
     # Europe route: < $200
     quote_europe = calc_shipping("russia", weight, Decimal("199.99"))
     # 1.0kg * 30.86 = 30.86 + 3 handling = 33.86
     assert quote_europe.cost_usd == Decimal("33.86")
-    
+
     # Turkey route: >= $200
     quote_turkey = calc_shipping("russia", weight, Decimal("200.00"))
     # 1.0kg * 35.27 = 35.27 + 3 handling = 38.27
     assert quote_turkey.cost_usd == Decimal("38.27")
-    
+
     # Kazakhstan route: >= $1000
     quote_kazakhstan = calc_shipping("russia", weight, Decimal("1000.00"))
     # 1.0kg * 41.89 = 41.89 + 3 handling = 44.89
@@ -159,12 +159,12 @@ def test_route_thresholds():
 def test_weight_thresholds():
     """Test that handling fee calculation works correctly."""
     order_total = Decimal("150")  # Europe route
-    
+
     # Light item: <= 1.36kg → $3 handling
     quote_light = calc_shipping("russia", Decimal("1.36"), order_total)
     # 1.36kg * 30.86 = 41.97 + 3 handling = 44.97
     assert quote_light.cost_usd == Decimal("44.97")
-    
+
     # Heavy item: > 1.36kg → $5 handling
     quote_heavy = calc_shipping("russia", Decimal("1.37"), order_total)
     # 1.37kg * 30.86 = 42.28 + 5 handling = 47.28

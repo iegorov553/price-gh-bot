@@ -2,7 +2,7 @@
 
 This module contains tests for the web scrapers that:
 - Extract item prices, shipping costs, and buyability from eBay and Grailed
-- Detect and validate platform-specific URLs 
+- Detect and validate platform-specific URLs
 - Handle scraping failures and network errors
 - Parse seller profile URLs and listing data
 """

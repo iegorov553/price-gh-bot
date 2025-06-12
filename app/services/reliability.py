@@ -13,16 +13,16 @@ from ..models import ReliabilityScore, SellerData
 
 def evaluate_seller_reliability(seller_data: SellerData) -> ReliabilityScore:
     """Evaluate Grailed seller reliability based on profile metadata.
-    
+
     Implements a 100-point scoring system across four criteria:
     - Activity (0-30): Based on days since last listing update
     - Rating (0-35): Based on average seller rating
     - Review Volume (0-25): Based on number of reviews
     - Badge (0-10): Based on trusted seller status
-    
+
     Args:
         seller_data: SellerData object containing profile information.
-    
+
     Returns:
         ReliabilityScore with detailed scores and category assignment.
     """

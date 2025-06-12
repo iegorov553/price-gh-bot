@@ -12,7 +12,6 @@ Key features:
 - Profile URL extraction and seller activity tracking
 """
 
-import asyncio
 import json
 import re
 from datetime import UTC, datetime
@@ -315,7 +314,7 @@ async def _fetch_seller_last_update(profile_url: str, session: aiohttp.ClientSes
 
 async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSession) -> SellerData | None:
     """Extract seller data using headless browser only.
-    
+
     Static HTML parsing from Grailed profile pages doesn't work due to React SPA architecture.
     Only headless browser can execute JavaScript to access dynamically loaded seller data.
     """
@@ -384,15 +383,15 @@ async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSessi
 
 async def get_item_data(url: str, session: aiohttp.ClientSession) -> tuple[ItemData, SellerData | None]:
     """Scrape Grailed item data and seller information.
-    
+
     Extracts comprehensive item data including price, shipping costs, buyability status,
     and title. Also analyzes seller profile for reliability metrics including rating,
     review count, trusted badge status, and last activity.
-    
+
     Args:
         url: Grailed listing URL to scrape
         session: aiohttp ClientSession for making HTTP requests
-    
+
     Returns:
         Tuple containing ItemData object and optional SellerData object.
         ItemData includes price, shipping, buyability, and title.
@@ -431,13 +430,13 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> tuple[ItemD
 
 def is_grailed_url(url: str) -> bool:
     """Check if URL is a Grailed listing.
-    
+
     Validates whether a given URL belongs to the Grailed marketplace domain.
     Used to route URLs to the appropriate scraper.
-    
+
     Args:
         url: URL string to validate
-    
+
     Returns:
         True if URL is from Grailed domain, False otherwise
     """
@@ -451,14 +450,14 @@ def is_grailed_url(url: str) -> bool:
 
 def is_grailed_seller_profile(url: str) -> bool:
     """Check if URL is a Grailed seller profile.
-    
+
     Determines if a URL points to a Grailed seller profile page rather than
     a listing. Supports various profile URL formats including direct usernames
     and legacy /users/ paths.
-    
+
     Args:
         url: URL string to check
-    
+
     Returns:
         True if URL is a Grailed seller profile, False otherwise
     """
@@ -490,14 +489,14 @@ def is_grailed_seller_profile(url: str) -> bool:
 
 async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSession) -> dict[str, Any] | None:
     """Analyze Grailed seller profile for reliability metrics.
-    
+
     Uses headless browser to extract seller data that is loaded dynamically
     via JavaScript on profile pages. Falls back to minimal data if extraction fails.
-    
+
     Args:
         profile_url: Grailed seller profile URL to analyze
         session: aiohttp ClientSession for making HTTP requests
-    
+
     Returns:
         Dictionary containing seller metrics:
         - num_reviews: Number of seller reviews (extracted via headless browser)
@@ -547,14 +546,14 @@ async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSessio
 
 async def check_grailed_availability(session: aiohttp.ClientSession) -> dict[str, Any]:
     """Check if Grailed website is available and responsive.
-    
+
     Tests Grailed's main page and API endpoints to determine if the site
     is experiencing downtime or technical issues. Used for better error
     reporting when individual listing scraping fails.
-    
+
     Args:
         session: aiohttp ClientSession for making HTTP requests
-    
+
     Returns:
         Dictionary containing availability status:
         - is_available: True if Grailed is responsive, False otherwise
@@ -564,9 +563,9 @@ async def check_grailed_availability(session: aiohttp.ClientSession) -> dict[str
     """
     import logging
     import time
-    
+
     logger = logging.getLogger(__name__)
-    
+
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -574,9 +573,9 @@ async def check_grailed_availability(session: aiohttp.ClientSession) -> dict[str
         'Accept-Encoding': 'gzip, deflate',
         'Connection': 'keep-alive',
     }
-    
+
     start_time = time.time()
-    
+
     try:
         # Try main page first
         timeout = aiohttp.ClientTimeout(total=10)
@@ -586,7 +585,7 @@ async def check_grailed_availability(session: aiohttp.ClientSession) -> dict[str
             timeout=timeout
         ) as response:
             response_time_ms = int((time.time() - start_time) * 1000)
-            
+
             if response.status == 200:
                 logger.debug(f"Grailed main page accessible: {response.status} in {response_time_ms}ms")
                 return {
@@ -603,8 +602,8 @@ async def check_grailed_availability(session: aiohttp.ClientSession) -> dict[str
                     'response_time_ms': response_time_ms,
                     'error_message': f"HTTP {response.status} error from main page"
                 }
-                
-    except asyncio.TimeoutError:
+
+    except TimeoutError:
         response_time_ms = int((time.time() - start_time) * 1000)
         logger.warning(f"Grailed availability check timed out after {response_time_ms}ms")
         return {
@@ -613,7 +612,7 @@ async def check_grailed_availability(session: aiohttp.ClientSession) -> dict[str
             'response_time_ms': response_time_ms,
             'error_message': "Connection timeout - site may be slow or unavailable"
         }
-        
+
     except aiohttp.ClientError as e:
         response_time_ms = int((time.time() - start_time) * 1000)
         logger.error(f"Network error checking Grailed availability: {e}")
@@ -623,7 +622,7 @@ async def check_grailed_availability(session: aiohttp.ClientSession) -> dict[str
             'response_time_ms': response_time_ms,
             'error_message': f"Network error: {str(e)}"
         }
-        
+
     except Exception as e:
         response_time_ms = int((time.time() - start_time) * 1000)
         logger.error(f"Unexpected error checking Grailed availability: {e}")

@@ -166,7 +166,7 @@ class HeadlessBrowser:
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined,
             });
-            
+
             // Mock chrome property
             window.chrome = {
                 runtime: {},
@@ -174,7 +174,7 @@ class HeadlessBrowser:
                 csi: function() {},
                 app: {}
             };
-            
+
             // Mock permissions
             const originalQuery = window.navigator.permissions.query;
             window.navigator.permissions.query = (parameters) => (
@@ -182,12 +182,12 @@ class HeadlessBrowser:
                     Promise.resolve({ state: Notification.permission }) :
                     originalQuery(parameters)
             );
-            
+
             // Mock plugins
             Object.defineProperty(navigator, 'plugins', {
                 get: () => [1, 2, 3, 4, 5],
             });
-            
+
             // Mock languages
             Object.defineProperty(navigator, 'languages', {
                 get: () => ['en-US', 'en'],
@@ -204,11 +204,11 @@ _browser_lock = asyncio.Lock()
 
 async def extract_seller_data_headless(url: str, headless_browser: HeadlessBrowser) -> SellerData | None:
     """Extract seller data using headless browser for dynamic content.
-    
+
     Args:
         url: Grailed listing or profile URL to scrape
         headless_browser: Configured headless browser instance
-    
+
     Returns:
         SellerData object with extracted metrics, or None if extraction fails
     """
@@ -252,17 +252,6 @@ async def _extract_dynamic_seller_data(page: Page) -> SellerData | None:
     """Extract seller data from a rendered page."""
     try:
         # Strategy 1: Wait for seller elements to appear and extract data
-        seller_selectors = [
-            '[data-testid*="rating"]',
-            '[data-testid*="review"]',
-            '[data-testid*="seller"]',
-            '.rating',
-            '.review-count',
-            '.seller-rating',
-            '.feedback',
-            '.trusted-badge',
-            '.verified-seller'
-        ]
 
         avg_rating = 0.0
         num_reviews = 0
@@ -366,16 +355,16 @@ async def _extract_dynamic_seller_data(page: Page) -> SellerData | None:
                             window.grailed,
                             window.APP_STATE
                         ];
-                        
+
                         for (const source of sources) {
                             if (source && typeof source === 'object') {
                                 const jsonStr = JSON.stringify(source);
-                                
+
                                 // Look for seller data patterns
                                 const ratingMatch = jsonStr.match(/"(?:rating|averageRating|sellerRating)"\\s*:\\s*([0-5]\\.[0-9]+)/);
                                 const reviewMatch = jsonStr.match(/"(?:reviewCount|totalReviews|reviews)"\\s*:\\s*(\\d+)/);
                                 const trustedMatch = jsonStr.match(/"(?:trusted|trustedSeller|verified)"\\s*:\\s*true/);
-                                
+
                                 if (ratingMatch || reviewMatch || trustedMatch) {
                                     return {
                                         rating: ratingMatch ? parseFloat(ratingMatch[1]) : 0,
@@ -385,7 +374,7 @@ async def _extract_dynamic_seller_data(page: Page) -> SellerData | None:
                                 }
                             }
                         }
-                        
+
                         return null;
                     }
                 """)
@@ -423,7 +412,7 @@ async def _extract_dynamic_seller_data(page: Page) -> SellerData | None:
                     // Look for relative time patterns like "5 days ago"
                     const timeAgoPattern = /\\b(\\d+)\\s+(second|minute|hour|day|week|month|year)s?\\s*ago\\b/gi;
                     const bodyText = document.body.innerText || document.body.textContent || '';
-                    
+
                     // Find all matches
                     const matches = [];
                     let match;
@@ -434,7 +423,7 @@ async def _extract_dynamic_seller_data(page: Page) -> SellerData | None:
                             unit: match[2].toLowerCase()
                         });
                     }
-                    
+
                     return {
                         allMatches: matches,
                         firstMatch: matches.length > 0 ? matches[0] : null,
@@ -495,10 +484,10 @@ async def _extract_dynamic_seller_data(page: Page) -> SellerData | None:
 
 async def get_grailed_seller_data_headless(url: str) -> SellerData | None:
     """High-level function to extract Grailed seller data using headless browser.
-    
+
     Args:
         url: Grailed listing or profile URL to scrape
-    
+
     Returns:
         SellerData object with extracted metrics, or None if extraction fails
     """

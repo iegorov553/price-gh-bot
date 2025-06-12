@@ -72,24 +72,25 @@ def test_evaluate_seller_reliability_ghost_inactive():
 def test_evaluate_seller_reliability_bronze():
     """Test Bronze tier seller evaluation."""
     seller_data = SellerData(
-        num_reviews=5,
-        avg_rating=3.80,
+        num_reviews=25,  # 20-49 reviews = 15 points
+        avg_rating=4.60,  # 4.5-4.7 = 24 points
         trusted_badge=False,
-        last_updated=datetime.now(UTC) - timedelta(days=15)
+        last_updated=datetime.now(UTC) - timedelta(days=15)  # 8-30 days = 12 points
     )
 
     score = evaluate_seller_reliability(seller_data)
 
     assert score.category == "Bronze"
+    # Total: 12 + 24 + 15 + 0 = 51 points
     assert 40 <= score.total_score < 55
     assert score.activity_score == 12
-    assert score.rating_score == 0
-    assert score.review_volume_score == 5
+    assert score.rating_score == 24
+    assert score.review_volume_score == 15
     assert score.badge_score == 0
 
 
 def test_evaluate_seller_reliability_no_reviews():
-    """Test evaluation with no reviews."""
+    """Test evaluation with no reviews (should be No Data)."""
     seller_data = SellerData(
         num_reviews=0,
         avg_rating=0.0,
@@ -99,8 +100,9 @@ def test_evaluate_seller_reliability_no_reviews():
 
     score = evaluate_seller_reliability(seller_data)
 
-    assert score.total_score == 30  # Only activity score
-    assert score.activity_score == 30
+    assert score.category == "No Data"  # Changed expectation
+    assert score.total_score == 0  # No Data gives 0 points
+    assert score.activity_score == 0
     assert score.rating_score == 0
     assert score.review_volume_score == 0
     assert score.badge_score == 0

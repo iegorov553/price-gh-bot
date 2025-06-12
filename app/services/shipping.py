@@ -14,16 +14,16 @@ from ..models import ShippingQuote
 
 def _calc_shopfans_price(weight: Decimal, total_order_value: Decimal) -> Decimal:
     """Calculate Shopfans shipping cost based on item weight and order total.
-    
+
     Uses tiered pricing based on total order value (item + US shipping):
     - < $200: Europe route (30.86$/kg)
-    - >= $200: Turkey route (35.27$/kg) 
+    - >= $200: Turkey route (35.27$/kg)
     - >= $1000: Kazakhstan route (41.89$/kg)
-    
+
     Args:
         weight: Item weight in kilograms.
         total_order_value: Total order value (item price + US shipping) in USD.
-        
+
     Returns:
         Total shipping cost in USD including handling fees.
     """
@@ -49,15 +49,15 @@ def _calc_shopfans_price(weight: Decimal, total_order_value: Decimal) -> Decimal
 
 def estimate_shopfans_shipping(title: str, total_order_value: Decimal) -> ShippingQuote:
     """Estimate Shopfans shipping cost based on item title and order total.
-    
+
     Analyzes item title against configured patterns to estimate weight,
     then calculates shipping cost using tiered Shopfans pricing structure
     based on total order value (item + US shipping).
-    
+
     Args:
         title: Item title/description to analyze for weight estimation.
         total_order_value: Total order value (item price + US shipping) in USD.
-    
+
     Returns:
         ShippingQuote with estimated weight, cost, and description.
     """
@@ -92,17 +92,17 @@ def estimate_shopfans_shipping(title: str, total_order_value: Decimal) -> Shippi
 
 def calc_shipping(country: str, weight: Decimal, total_order_value: Decimal) -> ShippingQuote:
     """Calculate shipping cost for a specific country and weight.
-    
+
     Calculates shipping costs using the tiered Shopfans pricing structure for
     supported countries. Currently only supports shipping to Russia.
     For unsupported countries, returns zero cost.
-    
+
     Args:
         country: Target country for shipping calculation. Case-insensitive.
                 Only "russia" is currently supported.
         weight: Item weight in kilograms. Must be a positive Decimal value.
         total_order_value: Total order value (item price + US shipping) in USD.
-    
+
     Returns:
         ShippingQuote containing the calculated cost, weight, and description
         of the shipping calculation method used.

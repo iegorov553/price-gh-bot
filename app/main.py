@@ -21,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def cleanup_resources():
+async def cleanup_resources() -> None:
     """Cleanup application resources."""
     try:
         from .scrapers.headless import cleanup_global_browser
@@ -33,11 +33,11 @@ async def cleanup_resources():
 
 def main() -> None:
     """Main application entry point.
-    
+
     Initializes the Telegram bot application with proper configuration,
     registers command and message handlers, and starts the bot in either
     webhook mode (production) or polling mode (development).
-    
+
     Raises:
         RuntimeError: If BOT_TOKEN environment variable is not set.
     """

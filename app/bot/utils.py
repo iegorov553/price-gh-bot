@@ -52,15 +52,15 @@ logger = logging.getLogger(__name__)
 
 def escape_markdown_v2(text: str) -> str:
     """Escape special characters for MarkdownV2 format.
-    
+
     Escapes characters that have special meaning in Telegram's MarkdownV2:
     _*[]()~`>#+-=|{}.!
-    
+
     Note: This function preserves markdown links in format [text](url)
-    
+
     Args:
         text: Text to escape
-        
+
     Returns:
         Escaped text safe for MarkdownV2
     """
@@ -71,7 +71,7 @@ def escape_markdown_v2(text: str) -> str:
 
     # Temporarily replace markdown links to preserve them
     links = []
-    def replace_link(match):
+    def replace_link(match: any) -> str:
         links.append(match.group(0))
         return f"__LINK_{len(links)-1}__"
 

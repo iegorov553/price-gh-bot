@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 class ItemData(BaseModel):
     """Scraped marketplace item data.
-    
+
     Attributes:
         price: Item price in USD, None if not found.
         shipping_us: US domestic shipping cost in USD, None if not found.
@@ -28,7 +28,7 @@ class ItemData(BaseModel):
 
 class SellerData(BaseModel):
     """Seller profile information from marketplace.
-    
+
     Attributes:
         num_reviews: Total number of seller reviews.
         avg_rating: Average seller rating (0.0-5.0 scale).
@@ -43,7 +43,7 @@ class SellerData(BaseModel):
 
 class ReliabilityScore(BaseModel):
     """Calculated seller reliability evaluation.
-    
+
     Attributes:
         activity_score: Points for recent activity (0-30).
         rating_score: Points for high ratings (0-35).
@@ -64,7 +64,7 @@ class ReliabilityScore(BaseModel):
 
 class ShippingQuote(BaseModel):
     """Estimated shipping cost calculation.
-    
+
     Attributes:
         weight_kg: Estimated item weight in kilograms.
         cost_usd: Calculated shipping cost in USD.
@@ -77,12 +77,12 @@ class ShippingQuote(BaseModel):
 
 class PriceCalculation(BaseModel):
     """Complete price breakdown with new structured format.
-    
+
     New structure supports:
     - Intermediate subtotal (item + US shipping + commission)
     - Additional costs (RF customs duty + RF shipping)
     - Final total (subtotal + additional costs)
-    
+
     Attributes:
         item_price: Original item price in USD.
         shipping_us: US domestic shipping cost.
@@ -111,7 +111,7 @@ class PriceCalculation(BaseModel):
 
 class CurrencyRate(BaseModel):
     """Exchange rate data from external API.
-    
+
     Attributes:
         from_currency: Source currency code (e.g., 'USD').
         to_currency: Target currency code (e.g., 'RUB').

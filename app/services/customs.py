@@ -25,15 +25,15 @@ async def calculate_rf_customs_duty(
     session: aiohttp.ClientSession
 ) -> Decimal:
     """Calculate Russian customs duty for items exceeding 200 EUR threshold.
-    
+
     Duty applies to personal imports with total value (item + US shipping) > 200 EUR.
     Duty rate: 15% of the amount exceeding 200 EUR.
-    
+
     Args:
         item_price_usd: Item price in USD
         shipping_us_usd: US shipping cost in USD
         session: aiohttp session for making currency API requests
-    
+
     Returns:
         Customs duty amount in USD, 0 if below threshold or if EUR/USD rate unavailable
     """
@@ -76,7 +76,7 @@ async def calculate_rf_customs_duty(
 
 def get_duty_info() -> dict[str, any]:
     """Get information about Russian customs duty rules.
-    
+
     Returns:
         Dictionary with duty threshold, rate, and description
     """

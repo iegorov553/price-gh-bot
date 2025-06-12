@@ -9,18 +9,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
-try:
-    from pydantic import Field
-    from pydantic_settings import BaseSettings
-except ImportError:
-    # Fallback for older pydantic versions
-    from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class ShippingConfig(BaseSettings):
     """Shopfans shipping cost calculation parameters with tiered pricing.
-    
+
     Attributes:
         base_cost: Minimum shipping cost in USD.
         per_kg_rate_europe: Cost per kilogram for Europe route (< $200).
@@ -45,7 +40,7 @@ class ShippingConfig(BaseSettings):
 
 class CommissionConfig(BaseSettings):
     """Commission fee structure configuration.
-    
+
     Attributes:
         fixed_amount: Fixed commission for items under threshold.
         fixed_threshold: Price threshold for switching to percentage.
@@ -58,7 +53,7 @@ class CommissionConfig(BaseSettings):
 
 class CurrencyConfig(BaseSettings):
     """Currency conversion settings.
-    
+
     Attributes:
         markup_percentage: Markup added to base exchange rate.
         default_source: Primary exchange rate API source.
@@ -71,7 +66,7 @@ class CurrencyConfig(BaseSettings):
 
 class BotConfig(BaseSettings):
     """Main Telegram bot configuration.
-    
+
     Attributes:
         bot_token: Telegram bot API token from environment.
         admin_chat_id: Telegram chat ID for admin notifications.
@@ -81,18 +76,18 @@ class BotConfig(BaseSettings):
         timeout: HTTP request timeout in seconds.
         enable_headless_browser: Whether to use headless browser for extraction.
     """
-    bot_token: str = Field(..., env="BOT_TOKEN")
+    bot_token: str = Field(..., validation_alias="BOT_TOKEN")
     admin_chat_id: int = 26917201
-    port: int = Field(default=8000, env="PORT")
-    railway_domain: str | None = Field(default=None, env="RAILWAY_PUBLIC_DOMAIN")
-    railway_url: str | None = Field(default=None, env="RAILWAY_URL")
+    port: int = Field(default=8000, validation_alias="PORT")
+    railway_domain: str | None = Field(default=None, validation_alias="RAILWAY_PUBLIC_DOMAIN")
+    railway_url: str | None = Field(default=None, validation_alias="RAILWAY_URL")
     timeout: int = 20
-    enable_headless_browser: bool = Field(default=True, env="ENABLE_HEADLESS_BROWSER")
+    enable_headless_browser: bool = Field(default=True, validation_alias="ENABLE_HEADLESS_BROWSER")
 
     @property
     def webhook_domain(self) -> str | None:
         """Get webhook domain for Railway deployment.
-        
+
         Returns:
             Domain string if available, None for polling mode.
         """
@@ -101,7 +96,7 @@ class BotConfig(BaseSettings):
     @property
     def use_webhook(self) -> bool:
         """Determine if webhook mode should be used.
-        
+
         Returns:
             True if webhook domain is configured, False for polling mode.
         """
@@ -110,7 +105,7 @@ class BotConfig(BaseSettings):
 
 class Config:
     """Application configuration manager.
-    
+
     Centralizes loading and management of all configuration sources including
     environment variables, YAML files, and default values. Provides typed
     access to configuration sections for different application components.
@@ -118,7 +113,7 @@ class Config:
 
     def __init__(self, config_dir: Path | None = None):
         """Initialize configuration manager.
-        
+
         Args:
             config_dir: Path to configuration directory, defaults to app/config.
         """
@@ -175,7 +170,7 @@ class Config:
 
     def _load_shipping_patterns(self) -> list[dict[str, Any]]:
         """Load shipping weight patterns from YAML configuration.
-        
+
         Returns:
             List of pattern dictionaries with 'pattern' and 'weight' keys.
         """
@@ -191,7 +186,7 @@ class Config:
     @property
     def default_shipping_weight(self) -> float:
         """Get default shipping weight for unmatched items.
-        
+
         Returns:
             Default weight in kilograms, falls back to 0.60kg.
         """

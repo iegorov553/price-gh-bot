@@ -24,13 +24,13 @@ _cache_ttl = timedelta(hours=1)
 
 async def get_usd_to_rub_rate(session: aiohttp.ClientSession) -> CurrencyRate | None:
     """Get USD to RUB exchange rate from Central Bank of Russia.
-    
+
     Fetches current exchange rate from CBR XML API, applies configured markup,
     and caches result for 1 hour. Returns None if API is unavailable.
-    
+
     Args:
         session: aiohttp session for making requests.
-    
+
     Returns:
         CurrencyRate object with rate and metadata, None if failed.
     """
@@ -103,13 +103,13 @@ async def get_usd_to_rub_rate(session: aiohttp.ClientSession) -> CurrencyRate | 
 
 async def get_eur_to_usd_rate(session: aiohttp.ClientSession) -> CurrencyRate | None:
     """Get EUR to USD exchange rate from Central Bank of Russia.
-    
+
     Calculates EUR/USD cross-rate using EUR/RUB and USD/RUB from CBR API.
     EUR/USD = EUR/RUB ÷ USD/RUB
-    
+
     Args:
         session: aiohttp session for making requests.
-    
+
     Returns:
         CurrencyRate object with EUR/USD rate, None if failed.
     """
@@ -187,15 +187,15 @@ async def get_eur_to_usd_rate(session: aiohttp.ClientSession) -> CurrencyRate | 
 
 async def get_rate(from_currency: str, to_currency: str, session: aiohttp.ClientSession) -> CurrencyRate | None:
     """Get exchange rate for specified currency pair.
-    
+
     Supports USD to RUB and EUR to USD conversions from CBR API.
     Other currency pairs will return None with a warning log.
-    
+
     Args:
         from_currency: Source currency code (e.g., 'USD', 'EUR').
         to_currency: Target currency code (e.g., 'RUB', 'USD').
         session: aiohttp session for making requests.
-    
+
     Returns:
         CurrencyRate object with rate and metadata, None if currency pair
         not supported or conversion failed.
@@ -211,7 +211,7 @@ async def get_rate(from_currency: str, to_currency: str, session: aiohttp.Client
 
 def clear_cache():
     """Clear the in-memory currency rate cache.
-    
+
     Removes all cached exchange rates, forcing fresh API calls on next
     rate requests. Useful for testing or when manual cache invalidation
     is needed.
