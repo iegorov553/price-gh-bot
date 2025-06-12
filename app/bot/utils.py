@@ -15,36 +15,35 @@ from telegram.ext import Application
 from ..config import config
 from ..models import CurrencyRate, PriceCalculation, ReliabilityScore
 from .messages import (
-    ADDITIONAL_COSTS_LINE,
     ADMIN_NOTIFICATION,
     COMMISSION_LINE,
     COMMISSION_TYPE_FIXED,
     COMMISSION_TYPE_PERCENTAGE,
     CUSTOMS_DUTY_LINE,
-    FINAL_TOTAL_LINE,
+    FINAL_TOTAL_HEADER,
+    FINAL_TOTAL_LINE_NO_RUB,
     ITEM_PRICE_LINE,
     NO_BADGE,
-    PRICE_CALCULATION_HEADER,
-    RUB_CONVERSION_LINE,
+    RUSSIA_COSTS_LINE,
+    RUSSIA_IMPORT_HEADER,
     SELLER_ACTIVITY_LINE,
     SELLER_BADGE_LINE,
     SELLER_DESCRIPTION_LINE,
     SELLER_DETAILS_HEADER,
-    SELLER_INFO_LINE,
     SELLER_PROFILE_HEADER,
     SELLER_RATING_LINE,
     SELLER_RELIABILITY,
     SELLER_RELIABILITY_LINE,
     SELLER_REVIEWS_LINE,
-    SEPARATOR_LINE,
     SHIPPING_ONLY_RU_LINE,
     SHIPPING_RU_LINE,
     SHIPPING_US_LINE,
-    SUBTOTAL_LINE,
     TIME_DAYS_AGO,
     TIME_TODAY,
     TIME_YESTERDAY,
     TRUSTED_SELLER_BADGE,
+    USA_PURCHASE_HEADER,
+    USA_SUBTOTAL_LINE,
 )
 
 logger = logging.getLogger(__name__)
@@ -211,16 +210,17 @@ def format_price_response(
     item_url: str | None = None,
     use_markdown: bool = False
 ) -> str:
-    """Format price calculation into user-friendly response with new structured format.
+    """Format price calculation into user-friendly response with grouped stages format.
 
-    Creates formatted message using new structured breakdown:
+    Creates formatted message using grouped stages breakdown:
     1. Item title with hyperlink (if available)
-    2. Item + US shipping + commission = Subtotal
-    3. RF customs duty + RF shipping = Additional costs
-    4. Subtotal + Additional costs = Final total
+    2. USA PURCHASE section with item, shipping, commission
+    3. RUSSIA IMPORT section with customs duty and shipping
+    4. Final total with RUB conversion
+    5. Seller info (for Grailed)
 
     Args:
-        calculation: Price calculation data with new structured format.
+        calculation: Price calculation data with structured format.
         exchange_rate: USD to RUB exchange rate for currency conversion.
         reliability: Seller reliability score for Grailed items.
         is_grailed: Whether this is a Grailed listing to show seller info.
@@ -231,76 +231,67 @@ def format_price_response(
     Returns:
         str: Formatted message ready to send to user.
     """
-    # Start with item title and hyperlink if available
     response_lines = []
 
+    # Item title with hyperlink if available
     if item_title and item_url:
-        # Add item title with hyperlink
         response_lines.extend([
             f"📦 [{item_title}]({item_url})",
             ""
         ])
 
-    # Add header
-    response_lines.extend([PRICE_CALCULATION_HEADER, ""])
-
-    # Item price
+    # USA PURCHASE section
+    response_lines.append(USA_PURCHASE_HEADER)
     response_lines.append(ITEM_PRICE_LINE.format(item_price=calculation.item_price))
-
+    
     # US shipping (if exists)
     if calculation.shipping_us > 0:
         response_lines.append(SHIPPING_US_LINE.format(shipping_us=calculation.shipping_us))
-
+    
     # Commission
     commission_type = COMMISSION_TYPE_FIXED if calculation.commission_type == "fixed" else COMMISSION_TYPE_PERCENTAGE
     response_lines.append(COMMISSION_LINE.format(
         commission=calculation.commission,
         commission_type=commission_type
     ))
-
-    # Separator and subtotal
-    response_lines.append(SEPARATOR_LINE)
-    response_lines.append(SUBTOTAL_LINE.format(subtotal=calculation.subtotal))
+    response_lines.append(USA_SUBTOTAL_LINE.format(subtotal=calculation.subtotal))
     response_lines.append("")  # Empty line
 
-    # RF customs duty (if applicable)
-    if calculation.customs_duty > 0:
-        response_lines.append(CUSTOMS_DUTY_LINE.format(customs_duty=calculation.customs_duty))
+    # RUSSIA IMPORT section (only if there are additional costs)
+    if calculation.additional_costs > 0:
+        response_lines.append(RUSSIA_IMPORT_HEADER)
+        
+        # RF customs duty (if applicable)
+        if calculation.customs_duty > 0:
+            response_lines.append(CUSTOMS_DUTY_LINE.format(customs_duty=calculation.customs_duty))
+        
+        # RF shipping
+        if calculation.shipping_us == 0:
+            # Only Russia shipping (direct from seller or Shopfans)
+            response_lines.append(SHIPPING_ONLY_RU_LINE.format(shipping_ru=calculation.shipping_russia))
+        else:
+            # Russia shipping when US shipping also exists
+            response_lines.append(SHIPPING_RU_LINE.format(shipping_ru=calculation.shipping_russia))
+        
+        response_lines.append(RUSSIA_COSTS_LINE.format(additional_costs=calculation.additional_costs))
+        response_lines.append("")  # Empty line
 
-    # RF shipping
-    if calculation.shipping_us == 0:
-        # Only Russia shipping (direct from seller or Shopfans)
-        response_lines.append(SHIPPING_ONLY_RU_LINE.format(shipping_ru=calculation.shipping_russia))
-    else:
-        # Russia shipping when US shipping also exists
-        response_lines.append(SHIPPING_RU_LINE.format(shipping_ru=calculation.shipping_russia))
-
-    # Additional costs summary
-    response_lines.append(SEPARATOR_LINE)
-    response_lines.append(ADDITIONAL_COSTS_LINE.format(additional_costs=calculation.additional_costs))
-    response_lines.append("")  # Empty line
-
-    # Final total
-    response_lines.append(FINAL_TOTAL_LINE.format(final_price=calculation.final_price_usd))
-
-    # RUB conversion if available
+    # Final total with RUB conversion
     if exchange_rate:
         final_price_rub = (calculation.final_price_usd * exchange_rate.rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
-        response_lines.append(RUB_CONVERSION_LINE.format(rub_price=final_price_rub))
+        response_lines.append(FINAL_TOTAL_HEADER.format(
+            final_price=calculation.final_price_usd,
+            rub_price=final_price_rub
+        ))
+    else:
+        response_lines.append(FINAL_TOTAL_LINE_NO_RUB.format(final_price=calculation.final_price_usd))
 
     # Add seller reliability for Grailed items
     if reliability and is_grailed:
         emoji = SELLER_RELIABILITY.get(reliability.category, {}).get('emoji', '❓')
 
         response_lines.append("")  # Empty line before seller info
-        response_lines.append(SELLER_INFO_LINE.format(
-            emoji=emoji,
-            category=reliability.category,
-            total_score=reliability.total_score
-        ))
-        response_lines.append(SELLER_DESCRIPTION_LINE.format(
-            description=reliability.description
-        ))
+        response_lines.append(f"👤 Продавец: {emoji} {reliability.category} ({reliability.total_score}/100)")
 
     response = "\n".join(response_lines)
 

@@ -53,19 +53,21 @@ OFFER_ONLY_MESSAGE = (
 COMMISSION_FIXED = "комиссии $15"
 COMMISSION_PERCENTAGE = "комиссии 10%"
 
-# Price calculation format - new structured breakdown
-PRICE_CALCULATION_HEADER = "💰 Расчёт стоимости"
-ITEM_PRICE_LINE = "Товар: ${item_price}"
-SHIPPING_US_LINE = "Доставка в США: ${shipping_us}"
-COMMISSION_LINE = "Комиссия: ${commission} ({commission_type})"
-SEPARATOR_LINE = "──────────────────"
-SUBTOTAL_LINE = "Промежуточный итог: ${subtotal}"
-CUSTOMS_DUTY_LINE = "Пошлина РФ: ${customs_duty} (15% с превышения 200€)"
-SHIPPING_RU_LINE = "Доставка в РФ: ${shipping_ru}"
-SHIPPING_ONLY_RU_LINE = "Доставка в РФ: ${shipping_ru} (Shopfans)"
-ADDITIONAL_COSTS_LINE = "Дополнительные расходы: ${additional_costs}"
-FINAL_TOTAL_LINE = "Итого к оплате: ${final_price}"
-RUB_CONVERSION_LINE = "В рублях: ₽{rub_price}"
+# Price calculation format - grouped by stages
+USA_PURCHASE_HEADER = "🛒 ПОКУПКА В США"
+ITEM_PRICE_LINE = "• Товар: ${item_price}"
+SHIPPING_US_LINE = "• Доставка: ${shipping_us}"
+COMMISSION_LINE = "• Комиссия: ${commission} ({commission_type})"
+USA_SUBTOTAL_LINE = "└ Сумма: ${subtotal}"
+
+RUSSIA_IMPORT_HEADER = "🛃 ВВОЗ В РОССИЮ"
+CUSTOMS_DUTY_LINE = "• Пошлина: ${customs_duty} (>200€)"
+SHIPPING_RU_LINE = "• Доставка: ${shipping_ru}"
+SHIPPING_ONLY_RU_LINE = "• Доставка: ${shipping_ru} (Shopfans)"
+RUSSIA_COSTS_LINE = "└ Расходы: ${additional_costs}"
+
+FINAL_TOTAL_HEADER = "💰 ИТОГО: ${final_price} (₽{rub_price})"
+FINAL_TOTAL_LINE_NO_RUB = "💰 ИТОГО: ${final_price}"
 
 # Commission types
 COMMISSION_TYPE_FIXED = "фикс. сумма"
