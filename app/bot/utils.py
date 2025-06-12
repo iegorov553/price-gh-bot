@@ -57,6 +57,7 @@ def escape_markdown_v2(text: str) -> str:
     _*[]()~`>#+-=|{}.!
 
     Note: This function preserves markdown links in format [text](url)
+    but escapes special characters within link text and URLs.
 
     Args:
         text: Text to escape
@@ -69,24 +70,40 @@ def escape_markdown_v2(text: str) -> str:
     # Characters that need escaping in MarkdownV2
     escape_chars = r'_*[]()~`>#+-=|{}.!'
 
-    # Temporarily replace markdown links to preserve them
-    links = []
-    def replace_link(match: any) -> str:
-        links.append(match.group(0))
-        return f"__LINK_{len(links)-1}__"
+    def escape_chars_in_text(text_to_escape: str) -> str:
+        """Escape special characters in text."""
+        for char in escape_chars:
+            text_to_escape = text_to_escape.replace(char, f'\\{char}')
+        return text_to_escape
 
-    # Find and temporarily replace markdown links
-    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', replace_link, text)
+    def process_link(match) -> str:
+        """Process markdown link - escape special chars in text and URL."""
+        link_text = match.group(1)
+        link_url = match.group(2)
+        
+        # Escape special characters in link text (but not brackets/parentheses that are part of markdown)
+        escaped_text = escape_chars_in_text(link_text)
+        
+        # URLs don't need escaping in MarkdownV2 when inside parentheses
+        return f"[{escaped_text}]({link_url})"
 
-    # Escape special characters
-    for char in escape_chars:
-        text = text.replace(char, f'\\{char}')
+    # Process markdown links first
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', process_link, text)
 
-    # Restore markdown links
-    for i, link in enumerate(links):
-        text = text.replace(f"\\_\\_LINK\\_{i}\\_\\_", link)
-
-    return text
+    # Then escape special characters in remaining text (outside of links)
+    def escape_non_link_text(text_to_process: str) -> str:
+        """Escape text that's not part of markdown links."""
+        # Split by markdown links to process only text outside links
+        parts = re.split(r'(\[[^\]]+\]\([^)]+\))', text_to_process)
+        
+        for i in range(len(parts)):
+            # Only escape odd indices (text between links) and first/last if not links
+            if i % 2 == 0:  # Even indices are text outside links
+                parts[i] = escape_chars_in_text(parts[i])
+        
+        return ''.join(parts)
+    
+    return escape_non_link_text(text)
 
 
 async def notify_admin(application: Application, message: str) -> None:
