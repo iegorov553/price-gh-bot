@@ -63,11 +63,23 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     Main handler that processes user messages containing eBay or Grailed URLs.
     Detects seller profile links vs item listings and routes to appropriate
     processing workflow. Handles concurrent scraping and response formatting.
+    Also handles feedback messages from users in feedback mode.
 
     Args:
         update: Telegram update object containing message data.
         context: Bot context for accessing application instance.
     """
+    if not update.message or not update.effective_user:
+        return
+
+    # Check if user is waiting to send feedback
+    from .feedback import is_waiting_feedback, handle_feedback_message
+    
+    user_id = update.effective_user.id
+    if is_waiting_feedback(user_id):
+        await handle_feedback_message(update, context)
+        return
+
     text = update.message.text if update.message else ''
     urls = re.findall(r"(https?://[\w\.-]+(?:/[^\s]*)?)", text)
     if not urls:

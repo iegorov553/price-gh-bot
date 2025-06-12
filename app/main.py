@@ -11,6 +11,7 @@ import logging
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from .bot.handlers import handle_link, start
+from .bot.feedback import feedback_command
 from .config import config
 
 # Logging
@@ -49,6 +50,7 @@ def main() -> None:
 
     # Add handlers
     app.add_handler(CommandHandler('start', start))
+    app.add_handler(CommandHandler('feedback', feedback_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
     # Run in webhook or polling mode

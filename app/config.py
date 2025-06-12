@@ -75,6 +75,9 @@ class BotConfig(BaseSettings):
         railway_url: Railway URL for webhooks (fallback).
         timeout: HTTP request timeout in seconds.
         enable_headless_browser: Whether to use headless browser for extraction.
+        github_token: GitHub API token for creating issues.
+        github_owner: GitHub repository owner.
+        github_repo: GitHub repository name.
     """
     bot_token: str = Field(..., validation_alias="BOT_TOKEN")
     admin_chat_id: int = 26917201
@@ -83,6 +86,9 @@ class BotConfig(BaseSettings):
     railway_url: str | None = Field(default=None, validation_alias="RAILWAY_URL")
     timeout: int = 20
     enable_headless_browser: bool = Field(default=True, validation_alias="ENABLE_HEADLESS_BROWSER")
+    github_token: str | None = Field(default=None, validation_alias="GITHUB_TOKEN")
+    github_owner: str = Field(default="iegorov553", validation_alias="GITHUB_OWNER")
+    github_repo: str = Field(default="price-gh-bot", validation_alias="GITHUB_REPO")
 
     @property
     def webhook_domain(self) -> str | None:
