@@ -63,7 +63,20 @@ See [docs/TESTING.md](docs/TESTING.md) for complete documentation including setu
 
 ### Grailed.com Specific Knowledge (Critical)
 
-**IMPORTANT**: Grailed uses a React-based Single Page Application (SPA) architecture that heavily impacts scraping strategies:
+**UPDATED June 2025**: Grailed now uses Next.js architecture with dual parsing strategies for listings and profiles.
+
+#### Modern Grailed Architecture (Next.js)
+
+**Listing Pages**: Now use Next.js with data embedded in `__NEXT_DATA__` script tags
+- **Primary extraction method**: Parse JSON from `<script id="__NEXT_DATA__">` 
+- **Data location**: `props.pageProps.listing` contains all listing information
+- **Available data**: price, title, shipping costs, seller info, buyability status
+- **Fallback strategy**: Legacy HTML parsing for older listings
+
+**Seller Profile Pages**: Still use React SPA requiring headless browser
+- **Dynamic loading**: Seller data loaded via authenticated APIs after page render
+- **Headless browser required**: Only method to extract rating, reviews, trusted badge
+- **Static HTML limitation**: Profile data not available in initial HTML response
 
 #### Profile Pages Limitations
 - **Profile pages** (e.g., `grailed.com/username`) use **client-side rendering**
@@ -73,16 +86,21 @@ See [docs/TESTING.md](docs/TESTING.md) for complete documentation including setu
 - The HTML contains React root elements (`<div id="app">`) but no seller metrics
 - **DO NOT** expect to extract seller data from profile pages without headless browser
 
-#### What Works vs What Doesn't
-✅ **Available from listing pages**:
-- Item price, shipping cost, buyability status
-- Basic seller profile URL extraction
-- Some seller data embedded in listing JSON (window.__PRELOADED_STATE__)
+#### What Works vs What Doesn't (Updated June 2025)
 
-❌ **NOT available from profile pages**:
-- Seller ratings, review counts, trusted badges
-- Activity data, last update information
-- Any meaningful seller metrics in static HTML
+✅ **Listing Pages (Next.js + HTTP requests)**:
+- **Complete item data**: price, title, shipping costs, buyability status
+- **Accurate extraction**: Real-time data from `__NEXT_DATA__` JSON
+- **Seller profile URLs**: Extracted for further analysis
+- **Performance**: Fast HTTP-only parsing (~2-3 seconds)
+- **Compatibility**: Works with both modern Next.js and legacy HTML listings
+
+❌ **Profile Pages (Require headless browser)**:
+- **Seller ratings**: Only available via headless browser JavaScript execution
+- **Review counts**: Dynamic loading after page render
+- **Trusted badges**: Client-side verification
+- **Activity timestamps**: Requires scrolling and dynamic content loading
+- **Performance cost**: ~8-10 seconds per profile analysis
 
 #### API Endpoints Discovery (May 2025)
 - `grailed.com/api/users/{username}` exists but requires authentication (401)
@@ -97,11 +115,20 @@ See [docs/TESTING.md](docs/TESTING.md) for complete documentation including setu
 4. **User communication**: Clearly explain limitations to users when profile analysis fails
 5. **Alternative strategy**: Suggest users share specific listing URLs for seller analysis
 
-#### Technical Implementation Notes
-- Enhanced headers improve success rate but don't solve fundamental SPA limitations
-- JSON parsing patterns work on listing pages but not profile pages
-- `window.__PRELOADED_STATE__` contains listing data, not profile data
-- Multiple regex patterns help with listing page data but won't find profile data that isn't there
+#### Technical Implementation Notes (Updated June 2025)
+
+**Listing Parsing (HTTP-based)**:
+- **Next.js priority**: `_parse_next_data()` extracts from `<script id="__NEXT_DATA__">`
+- **Data structure**: `props.pageProps.listing` contains complete item information
+- **Enhanced headers**: Browser-like headers prevent bot detection and JSON config responses
+- **Legacy fallback**: Maintains compatibility with older listing formats
+- **Error handling**: Content-Type validation prevents parsing JSON config as HTML
+
+**Profile Parsing (Headless browser)**:
+- **JavaScript execution**: Required for dynamic content loading
+- **Scrolling mechanism**: Loads activity data by scrolling to listings
+- **Stealth features**: Anti-detection measures for stable extraction
+- **Resource optimization**: Selective content loading for performance
 
 #### Debugging History & Lessons Learned (May 2025)
 **Investigation conducted**: Exhaustive analysis of Grailed profile page structure including:
@@ -189,15 +216,15 @@ See [docs/TESTING.md](docs/TESTING.md) for complete documentation including setu
 - **Real-time updates**: Activity timestamps reflect actual seller behavior, not system time
 - **Enhanced price display**: Structured multi-line format showing each cost component separately for better readability
 
-**Lessons Learned (May 2025)**:
-- **React SPA architecture**: Makes static HTML parsing completely ineffective
-- **Dynamic data loading**: Seller data loaded via authenticated APIs after page render
-- **Listing activity**: Must scroll profile pages to trigger listing load, then parse human-readable time text
-- **Multiple failed approaches**: JSON parsing, regex patterns, API attempts all failed for timestamps
-- **Headless browser**: Only reliable method for extracting seller data and activity from Grailed profiles
-- **Scoring accuracy**: Activity timestamp extraction crucial for fair scoring (was giving all sellers maximum activity points)
-- **Performance trade-offs**: 20-second extraction time justified by accuracy improvement
-- **Reliability impact**: Proper activity scoring enables meaningful seller differentiation
+**Lessons Learned (Updated June 2025)**:
+- **Next.js architecture shift**: Grailed migrated listings to Next.js requiring new parsing strategies
+- **Dual approach necessity**: Listings (HTTP + Next.js) vs Profiles (headless browser)
+- **Data availability split**: Complete listing data in `__NEXT_DATA__`, seller data requires JS execution
+- **Legacy compatibility**: Must maintain fallback parsing for older listing formats
+- **Performance optimization**: HTTP parsing for listings (2-3s) vs headless for profiles (8-10s)
+- **Bot detection evolved**: Enhanced headers prevent JSON config responses
+- **Extraction accuracy**: Next.js parsing provides exact prices/shipping vs estimated defaults
+- **Architecture adaptation**: Parser evolved from HTML-only to JSON-first with HTML fallback
 
 ## Architecture Overview
 
@@ -218,6 +245,8 @@ The bot scrapes prices from eBay and Grailed listings, adds US shipping costs, e
 
 - **Messages module**: `app/bot/messages.py` containing all user-facing text in Russian for easy localization and editing, with clean formatting and minimal emoji usage
 - **Price scrapers**: Functions in `app/scrapers/` that extract item price, US shipping cost, buyability status, item title, and seller data from eBay and Grailed listings
+- **Next.js parsing (June 2025)**: Grailed scraper prioritizes `__NEXT_DATA__` extraction for modern listings with fallback to legacy HTML parsing
+- **Dual extraction strategy**: HTTP requests for listing data (fast), headless browser for seller profiles (comprehensive)
 - **Buyability detection**: Grailed scraper analyzes JSON data to determine if items have fixed buy-now pricing or are offer-only
 - **Seller analysis**: Comprehensive system in `app/services/reliability.py` for evaluating Grailed seller reliability 
 - **Profile processing**: Functions to extract seller profile URLs and fetch seller data from their profile pages
