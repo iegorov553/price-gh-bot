@@ -67,8 +67,54 @@ def _parse_json_ld(soup: BeautifulSoup) -> Decimal | None:
     return None
 
 
+def _parse_next_data(soup: BeautifulSoup) -> dict[str, Any] | None:
+    """Parse Next.js __NEXT_DATA__ for modern Grailed listings.
+    
+    Grailed now uses Next.js architecture where listing data is embedded
+    in a <script id="__NEXT_DATA__"> tag as JSON.
+    
+    Returns:
+        Dictionary containing listing data or None if not found/invalid.
+    """
+    try:
+        script = soup.find('script', id='__NEXT_DATA__')
+        if not script or not script.string:
+            return None
+            
+        data = json.loads(script.string)
+        
+        # Navigate to listing data: props.pageProps.listing
+        props = data.get('props', {})
+        page_props = props.get('pageProps', {})
+        listing = page_props.get('listing', {})
+        
+        if listing:
+            return listing
+            
+    except (json.JSONDecodeError, KeyError, AttributeError):
+        pass
+        
+    return None
+
+
 def _scrape_shipping_grailed(soup: BeautifulSoup) -> Decimal | None:
     """Extract Grailed shipping cost."""
+    # First try Next.js data (modern Grailed listings)
+    next_data = _parse_next_data(soup)
+    if next_data:
+        shipping_data = next_data.get('shipping', {})
+        if isinstance(shipping_data, dict):
+            us_shipping = shipping_data.get('us', {})
+            if isinstance(us_shipping, dict):
+                amount = us_shipping.get('amount')
+                if amount:
+                    # Remove $ and clean price
+                    clean_amount = str(amount).replace('$', '').strip()
+                    shipping_price = _clean_price(clean_amount)
+                    if shipping_price is not None:
+                        return shipping_price
+    
+    # Fallback to legacy methods
     # Look for shipping text
     shipping_text = soup.find(string=re.compile(r'shipping', re.I))
     if shipping_text:
@@ -99,6 +145,14 @@ def _scrape_shipping_grailed(soup: BeautifulSoup) -> Decimal | None:
 
 def _extract_title(soup: BeautifulSoup) -> str | None:
     """Extract item title."""
+    # First try Next.js data (modern Grailed listings)
+    next_data = _parse_next_data(soup)
+    if next_data:
+        title = next_data.get('title')
+        if title:
+            return str(title).strip()
+    
+    # Fallback to legacy methods
     og = soup.find("meta", property="og:title")
     if og and og.get("content"):
         return og["content"]
@@ -110,30 +164,50 @@ def _extract_title(soup: BeautifulSoup) -> str | None:
 
 def _extract_price_and_buyability(url: str, soup: BeautifulSoup) -> tuple[Decimal | None, bool]:
     """Extract price and determine if item is buyable."""
-    # Extract price
+    # First try Next.js data (modern Grailed listings)
     price = None
-    span = soup.find('span', attrs={'class': lambda c: c and 'price' in c.lower()})
-    if span:
-        price = _clean_price(span.get_text(strip=True))
-    if not price:
-        meta = soup.find('meta', property='product:price:amount')
-        if meta and meta.get('content'):
-            price = _clean_price(meta['content'])
-    if not price:
-        price = _parse_json_ld(soup)
-
-    # Check buyability from JSON data
     is_buyable = False
-    try:
-        for script in soup.find_all('script'):
-            if script.string and 'buyNow' in script.string:
-                buy_now_match = re.search(r'"buyNow"\s*:\s*(true|false)', script.string)
-                if buy_now_match:
-                    is_buyable = buy_now_match.group(1) == 'true'
-                    break
-    except Exception:
-        # Fallback: assume buyable if price is found
-        is_buyable = price is not None
+    
+    next_data = _parse_next_data(soup)
+    if next_data:
+        # Extract price from Next.js data
+        price_str = next_data.get('price')
+        if price_str:
+            # Remove $ and clean price
+            clean_price_str = str(price_str).replace('$', '').strip()
+            price = _clean_price(clean_price_str)
+        
+        # For Next.js listings, assume buyable unless specifically marked as offer-only
+        # Most listings are buyable by default
+        is_buyable = True
+        
+        # Check if it's offer-only (no fixed price)
+        if 'offer' in next_data.get('status', '').lower():
+            is_buyable = False
+    
+    # Fallback to legacy methods if Next.js data not found
+    if price is None:
+        span = soup.find('span', attrs={'class': lambda c: c and 'price' in c.lower()})
+        if span:
+            price = _clean_price(span.get_text(strip=True))
+        if not price:
+            meta = soup.find('meta', property='product:price:amount')
+            if meta and meta.get('content'):
+                price = _clean_price(meta['content'])
+        if not price:
+            price = _parse_json_ld(soup)
+
+        # Legacy buyability check
+        try:
+            for script in soup.find_all('script'):
+                if script.string and 'buyNow' in script.string:
+                    buy_now_match = re.search(r'"buyNow"\s*:\s*(true|false)', script.string)
+                    if buy_now_match:
+                        is_buyable = buy_now_match.group(1) == 'true'
+                        break
+        except Exception:
+            # Fallback: assume buyable if price is found
+            is_buyable = price is not None
 
     return price, is_buyable
 
