@@ -400,7 +400,20 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> tuple[ItemD
     try:
         async with session.get(url) as response:
             response.raise_for_status()
+            
+            # Check Content-Type to avoid parsing JSON as HTML
+            content_type = response.headers.get('content-type', '').lower()
+            if 'application/json' in content_type:
+                # Server returned JSON instead of HTML - listing may be unavailable
+                return ItemData(), None
+            
             html = await response.text()
+            
+            # Additional validation: check if response looks like a listing page
+            if not html or len(html) < 1000:
+                # Response too short to be a valid listing page
+                return ItemData(), None
+                
     except Exception:
         return ItemData(), None
 

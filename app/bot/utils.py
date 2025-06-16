@@ -367,15 +367,28 @@ def format_seller_profile_response(seller_data: dict) -> str:
 def create_session() -> aiohttp.ClientSession:
     """Create configured aiohttp session for web scraping.
 
-    Sets up session with connection limits, timeouts, and user agent
-    header optimized for reliable web scraping operations.
+    Sets up session with connection limits, timeouts, and browser-like headers
+    optimized for reliable web scraping without detection as a bot.
 
     Returns:
         aiohttp.ClientSession: Configured HTTP session for making requests.
     """
     connector = aiohttp.TCPConnector(limit=100, limit_per_host=30)
     timeout = aiohttp.ClientTimeout(total=config.bot.timeout)
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; PriceBot/2.0)"}
+    
+    # Browser-like headers to avoid bot detection
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate, br",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none"
+    }
 
     return aiohttp.ClientSession(
         connector=connector,
