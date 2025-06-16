@@ -102,6 +102,44 @@ def _extract_title(soup: BeautifulSoup) -> str | None:
     return None
 
 
+def _extract_image_url(soup: BeautifulSoup) -> str | None:
+    """Extract primary product image URL from eBay listing.
+    
+    Extracts the main product image URL from eBay listing for display
+    in bot messages. Uses Open Graph and Twitter meta tags.
+    
+    Returns:
+        str: Image URL or None if not found.
+    """
+    # Try Open Graph image
+    og_image = soup.find("meta", property="og:image")
+    if og_image and og_image.get("content"):
+        return og_image["content"]
+    
+    # Try Twitter card image
+    twitter_image = soup.find("meta", attrs={"name": "twitter:image"})
+    if twitter_image and twitter_image.get("content"):
+        return twitter_image["content"]
+    
+    # Try eBay specific image selectors
+    ebay_selectors = [
+        "img#icImg",  # Main item image
+        "img.img",    # Generic item image
+        "img[data-zoom-src]",  # Zoomable image
+        "img[data-src]",  # Lazy loaded image
+    ]
+    
+    for selector in ebay_selectors:
+        img = soup.select_one(selector)
+        if img:
+            # Try various image URL attributes
+            for attr in ["data-zoom-src", "data-src", "src"]:
+                if img.get(attr):
+                    return img[attr]
+    
+    return None
+
+
 async def get_item_data(url: str, session: aiohttp.ClientSession) -> ItemData:
     """Scrape comprehensive item data from an eBay listing.
 
@@ -148,11 +186,15 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> ItemData:
     # Extract title
     title = _extract_title(soup)
 
+    # Extract image URL
+    image_url = _extract_image_url(soup)
+
     return ItemData(
         price=price,
         shipping_us=shipping,
         is_buyable=True,  # eBay items are always buyable
-        title=title
+        title=title,
+        image_url=image_url
     )
 
 

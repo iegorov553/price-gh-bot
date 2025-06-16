@@ -35,7 +35,7 @@ async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     user_id = update.effective_user.id
     waiting_feedback.add(user_id)
     
-    await update.message.reply_text(FEEDBACK_REQUEST_MESSAGE)
+    await update.message.reply_text(FEEDBACK_REQUEST_MESSAGE, disable_web_page_preview=True)
     logger.info(f"User {user_id} started feedback process")
 
 
@@ -57,11 +57,11 @@ async def handle_feedback_message(update: Update, context: ContextTypes.DEFAULT_
 
     # Validate message length
     if len(message_text) < 5:
-        await update.message.reply_text("Сообщение слишком короткое. Напишите хотя бы 5 символов.")
+        await update.message.reply_text("Сообщение слишком короткое. Напишите хотя бы 5 символов.", disable_web_page_preview=True)
         return
 
     if len(message_text) > 1000:
-        await update.message.reply_text("Сообщение слишком длинное. Максимум 1000 символов.")
+        await update.message.reply_text("Сообщение слишком длинное. Максимум 1000 символов.", disable_web_page_preview=True)
         return
 
     # Remove user from waiting set
@@ -76,10 +76,10 @@ async def handle_feedback_message(update: Update, context: ContextTypes.DEFAULT_
 
     # Send response to user
     if success:
-        await update.message.reply_text(FEEDBACK_SUCCESS_MESSAGE)
+        await update.message.reply_text(FEEDBACK_SUCCESS_MESSAGE, disable_web_page_preview=True)
         logger.info(f"Successfully processed feedback from user {user_id}")
     else:
-        await update.message.reply_text(FEEDBACK_ERROR_MESSAGE)
+        await update.message.reply_text(FEEDBACK_ERROR_MESSAGE, disable_web_page_preview=True)
         logger.error(f"Failed to process feedback from user {user_id}")
 
 

@@ -54,7 +54,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         context: Bot context for accessing application instance.
     """
     if update.message:
-        await update.message.reply_text(START_MESSAGE)
+        await update.message.reply_text(START_MESSAGE, disable_web_page_preview=True)
 
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -137,14 +137,14 @@ async def _handle_seller_profile(
 
             # Delete loading message and send final response
             await loading_message.delete()
-            await update.message.reply_text(response)
+            await update.message.reply_text(response, disable_web_page_preview=True)
         else:
             await loading_message.delete()
-            await update.message.reply_text(ERROR_SELLER_DATA_NOT_FOUND)
+            await update.message.reply_text(ERROR_SELLER_DATA_NOT_FOUND, disable_web_page_preview=True)
     except Exception as e:
         logger.error(f"Error processing seller profile {profile_url}: {e}")
         await loading_message.delete()
-        await update.message.reply_text(ERROR_SELLER_ANALYSIS)
+        await update.message.reply_text(ERROR_SELLER_ANALYSIS, disable_web_page_preview=True)
         await send_debug_to_admin(context.application, f"Seller profile error for {profile_url}: {e}")
 
 
@@ -220,14 +220,26 @@ async def _handle_listings(
             if grailed.is_grailed_url(url):
                 await _handle_grailed_scraping_failure(update, session)
             else:
-                await update.message.reply_text(ERROR_PRICE_NOT_FOUND)
+                await update.message.reply_text(ERROR_PRICE_NOT_FOUND, disable_web_page_preview=True)
             continue
 
         if not item_data.is_buyable:
             # For offer-only items
-            await update.message.reply_text(
-                OFFER_ONLY_MESSAGE.format(price=item_data.price)
-            )
+            offer_message = OFFER_ONLY_MESSAGE.format(price=item_data.price)
+            
+            # Try to send with photo if available
+            if item_data.image_url:
+                try:
+                    await update.message.reply_photo(
+                        photo=item_data.image_url,
+                        caption=offer_message
+                    )
+                    continue
+                except Exception as e:
+                    logger.warning(f"Failed to send offer-only photo for {url}: {e}")
+            
+            # Fallback to text message
+            await update.message.reply_text(offer_message)
             continue
 
         # Calculate shipping and final price
@@ -271,9 +283,27 @@ async def _handle_listings(
             use_markdown
         )
 
-        # Use MarkdownV2 only if response contains hyperlinks
+        # Try to send as photo with caption if image is available
+        if item_data.image_url:
+            try:
+                parse_mode = "MarkdownV2" if use_markdown else None
+                await update.message.reply_photo(
+                    photo=item_data.image_url,
+                    caption=response,
+                    parse_mode=parse_mode
+                )
+                continue  # Successfully sent photo, continue to next item
+            except Exception as e:
+                logger.warning(f"Failed to send photo for {url}: {e}")
+                # Fallback to text message
+
+        # Send as text message (fallback or when no image)
         parse_mode = "MarkdownV2" if use_markdown else None
-        await update.message.reply_text(response, parse_mode=parse_mode)
+        await update.message.reply_text(
+            response, 
+            parse_mode=parse_mode, 
+            disable_web_page_preview=True
+        )
 
 
 async def _resolve_shortener(url: str, session: aiohttp.ClientSession) -> str:
@@ -391,15 +421,15 @@ async def _handle_grailed_scraping_failure(
                     response_time=response_time
                 )
 
-            await update.message.reply_text(message)
+            await update.message.reply_text(message, disable_web_page_preview=True)
             logger.warning(f"Grailed site availability issue: {availability}")
 
         else:
             # Site is working, likely issue with specific listing
-            await update.message.reply_text(GRAILED_LISTING_ISSUE)
+            await update.message.reply_text(GRAILED_LISTING_ISSUE, disable_web_page_preview=True)
             logger.info("Grailed site is accessible, likely listing-specific issue")
 
     except Exception as e:
         # Fallback to generic error if availability check fails
         logger.error(f"Error during Grailed availability check: {e}")
-        await update.message.reply_text(ERROR_PRICE_NOT_FOUND)
+        await update.message.reply_text(ERROR_PRICE_NOT_FOUND, disable_web_page_preview=True)

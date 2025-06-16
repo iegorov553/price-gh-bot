@@ -162,6 +162,54 @@ def _extract_title(soup: BeautifulSoup) -> str | None:
     return None
 
 
+def _extract_image_url(soup: BeautifulSoup) -> str | None:
+    """Extract primary product image URL.
+    
+    Extracts the main product image URL from Grailed listing for display
+    in bot messages. Prioritizes Next.js data over meta tags.
+    
+    Returns:
+        str: Image URL or None if not found.
+    """
+    # First try Next.js data (modern Grailed listings)
+    next_data = _parse_next_data(soup)
+    if next_data:
+        # Check various possible image field names
+        image_fields = ['images', 'photos', 'image', 'photo', 'mainImage']
+        for field in image_fields:
+            images = next_data.get(field, [])
+            if images:
+                if isinstance(images, list) and len(images) > 0:
+                    # Return first image from list
+                    first_image = images[0]
+                    if isinstance(first_image, dict):
+                        # Handle image object with URL field
+                        return first_image.get('url') or first_image.get('src')
+                    elif isinstance(first_image, str):
+                        # Direct URL string
+                        return first_image
+                elif isinstance(images, str):
+                    # Single image URL
+                    return images
+    
+    # Fallback to meta tags
+    og_image = soup.find("meta", property="og:image")
+    if og_image and og_image.get("content"):
+        return og_image["content"]
+    
+    # Try Twitter card image
+    twitter_image = soup.find("meta", attrs={"name": "twitter:image"})
+    if twitter_image and twitter_image.get("content"):
+        return twitter_image["content"]
+    
+    # Try first img tag with data-src or src
+    img_tag = soup.find("img", attrs={"data-src": True}) or soup.find("img", src=True)
+    if img_tag:
+        return img_tag.get("data-src") or img_tag.get("src")
+    
+    return None
+
+
 def _extract_price_and_buyability(url: str, soup: BeautifulSoup) -> tuple[Decimal | None, bool]:
     """Extract price and determine if item is buyable."""
     # First try Next.js data (modern Grailed listings)
@@ -502,6 +550,9 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> tuple[ItemD
     # Extract title
     title = _extract_title(soup)
 
+    # Extract image URL
+    image_url = _extract_image_url(soup)
+
     # Extract seller data
     seller_data = await _extract_seller_data(soup, session)
 
@@ -509,7 +560,8 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> tuple[ItemD
         price=price,
         shipping_us=shipping,
         is_buyable=is_buyable,
-        title=title
+        title=title,
+        image_url=image_url
     )
 
     return item_data, seller_data
