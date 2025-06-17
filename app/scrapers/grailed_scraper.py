@@ -38,6 +38,7 @@ class GrailedScraper(BaseScraper):
     def __init__(self):
         """Initialize Grailed scraper."""
         super().__init__("grailed")
+        self._cached_seller_data = None
     
     async def scrape_item(
         self, 
@@ -61,11 +62,16 @@ class GrailedScraper(BaseScraper):
             
             if result and result[0]:
                 item_data = result[0]
+                seller_data = result[1]  # Save seller data
                 buyable_status = "buyable" if item_data.is_buyable else "offer-only"
                 self._log_scraping_success(
                     url, "item", 
                     f"'{item_data.title}' - ${item_data.price} ({buyable_status})"
                 )
+                
+                # Store seller data for later retrieval
+                self._cached_seller_data = seller_data
+                
                 return item_data
             else:
                 self.logger.warning(f"No item data extracted from Grailed URL: {url}")
@@ -91,6 +97,17 @@ class GrailedScraper(BaseScraper):
         """
         self._log_scraping_start(url, "seller")
         
+        # Check for cached seller data first
+        if self._cached_seller_data and url == "https://www.grailed.com/cached_seller":
+            seller_data = self._cached_seller_data
+            self._cached_seller_data = None  # Clear cache after use
+            trusted_status = "trusted" if seller_data.trusted_badge else "standard"
+            self._log_scraping_success(
+                url, "seller",
+                f"Rating: {seller_data.avg_rating:.1f}, Reviews: {seller_data.num_reviews}, Status: {trusted_status}"
+            )
+            return seller_data
+        
         try:
             # Use analyze_seller_profile which returns full analysis
             seller_analysis = await analyze_seller_profile(url, session)
@@ -100,7 +117,7 @@ class GrailedScraper(BaseScraper):
                 trusted_status = "trusted" if seller_data.trusted_badge else "standard"
                 self._log_scraping_success(
                     url, "seller",
-                    f"Rating: {seller_data.rating:.1f}, Reviews: {seller_data.total_reviews}, Status: {trusted_status}"
+                    f"Rating: {seller_data.avg_rating:.1f}, Reviews: {seller_data.num_reviews}, Status: {trusted_status}"
                 )
                 return seller_data
             else:
@@ -143,10 +160,12 @@ class GrailedScraper(BaseScraper):
             Seller profile URL if available, None otherwise.
         """
         try:
-            # For now, return None as this functionality needs to be implemented
-            # based on actual Grailed item data structure
-            self.logger.info("Seller profile URL extraction not yet implemented for new architecture")
-            return None
+            # If we have cached seller data, return a dummy URL to trigger scrape_seller
+            if self._cached_seller_data:
+                return "https://www.grailed.com/cached_seller"
+            else:
+                self.logger.info("No cached seller data available")
+                return None
         except Exception as e:
             self.logger.error(f"Failed to extract seller profile URL: {e}")
             return None
