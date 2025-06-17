@@ -355,7 +355,7 @@ async def calculate_final_price_from_item(item_data, session: aiohttp.ClientSess
             item_data.title or "Unknown item", 
             order_value
         )
-        shipping_russia = shipping_quote.cost
+        shipping_russia = shipping_quote.cost_usd
         
         # Call the main calculation function
         return await calculate_final_price(
