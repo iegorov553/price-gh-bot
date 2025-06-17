@@ -64,6 +64,21 @@ class CurrencyConfig(BaseSettings):
     fallback_enabled: bool = False
 
 
+class AnalyticsConfig(BaseSettings):
+    """Analytics data collection configuration.
+    
+    Attributes:
+        enabled: Whether to collect analytics data.
+        db_path: Path to SQLite analytics database.
+        export_enabled: Whether CSV export is available.
+        retention_days: Number of days to retain analytics data.
+    """
+    enabled: bool = Field(default=True, validation_alias="ANALYTICS_ENABLED")
+    db_path: str = Field(default="data/analytics.db", validation_alias="ANALYTICS_DB_PATH")
+    export_enabled: bool = Field(default=True, validation_alias="ANALYTICS_EXPORT_ENABLED")
+    retention_days: int = Field(default=365, validation_alias="ANALYTICS_RETENTION_DAYS")
+
+
 class BotConfig(BaseSettings):
     """Main Telegram bot configuration.
 
@@ -130,6 +145,7 @@ class Config:
 
         # Load main configurations
         self.bot = BotConfig()
+        self.analytics = AnalyticsConfig()
 
         # Load fee configuration
         fees_path = self.config_dir / "fees.yml"

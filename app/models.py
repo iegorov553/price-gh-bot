@@ -128,3 +128,46 @@ class CurrencyRate(BaseModel):
     source: str
     fetched_at: datetime = Field(default_factory=datetime.now)
     markup_percentage: float = 0.0
+
+
+class SearchAnalytics(BaseModel):
+    """Analytics data for user search queries.
+
+    Stores comprehensive information about each user interaction with the bot
+    including URL processing, pricing results, seller analysis, and performance
+    metrics for business intelligence and optimization purposes.
+
+    Attributes:
+        url: The original URL requested by user.
+        user_id: Telegram user ID who made the request.
+        username: Telegram username (if available).
+        timestamp: When the request was processed.
+        platform: Marketplace platform ('ebay', 'grailed', 'profile').
+        success: Whether URL processing completed successfully.
+        item_price: Extracted item price in USD (if found).
+        shipping_us: US domestic shipping cost in USD (if found).
+        item_title: Product title/description (if extracted).
+        error_message: Error details if processing failed.
+        processing_time_ms: Total processing time in milliseconds.
+        seller_score: Calculated seller reliability score (0-100).
+        seller_category: Seller reliability category (Diamond/Gold/etc).
+        final_price_usd: Complete calculated price in USD.
+        commission: Applied commission fee in USD.
+        is_buyable: Whether item has fixed buy-now pricing.
+    """
+    url: str
+    user_id: int
+    username: str | None = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+    platform: str  # 'ebay', 'grailed', 'profile'
+    success: bool
+    item_price: Decimal | None = None
+    shipping_us: Decimal | None = None
+    item_title: str | None = None
+    error_message: str | None = None
+    processing_time_ms: int | None = None
+    seller_score: int | None = None
+    seller_category: str | None = None
+    final_price_usd: Decimal | None = None
+    commission: Decimal | None = None
+    is_buyable: bool | None = None

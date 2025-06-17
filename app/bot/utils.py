@@ -14,6 +14,7 @@ from telegram.ext import Application
 
 from ..config import config
 from ..models import CurrencyRate, PriceCalculation, ReliabilityScore
+from ..scrapers import ebay, grailed
 from .messages import (
     ADMIN_NOTIFICATION,
     COMMISSION_LINE,
@@ -47,6 +48,29 @@ from .messages import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def detect_platform(url: str) -> str:
+    """Detect marketplace platform from URL.
+    
+    Args:
+        url: The URL to analyze.
+        
+    Returns:
+        Platform name ('ebay', 'grailed', 'profile', or 'unknown').
+    """
+    url_lower = url.lower()
+    
+    if "ebay." in url_lower:
+        return "ebay"
+    elif "grailed.com" in url_lower:
+        # Check if it's a profile URL or listing URL
+        if "/users/" in url_lower or url_lower.count("/") == 3:  # grailed.com/username
+            return "profile"
+        else:
+            return "grailed"
+    else:
+        return "unknown"
 
 
 def escape_markdown_v2(text: str) -> str:
@@ -395,3 +419,25 @@ def create_session() -> aiohttp.ClientSession:
         timeout=timeout,
         headers=headers
     )
+
+
+def detect_platform(url: str) -> str:
+    """Detect marketplace platform from URL.
+    
+    Analyzes URL to determine which marketplace platform it belongs to.
+    Used for analytics categorization and processing logic.
+    
+    Args:
+        url: The URL to analyze.
+        
+    Returns:
+        Platform identifier ('ebay', 'grailed', 'profile', 'unknown').
+    """
+    if ebay.is_ebay_url(url):
+        return "ebay"
+    elif grailed.is_grailed_seller_profile(url):
+        return "profile"
+    elif grailed.is_grailed_url(url):
+        return "grailed"
+    else:
+        return "unknown"

@@ -10,7 +10,15 @@ import logging
 
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-from .bot.handlers import handle_link, start
+from .bot.handlers import (
+    analytics_daily,
+    analytics_errors,
+    analytics_export,
+    analytics_user,
+    analytics_week,
+    handle_link,
+    start,
+)
 from .bot.feedback import feedback_command
 from .config import config
 
@@ -51,6 +59,14 @@ def main() -> None:
     # Add handlers
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CommandHandler('feedback', feedback_command))
+    
+    # Analytics commands for admin
+    app.add_handler(CommandHandler('analytics_daily', analytics_daily))
+    app.add_handler(CommandHandler('analytics_week', analytics_week))
+    app.add_handler(CommandHandler('analytics_user', analytics_user))
+    app.add_handler(CommandHandler('analytics_errors', analytics_errors))
+    app.add_handler(CommandHandler('analytics_export', analytics_export))
+    
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
     # Run in webhook or polling mode

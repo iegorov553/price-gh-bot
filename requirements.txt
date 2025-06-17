@@ -10,3 +10,4 @@ pydocstyle
 mkdocs-material
 mkdocstrings[python]
 playwright
+pandas
