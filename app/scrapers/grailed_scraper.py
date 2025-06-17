@@ -17,6 +17,7 @@ from .grailed import (
     is_grailed_url,
     is_grailed_seller_profile
 )
+from .headless_optimized import extract_seller_data_optimized
 
 logger = logging.getLogger(__name__)
 
@@ -109,11 +110,10 @@ class GrailedScraper(BaseScraper):
             return seller_data
         
         try:
-            # Use analyze_seller_profile which returns full analysis
-            seller_analysis = await analyze_seller_profile(url, session)
+            # Используем оптимизированный headless browser для всех профилей
+            seller_data = await extract_seller_data_optimized(url)
             
-            if seller_analysis and 'seller_data' in seller_analysis:
-                seller_data = seller_analysis['seller_data']
+            if seller_data:
                 trusted_status = "trusted" if seller_data.trusted_badge else "standard"
                 self._log_scraping_success(
                     url, "seller",
@@ -121,8 +121,21 @@ class GrailedScraper(BaseScraper):
                 )
                 return seller_data
             else:
-                self.logger.warning(f"No seller data extracted from Grailed profile: {url}")
-                return None
+                # Fallback к старому методу если оптимизированный не сработал
+                self.logger.info("Fallback к старому методу извлечения данных продавца")
+                seller_analysis = await analyze_seller_profile(url, session)
+                
+                if seller_analysis and 'seller_data' in seller_analysis:
+                    seller_data = seller_analysis['seller_data']
+                    trusted_status = "trusted" if seller_data.trusted_badge else "standard"
+                    self._log_scraping_success(
+                        url, "seller",
+                        f"Rating: {seller_data.avg_rating:.1f}, Reviews: {seller_data.num_reviews}, Status: {trusted_status}"
+                    )
+                    return seller_data
+                else:
+                    self.logger.warning(f"No seller data extracted from Grailed profile: {url}")
+                    return None
                 
         except Exception as e:
             self._log_scraping_error(url, "seller", e)

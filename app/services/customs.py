@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import aiohttp
 
-from .currency import get_eur_to_usd_rate
+from .currency_optimized import get_eur_to_usd_rate
 
 logger = logging.getLogger(__name__)
 

@@ -31,12 +31,47 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def initialize_resources() -> None:
+    """Initialize application resources."""
+    try:
+        # Инициализируем browser pool
+        from .services.browser_pool import get_browser_pool
+        pool = await get_browser_pool()
+        logger.info("Пул браузеров инициализирован")
+        
+        # Инициализируем cache service  
+        from .services.cache_service import get_cache_service
+        cache = await get_cache_service()
+        if cache._connected:
+            logger.info("Redis кэш подключен")
+        else:
+            logger.info("Redis кэш недоступен, работаем без кэширования")
+            
+    except Exception as e:
+        logger.warning(f"Ошибка инициализации ресурсов: {e}")
+
+
 async def cleanup_resources() -> None:
     """Cleanup application resources."""
     try:
-        from .scrapers.headless import cleanup_global_browser
-        await cleanup_global_browser()
-        logger.info("Cleaned up global browser instance")
+        # Закрываем cache service
+        from .services.cache_service import shutdown_cache_service
+        await shutdown_cache_service()
+        logger.info("Cache service закрыт")
+        
+        # Закрываем оптимизированный browser pool
+        from .services.browser_pool import shutdown_browser_pool
+        await shutdown_browser_pool()
+        logger.info("Пул браузеров закрыт")
+        
+        # Fallback: очистка старого глобального браузера
+        try:
+            from .scrapers.headless import cleanup_global_browser
+            await cleanup_global_browser()
+            logger.info("Cleaned up legacy global browser instance")
+        except Exception:
+            pass
+            
     except Exception as e:
         logger.warning(f"Error during cleanup: {e}")
 
@@ -56,6 +91,16 @@ def main() -> None:
 
     # Create application
     app = Application.builder().token(config.bot.bot_token).build()
+    
+    # Initialize browser pool on startup
+    async def post_init(application):
+        await initialize_resources()
+    
+    async def post_shutdown(application):
+        await cleanup_resources()
+    
+    app.post_init = post_init
+    app.post_shutdown = post_shutdown
 
     # Add handlers
     app.add_handler(CommandHandler('start', start))

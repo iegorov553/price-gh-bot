@@ -8,7 +8,8 @@ import logging
 from typing import Dict, Any, List, Optional
 
 from ..models import PriceCalculation, ReliabilityScore
-from ..services import currency, shipping
+from ..services import shipping
+from ..services.currency_optimized import get_optimized_currency_service
 from .messages import (
     ERROR_PRICE_NOT_FOUND,
     ERROR_SELLER_ANALYSIS,
@@ -71,14 +72,14 @@ class ResponseFormatter:
         try:
             price_calculation = await calculate_final_price_from_item(item_data)
             
-            # Get USD to RUB exchange rate
-            from ..services import currency
+            # Get USD to RUB exchange rate (оптимизированная версия)
             exchange_rate = None
             try:
                 # Use a temporary session for currency
                 import aiohttp
                 async with aiohttp.ClientSession() as session:
-                    exchange_rate = await currency.get_usd_to_rub_rate(session)
+                    currency_service = await get_optimized_currency_service()
+                    exchange_rate = await currency_service.get_usd_to_rub_rate_optimized(session)
             except Exception as e:
                 logger.warning(f"Failed to get exchange rate: {e}")
             

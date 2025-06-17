@@ -11,3 +11,4 @@ mkdocs-material
 mkdocstrings[python]
 playwright
 pandas
+redis[hiredis]

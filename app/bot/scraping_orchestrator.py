@@ -15,6 +15,7 @@ from ..models import SearchAnalytics, SellerData
 from ..scrapers import scraper_registry
 from ..services import currency, reliability, shipping
 from ..services.analytics import analytics_service
+from ..services.cache_service import get_cache_service
 from .utils import create_session
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,54 @@ class ScrapingOrchestrator:
     def __init__(self):
         """Initialize scraping orchestrator."""
         self.max_concurrent_urls = 5
+        self.cache_service = None
+    
+    async def _ensure_cache_service(self) -> None:
+        """Ensures cache service is initialized."""
+        if self.cache_service is None:
+            self.cache_service = await get_cache_service()
+    
+    async def scrape_item_listing_with_cache(
+        self, 
+        url: str, 
+        session: aiohttp.ClientSession
+    ) -> Dict[str, Any]:
+        """
+        Scrape item listing with Redis caching for instant repeated requests.
+        
+        Ожидаемое ускорение: повторные запросы 8-10с → <1с (95%)
+        
+        Args:
+            url: Item listing URL
+            session: HTTP session for requests
+            
+        Returns:
+            Dictionary with item data and cache metadata
+        """
+        await self._ensure_cache_service()
+        start_time = datetime.now()
+        
+        # Проверяем кэш
+        cached_data = await self.cache_service.get_item_data(url)
+        if cached_data:
+            processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
+            logger.info(f"Кэш попадание для {url} (время: {processing_time}мс)")
+            
+            # Добавляем информацию о кэше
+            cached_data['from_cache'] = True
+            cached_data['cache_processing_time_ms'] = processing_time
+            return cached_data
+        
+        # Обычная обработка
+        result = await self.scrape_item_listing(url, session)
+        
+        # Кэшируем успешные результаты
+        if result['success'] and result['item_data']:
+            await self.cache_service.set_item_data(url, result)
+            logger.debug(f"Результат закэширован для {url}")
+        
+        result['from_cache'] = False
+        return result
         
     async def scrape_item_listing(
         self, 
@@ -225,7 +274,8 @@ class ScrapingOrchestrator:
                     if scraper.is_seller_profile(url):
                         return await self.scrape_seller_profile(url, session)
                     else:
-                        return await self.scrape_item_listing(url, session)
+                        # Используем кэширование для товаров
+                        return await self.scrape_item_listing_with_cache(url, session)
             
             # Process all URLs concurrently
             results = await asyncio.gather(
