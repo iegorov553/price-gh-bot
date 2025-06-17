@@ -33,8 +33,9 @@ class AnalyticsService:
             db_path: Path to SQLite database file. Uses config default if None.
         """
         if db_path is None:
-            from ..config import config
-            self.db_path = config.analytics.db_path
+            # Use default path to avoid circular import
+            import os
+            self.db_path = os.getenv("ANALYTICS_DB_PATH", "data/analytics.db")
         else:
             self.db_path = db_path
         
@@ -393,3 +394,7 @@ class AnalyticsService:
         except Exception as e:
             logger.error(f"Failed to get error analysis: {e}")
             return {}
+
+
+# Create global analytics service instance
+analytics_service = AnalyticsService()
