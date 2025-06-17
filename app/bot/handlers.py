@@ -220,19 +220,19 @@ async def analytics_errors(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             await update.message.reply_text("❌ Данные об ошибках не найдены")
             return
             
-        message = f"📊 **Анализ ошибок за {days} дней**\\n\\n"
+        message = f"📊 **Анализ ошибок за {days} дней**\n\n"
         
         if 'common_errors' in error_stats:
-            message += "**Частые ошибки:**\\n"
+            message += "**Частые ошибки:**\n"
             for error in error_stats['common_errors'][:5]:
-                message += f"• {error['error_type']}: {error['count']}\\n"
-            message += "\\n"
+                message += f"• {error['error_message']}: {error['count']}\n"
+            message += "\n"
             
         if 'platform_failure_rates' in error_stats:
-            message += "**Процент ошибок по платформам:**\\n"
+            message += "**Процент ошибок по платформам:**\n"
             for platform in error_stats['platform_failure_rates']:
                 rate = platform['failure_rate'] * 100
-                message += f"• {platform['platform']}: {rate:.1f}%\\n"
+                message += f"• {platform['platform']}: {rate:.1f}%\n"
                 
         await update.message.reply_text(message, parse_mode='Markdown')
         
@@ -297,7 +297,7 @@ async def analytics_download_db(update: Update, context: ContextTypes.DEFAULT_TY
             await update.message.reply_document(
                 document=f,
                 filename=f"analytics_database_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db",
-                caption="📊 SQLite база данных аналитики\\n\\nМожно открыть в DBeaver, DB Browser или другом SQLite клиенте"
+                caption="📊 SQLite база данных аналитики\n\nМожно открыть в DBeaver, DB Browser или другом SQLite клиенте"
             )
         
         logger.info(f"Admin {update.effective_user.id} downloaded analytics database")

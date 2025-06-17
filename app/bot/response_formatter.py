@@ -171,7 +171,7 @@ class ResponseFormatter:
         error = result.get('error', 'Unknown error')
         
         if 'headless' in error.lower() or 'browser' in error.lower():
-            return ("❌ Анализ продавца временно недоступен\\n"
+            return ("❌ Анализ продавца временно недоступен\n"
                    "Попробуйте позже или используйте ссылку на товар")
         
         logger.error(f"Seller analysis error: {error}")
@@ -256,16 +256,18 @@ class ResponseFormatter:
         if not stats:
             return "❌ Не удалось получить статистику"
             
-        message = f"📊 **{title}**\\n\\n"
-        message += f"🔍 Всего поисков: {stats['total_searches']}\\n"
-        message += f"✅ Успешных: {stats['successful_searches']}\\n"
-        message += f"📈 Процент успеха: {stats['success_rate']:.1%}\\n"
-        message += f"⏱️ Среднее время: {stats['avg_processing_time_ms']:.0f}мс\\n\\n"
+        message = f"📊 **{title}**\n\n"
+        message += f"🔍 Всего поисков: {stats['total_searches']}\n"
+        message += f"✅ Успешных: {stats['successful_searches']}\n"
+        message += f"📈 Процент успеха: {stats['success_rate']:.1%}\n"
+        message += f"⏱️ Среднее время: {stats['avg_processing_time_ms']:.0f}мс\n\n"
         
-        if 'platforms' in stats:
-            message += "**Платформы:**\\n"
+        if 'platforms' in stats and stats['platforms']:
+            message += "**Платформы:**\n"
             for platform, count in stats['platforms'].items():
-                message += f"• {platform}: {count}\\n"
+                message += f"• {platform}: {count}\n"
+        else:
+            message += "**Платформы:** нет данных\n"
                 
         return message
 
