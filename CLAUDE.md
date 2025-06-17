@@ -22,9 +22,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 The project includes a robust multi-level testing framework:
 
 ### Quick Test Commands
-- **Unit tests (fast)**: `BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/unit/ -v`
-- **Integration tests**: `BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/integration/ -v`
-- **E2E tests (slow)**: `BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/e2e/ -v`
+- **Unit tests (fast)**: `BOT_TOKEN=your_bot_token pytest tests_new/unit/ -v`
+- **Integration tests**: `BOT_TOKEN=your_bot_token pytest tests_new/integration/ -v`
+- **E2E tests (slow)**: `BOT_TOKEN=your_bot_token pytest tests_new/e2e/ -v`
 - **All tests**: `make test-all` (requires Makefile.test setup)
 - **Docker tests**: `docker-compose -f docker-compose.test.yml up test-all`
 

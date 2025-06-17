@@ -42,7 +42,9 @@ from .utils import (
     format_price_response,
     format_seller_profile_response,
     notify_admin,
+    safe_open_file,
     send_debug_to_admin,
+    validate_marketplace_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -290,12 +292,18 @@ async def analytics_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         success = analytics_service.export_to_csv(filename, days)
         
         if success:
-            with open(filename, 'rb') as f:
-                await update.message.reply_document(
-                    document=f,
-                    filename=filename,
-                    caption=f"📊 Экспорт аналитики за {days or 'все'} дней"
-                )
+            try:
+                # Safely validate file path before opening
+                safe_path = safe_open_file(filename, 'rb')
+                with open(safe_path, 'rb') as f:
+                    await update.message.reply_document(
+                        document=f,
+                        filename=filename,
+                        caption=f"📊 Экспорт аналитики за {days or 'все'} дней"
+                    )
+            except ValueError as e:
+                logger.error(f"File path validation error: {e}")
+                await update.message.reply_text("❌ Ошибка при обработке файла экспорта")
             
             # Delete temporary file
             import os
@@ -333,12 +341,19 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     text = update.message.text if update.message else ''
     urls = re.findall(r"(https?://[\w\.-]+(?:/[^\s]*)?)", text)
-    if not urls:
+    
+    # Filter URLs to only include supported marketplaces
+    valid_urls = [url for url in urls if validate_marketplace_url(url)]
+    
+    if not valid_urls:
+        # Log suspicious URLs for security monitoring
+        if urls:
+            logger.warning(f"User {update.effective_user.id if update.effective_user else 'unknown'} sent invalid URLs: {urls}")
         return
 
     async with create_session() as session:
         # Check for Grailed seller profiles first
-        for url in urls:
+        for url in valid_urls:
             logger.info(f"Checking URL: {url}")
             if grailed.is_grailed_seller_profile(url):
                 logger.info(f"Processing seller profile: {url}")
@@ -346,7 +361,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 return  # Exit after processing seller profile
 
         # Process regular listings
-        await _handle_listings(update, context, urls, session)
+        await _handle_listings(update, context, valid_urls, session)
 
 
 async def _handle_seller_profile(

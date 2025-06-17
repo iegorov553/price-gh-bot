@@ -8,6 +8,8 @@ HTTP session management. Centralizes reusable bot functionality.
 import logging
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
+from pathlib import Path
+from urllib.parse import urlparse
 
 import aiohttp
 from telegram.ext import Application
@@ -419,6 +421,108 @@ def create_session() -> aiohttp.ClientSession:
         timeout=timeout,
         headers=headers
     )
+
+
+def validate_marketplace_url(url: str) -> bool:
+    """Validate if URL belongs to supported marketplaces only.
+    
+    Args:
+        url: URL string to validate.
+        
+    Returns:
+        True if URL is from supported marketplace, False otherwise.
+    """
+    try:
+        # Check URL length to prevent abuse
+        if len(url) > 2048:
+            logger.warning(f"URL too long: {len(url)} characters")
+            return False
+            
+        parsed = urlparse(url)
+        
+        # Check if URL has required components
+        if not parsed.scheme or not parsed.netloc:
+            return False
+            
+        # Only allow HTTP/HTTPS schemes
+        if parsed.scheme not in ('http', 'https'):
+            return False
+            
+        # Check against allowed domains
+        domain = parsed.netloc.lower()
+        allowed_domains = {
+            'ebay.com', 'www.ebay.com',
+            'grailed.com', 'www.grailed.com', 
+            'app.link'  # Grailed shortener
+        }
+        
+        return any(domain == allowed or domain.endswith('.' + allowed) 
+                  for allowed in allowed_domains)
+                  
+    except Exception as e:
+        logger.warning(f"URL validation error: {e}")
+        return False
+
+
+def safe_path_join(base_path: Path, user_path: str) -> Path:
+    """Safely join paths preventing directory traversal attacks.
+    
+    Args:
+        base_path: Base directory that should contain the result.
+        user_path: User-provided path component.
+        
+    Returns:
+        Resolved path within base_path.
+        
+    Raises:
+        ValueError: If path traversal is detected.
+    """
+    try:
+        # Convert to Path objects and resolve
+        base_resolved = base_path.resolve()
+        full_path = (base_path / user_path).resolve()
+        
+        # Check if resolved path is within base directory
+        if not str(full_path).startswith(str(base_resolved)):
+            raise ValueError(f"Path traversal detected: {user_path}")
+            
+        return full_path
+        
+    except Exception as e:
+        logger.error(f"Path validation error: {e}")
+        raise ValueError(f"Invalid path: {user_path}")
+
+
+def safe_open_file(filepath: str, mode: str = 'r', base_dir: Path | None = None) -> Path:
+    """Safely validate file path before opening.
+    
+    Args:
+        filepath: File path to validate.
+        mode: File open mode.
+        base_dir: Base directory for validation (defaults to current working directory).
+        
+    Returns:
+        Validated Path object.
+        
+    Raises:
+        ValueError: If path is invalid or outside base directory.
+    """
+    if base_dir is None:
+        base_dir = Path.cwd()
+        
+    # Validate the path
+    safe_path = safe_path_join(base_dir, filepath)
+    
+    # Additional checks for file operations
+    if 'w' in mode or 'a' in mode:
+        # Ensure parent directory exists for write operations
+        safe_path.parent.mkdir(parents=True, exist_ok=True)
+    elif 'r' in mode:
+        # Ensure file exists for read operations
+        if not safe_path.exists():
+            raise ValueError(f"File not found: {safe_path}")
+            
+    return safe_path
 
 
 def detect_platform(url: str) -> str:

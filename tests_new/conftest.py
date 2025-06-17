@@ -15,8 +15,8 @@ import pytest
 import aiohttp
 
 # Test constants
-TEST_BOT_TOKEN = "8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU"
-TEST_ADMIN_CHAT_ID = 26917201
+TEST_BOT_TOKEN = os.getenv("TEST_BOT_TOKEN", "test_bot_token_placeholder")
+TEST_ADMIN_CHAT_ID = int(os.getenv("TEST_ADMIN_CHAT_ID", "12345"))
 
 @pytest.fixture(scope="session")
 def event_loop():
