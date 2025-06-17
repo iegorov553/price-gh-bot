@@ -12,11 +12,10 @@ import aiohttp
 from ..models import ItemData, SellerData
 from .base import BaseScraper, ScraperProtocol
 from .grailed import (
-    get_grailed_item_data,
-    get_grailed_seller_data,
+    get_item_data,
+    analyze_seller_profile,
     is_grailed_url,
-    is_grailed_seller_profile,
-    extract_seller_profile_url as grailed_extract_seller_url
+    is_grailed_seller_profile
 )
 
 logger = logging.getLogger(__name__)
@@ -57,9 +56,11 @@ class GrailedScraper(BaseScraper):
         self._log_scraping_start(url, "item")
         
         try:
-            item_data = await get_grailed_item_data(url, session)
+            # Grailed returns tuple (item_data, seller_data)
+            result = await get_item_data(url, session)
             
-            if item_data:
+            if result and result[0]:
+                item_data = result[0]
                 buyable_status = "buyable" if item_data.buyable else "offer-only"
                 self._log_scraping_success(
                     url, "item", 
@@ -91,9 +92,11 @@ class GrailedScraper(BaseScraper):
         self._log_scraping_start(url, "seller")
         
         try:
-            seller_data = await get_grailed_seller_data(url, session)
+            # Use analyze_seller_profile which returns full analysis
+            seller_analysis = await analyze_seller_profile(url, session)
             
-            if seller_data:
+            if seller_analysis and 'seller_data' in seller_analysis:
+                seller_data = seller_analysis['seller_data']
                 trusted_status = "trusted" if seller_data.trusted_badge else "standard"
                 self._log_scraping_success(
                     url, "seller",
@@ -140,7 +143,10 @@ class GrailedScraper(BaseScraper):
             Seller profile URL if available, None otherwise.
         """
         try:
-            return grailed_extract_seller_url(item_data)
+            # For now, return None as this functionality needs to be implemented
+            # based on actual Grailed item data structure
+            self.logger.info("Seller profile URL extraction not yet implemented for new architecture")
+            return None
         except Exception as e:
             self.logger.error(f"Failed to extract seller profile URL: {e}")
             return None

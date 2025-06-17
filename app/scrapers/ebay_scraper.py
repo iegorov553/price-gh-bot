@@ -11,7 +11,7 @@ import aiohttp
 
 from ..models import ItemData, SellerData
 from .base import BaseScraper, ScraperProtocol
-from .ebay import get_ebay_item_data, is_ebay_url
+from .ebay import get_item_data, is_ebay_url
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class EbayScraper(BaseScraper):
         self._log_scraping_start(url, "item")
         
         try:
-            item_data = await get_ebay_item_data(url, session)
+            item_data = await get_item_data(url, session)
             
             if item_data:
                 self._log_scraping_success(
