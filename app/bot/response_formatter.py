@@ -82,20 +82,22 @@ class ResponseFormatter:
             except Exception as e:
                 logger.warning(f"Failed to get exchange rate: {e}")
             
+            # Calculate seller reliability for Grailed
+            reliability_score = None
+            if seller_data and scraping_result['platform'] == 'grailed':
+                from ..services import reliability
+                reliability_score = reliability.calculate_reliability_score(seller_data)
+            
             # Format main price response
             response = format_price_response(
                 calculation=price_calculation,
                 exchange_rate=exchange_rate,
+                reliability=reliability_score,
                 is_grailed=(scraping_result['platform'] == 'grailed'),
                 item_title=item_data.title,
                 item_url=scraping_result.get('url'),
                 use_markdown=False
             )
-            
-            # Add seller reliability if available (Grailed only)
-            if seller_data and scraping_result['platform'] == 'grailed':
-                seller_section = self._format_seller_section(seller_data)
-                response += f"\n\n{seller_section}"
                 
             return response
             

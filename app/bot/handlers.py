@@ -122,11 +122,29 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             # Send responses for each item
             for result in results:
                 response = await response_formatter.format_item_response(result)
-                await update.message.reply_text(
-                    response, 
-                    parse_mode='Markdown',
-                    disable_web_page_preview=True
-                )
+                
+                # Send with image if available
+                item_data = result.get('item_data')
+                if item_data and item_data.image_url:
+                    try:
+                        await update.message.reply_photo(
+                            photo=item_data.image_url,
+                            caption=response,
+                            parse_mode='Markdown'
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send image, sending text: {e}")
+                        await update.message.reply_text(
+                            response, 
+                            parse_mode='Markdown',
+                            disable_web_page_preview=True
+                        )
+                else:
+                    await update.message.reply_text(
+                        response, 
+                        parse_mode='Markdown',
+                        disable_web_page_preview=True
+                    )
 
     except Exception as e:
         logger.error(f"Error processing URLs: {e}")
