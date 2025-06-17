@@ -86,7 +86,7 @@ class ResponseFormatter:
             reliability_score = None
             if seller_data and scraping_result['platform'] == 'grailed':
                 from ..services import reliability
-                reliability_score = reliability.calculate_reliability_score(seller_data)
+                reliability_score = reliability.evaluate_seller_reliability(seller_data)
             
             # Format main price response
             response = format_price_response(
@@ -226,7 +226,7 @@ class ResponseFormatter:
         try:
             from ..services import reliability
             
-            reliability_score = reliability.calculate_reliability_score(seller_data)
+            reliability_score = reliability.evaluate_seller_reliability(seller_data)
             
             # Compact seller info for item responses
             emoji = {

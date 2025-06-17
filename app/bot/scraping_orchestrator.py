@@ -166,7 +166,7 @@ class ScrapingOrchestrator:
                 result['seller_data'] = seller_data
                 
                 # Calculate reliability score
-                reliability_score = reliability.calculate_reliability_score(seller_data)
+                reliability_score = reliability.evaluate_seller_reliability(seller_data)
                 result['reliability_score'] = reliability_score
                 
                 logger.info(f"Seller analysis complete: {reliability_score.category}")
