@@ -9,7 +9,8 @@ import re
 from typing import List
 from urllib.parse import urlparse
 
-from .utils import validate_marketplace_url, detect_platform
+from ..scrapers import scraper_registry
+from .utils import validate_marketplace_url
 
 logger = logging.getLogger(__name__)
 
@@ -89,19 +90,22 @@ class URLProcessor:
         }
         
         for url in urls:
-            platform = detect_platform(url)
+            # Find scraper for URL
+            scraper = scraper_registry.get_scraper_for_url(url)
             
-            if platform == 'profile':
-                result['seller_profiles'].append(url)
-                result['by_platform']['grailed'].append(url)
-            elif platform == 'ebay':
-                result['item_listings'].append(url)
-                result['by_platform']['ebay'].append(url)
-            elif platform == 'grailed':
-                result['item_listings'].append(url)
-                result['by_platform']['grailed'].append(url)
-            else:
+            if not scraper:
                 result['by_platform']['unknown'].append(url)
+                continue
+            
+            platform = scraper.get_platform_name()
+            
+            # Check if it's a seller profile or item listing
+            if scraper.is_seller_profile(url):
+                result['seller_profiles'].append(url)
+                result['by_platform'][platform].append(url)
+            else:
+                result['item_listings'].append(url)
+                result['by_platform'][platform].append(url)
                 
         return result
     

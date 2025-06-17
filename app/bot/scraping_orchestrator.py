@@ -12,10 +12,10 @@ from typing import List, Dict, Any, Optional
 import aiohttp
 
 from ..models import SearchAnalytics, SellerData
-from ..scrapers import ebay, grailed
+from ..scrapers import scraper_registry
 from ..services import currency, reliability, shipping
 from ..services.analytics import analytics_service
-from .utils import create_session, detect_platform
+from .utils import create_session
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +58,21 @@ class ScrapingOrchestrator:
             }
         """
         start_time = datetime.now()
-        platform = detect_platform(url)
         
+        # Find appropriate scraper using registry
+        scraper = scraper_registry.get_scraper_for_url(url)
+        if not scraper:
+            return {
+                'success': False,
+                'platform': 'unknown',
+                'item_data': None,
+                'seller_data': None,
+                'error': 'No scraper found for URL',
+                'processing_time_ms': 0,
+                'url': url
+            }
+        
+        platform = scraper.get_platform_name()
         result = {
             'success': False,
             'platform': platform,
@@ -73,29 +86,23 @@ class ScrapingOrchestrator:
         try:
             logger.info(f"Scraping {platform} item: {url}")
             
-            if platform == 'ebay':
-                item_data = await ebay.get_ebay_item_data(url, session)
-                
-            elif platform == 'grailed':
-                item_data = await grailed.get_grailed_item_data(url, session)
-                
-                # Try to get seller data for Grailed items
-                try:
-                    seller_profile_url = grailed.extract_seller_profile_url(item_data)
-                    if seller_profile_url:
-                        seller_data = await grailed.get_grailed_seller_data(
-                            seller_profile_url, session
-                        )
-                        result['seller_data'] = seller_data
-                except Exception as e:
-                    logger.warning(f"Failed to get seller data for {url}: {e}")
-                    
-            else:
-                raise ValueError(f"Unsupported platform: {platform}")
-                
+            # Use unified scraper interface
+            item_data = await scraper.scrape_item(url, session)
+            
             if item_data:
                 result['success'] = True
                 result['item_data'] = item_data
+                
+                # Try to get seller data if scraper supports it
+                try:
+                    seller_profile_url = scraper.extract_seller_profile_url(item_data)
+                    if seller_profile_url:
+                        seller_data = await scraper.scrape_seller(seller_profile_url, session)
+                        if seller_data:
+                            result['seller_data'] = seller_data
+                except Exception as e:
+                    logger.warning(f"Failed to get seller data for {url}: {e}")
+                
                 logger.info(f"Successfully scraped {platform} item: {item_data.title}")
             else:
                 result['error'] = f"No data extracted from {platform}"
@@ -140,8 +147,19 @@ class ScrapingOrchestrator:
         try:
             logger.info(f"Analyzing seller profile: {url}")
             
-            # Extract seller data
-            seller_data = await grailed.get_grailed_seller_data(url, session)
+            # Find appropriate scraper for seller profile
+            scraper = scraper_registry.get_scraper_for_url(url)
+            if not scraper:
+                result['error'] = "No scraper found for seller profile URL"
+                return result
+            
+            # Check if scraper supports seller profiles
+            if not scraper.is_seller_profile(url):
+                result['error'] = "URL is not a seller profile"
+                return result
+            
+            # Extract seller data using unified interface
+            seller_data = await scraper.scrape_seller(url, session)
             
             if seller_data:
                 result['success'] = True
@@ -192,9 +210,19 @@ class ScrapingOrchestrator:
             
             async def process_single_url(url: str) -> Dict[str, Any]:
                 async with semaphore:
-                    platform = detect_platform(url)
+                    # Find scraper for URL
+                    scraper = scraper_registry.get_scraper_for_url(url)
+                    if not scraper:
+                        return {
+                            'success': False,
+                            'error': 'No scraper found for URL',
+                            'url': url,
+                            'platform': 'unknown',
+                            'processing_time_ms': 0
+                        }
                     
-                    if platform == 'profile':
+                    # Check if it's a seller profile or item listing
+                    if scraper.is_seller_profile(url):
                         return await self.scrape_seller_profile(url, session)
                     else:
                         return await self.scrape_item_listing(url, session)
@@ -211,11 +239,15 @@ class ScrapingOrchestrator:
                 url = urls[i]
                 
                 if isinstance(result, Exception):
+                    # Try to detect platform for error logging
+                    scraper = scraper_registry.get_scraper_for_url(url)
+                    platform = scraper.get_platform_name() if scraper else 'unknown'
+                    
                     result = {
                         'success': False,
                         'error': str(result),
                         'url': url,
-                        'platform': detect_platform(url),
+                        'platform': platform,
                         'processing_time_ms': 0
                     }
                 
