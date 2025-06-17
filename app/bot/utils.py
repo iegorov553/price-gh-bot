@@ -349,12 +349,13 @@ async def calculate_final_price_from_item(item_data, session: aiohttp.ClientSess
         
     try:
         # Calculate Russia shipping cost
-        from ..services.shipping import estimate_shipping_cost
-        order_value = float(item_data.price + (item_data.shipping_us or Decimal('0')))
-        shipping_russia = Decimal(str(estimate_shipping_cost(
+        from ..services.shipping import estimate_shopfans_shipping
+        order_value = item_data.price + (item_data.shipping_us or Decimal('0'))
+        shipping_quote = estimate_shopfans_shipping(
             item_data.title or "Unknown item", 
             order_value
-        )))
+        )
+        shipping_russia = shipping_quote.cost
         
         # Call the main calculation function
         return await calculate_final_price(
