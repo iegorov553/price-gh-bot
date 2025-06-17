@@ -30,3 +30,13 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Debug and test files
+debug_*.py
+test_*.py
+patch_*.py
+verify_*.py
+*.png
+
+# Documentation build
+site/
