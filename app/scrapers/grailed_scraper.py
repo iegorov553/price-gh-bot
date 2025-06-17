@@ -61,7 +61,7 @@ class GrailedScraper(BaseScraper):
             
             if result and result[0]:
                 item_data = result[0]
-                buyable_status = "buyable" if item_data.buyable else "offer-only"
+                buyable_status = "buyable" if item_data.is_buyable else "offer-only"
                 self._log_scraping_success(
                     url, "item", 
                     f"'{item_data.title}' - ${item_data.price} ({buyable_status})"

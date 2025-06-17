@@ -64,7 +64,7 @@ class ResponseFormatter:
             return ERROR_PRICE_NOT_FOUND
             
         # Check if item is buyable
-        if not item_data.buyable:
+        if not item_data.is_buyable:
             return self._format_offer_only_response(item_data)
             
         # Calculate final price
