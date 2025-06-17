@@ -1,19 +1,20 @@
 # 🧪 Исчерпывающая документация по тестированию
 
-Полное руководство по системе тестирования Price-GH-Bot, которая обеспечивает надёжность через многоуровневые автоматизированные проверки.
+Полное руководство по системе тестирования Price-GH-Bot с современной SOLID архитектурой, dependency injection и трёхуровневой пирамидой тестов.
 
 ## 📑 Содержание
 
 1. [Обзор системы тестирования](#обзор-системы-тестирования)
 2. [Архитектура тестов](#архитектура-тестов)
-3. [Настройка и установка](#настройка-и-установка)
-4. [Запуск тестов](#запуск-тестов)
-5. [Типы тестов](#типы-тестов)
-6. [Написание новых тестов](#написание-новых-тестов)
-7. [CI/CD интеграция](#cicd-интеграция)
-8. [Отладка и диагностика](#отладка-и-диагностика)
-9. [Автообновление данных](#автообновление-данных)
-10. [Лучшие практики](#лучшие-практики)
+3. [Dependency Injection в тестах](#dependency-injection-в-тестах)
+4. [Настройка и установка](#настройка-и-установка)
+5. [Запуск тестов](#запуск-тестов)
+6. [Типы тестов](#типы-тестов)
+7. [Написание новых тестов](#написание-новых-тестов)
+8. [CI/CD интеграция](#cicd-интеграция)
+9. [Отладка и диагностика](#отладка-и-диагностика)
+10. [Автообновление данных](#автообновление-данных)
+11. [Лучшие практики](#лучшие-практики)
 
 ---
 
@@ -21,73 +22,182 @@
 
 ### 🎯 Цели системы
 
-Система тестирования Price-GH-Bot решает ключевые проблемы:
+Система тестирования Price-GH-Bot решает ключевые проблемы модернизированной архитектуры:
 
-- **Предотвращение регрессий**: Автоматическое выявление поломок при изменениях
-- **Контрактное тестирование**: Проверка бизнес-логики на соответствие требованиям
-- **Интеграционная проверка**: Тестирование взаимодействия компонентов
+- **Предотвращение регрессий**: Автоматическое выявление поломок при изменениях SOLID компонентов
+- **Контрактное тестирование**: Проверка интерфейсов и протоколов dependency injection
+- **Интеграционная проверка**: Тестирование взаимодействия сервисов через DI контейнер
 - **Реальная валидация**: Проверка работы с живыми внешними сервисами
 - **Быстрая обратная связь**: Мгновенное обнаружение проблем при разработке
+- **Архитектурная валидация**: Соблюдение SOLID принципов и чистой архитектуры
 
 ### 🏗️ Принципы архитектуры
 
 1. **Пирамида тестов**: Много быстрых unit тестов, меньше медленных E2E
-2. **Изоляция**: Каждый тест независим и детерминирован
-3. **Моки для скорости**: Внешние зависимости мокаются в unit/integration тестах
-4. **Реальные данные для достоверности**: E2E тесты используют настоящие API
+2. **Изоляция через DI**: Каждый тест использует изолированные dependency injection контейнеры
+3. **Моки для интерфейсов**: Protocol-based мокирование для быстрых unit/integration тестов
+4. **Реальные сервисы**: E2E тесты используют настоящие API и dependency injection
 5. **Автообновление**: Тестовые данные синхронизируются с реальностью
+6. **SOLID валидация**: Тесты проверяют соблюдение принципов чистой архитектуры
 
 ### 📊 Метрики качества
 
-- **Покрытие кода**: Минимум 70%, цель 80%+
+- **Покрытие кода**: Минимум 70%, цель 80%+ (включая все слои архитектуры)
 - **Скорость выполнения**: Unit < 1с, Integration < 5с, E2E < 60с
 - **Стабильность**: 95%+ успешных прогонов в CI/CD
 - **Обнаружение багов**: Каждый баг должен приводить к новому тесту
+- **Архитектурное соответствие**: 100% соблюдение SOLID принципов
 
 ---
 
 ## Архитектура тестов
 
-### 📁 Структура директорий
+### 📁 Структура директорий (обновлённая для SOLID архитектуры)
 
 ```
 tests_new/
-├── unit/                           # Быстрые изолированные тесты
-│   ├── test_commission_contracts.py    # Контракты расчёта комиссии
-│   ├── test_shipping_contracts.py      # Контракты расчёта доставки
-│   └── test_currency_contracts.py      # Контракты конвертации валют
-├── integration/                    # Тесты взаимодействия компонентов
-│   └── test_bot_handlers.py            # Интеграция обработчиков бота
-├── e2e/                           # Сквозные тесты с реальными сервисами
-│   └── test_real_urls.py               # Тесты с реальными URL
+├── unit/                           # Быстрые изолированные тесты (с DI моками)
+│   ├── core/                       # Тесты инфраструктурного слоя
+│   │   ├── test_container.py           # Dependency injection контейнер
+│   │   ├── test_service_locator.py     # Service locator паттерн
+│   │   └── test_interfaces.py          # Валидация протоколов и интерфейсов
+│   ├── services/                   # Тесты бизнес-логики
+│   │   ├── test_commission_contracts.py    # Контракты расчёта комиссии
+│   │   ├── test_shipping_contracts.py      # Контракты расчёта доставки
+│   │   ├── test_currency_contracts.py      # Контракты конвертации валют
+│   │   ├── test_reliability_contracts.py   # Контракты анализа продавцов
+│   │   └── test_customs_contracts.py       # Контракты расчёта пошлин
+│   ├── scrapers/                   # Тесты слоя доступа к данным
+│   │   ├── test_scraper_protocol.py        # ScraperProtocol валидация
+│   │   ├── test_ebay_scraper.py           # eBay scraper unit тесты
+│   │   └── test_grailed_scraper.py        # Grailed scraper unit тесты
+│   └── bot/                        # Тесты слоя представления
+│       ├── test_url_processor.py          # URL обработка
+│       ├── test_response_formatter.py     # Форматирование ответов
+│       ├── test_error_boundary.py         # Error boundary система
+│       └── test_analytics_tracker.py     # Аналитика и трекинг
+├── integration/                    # Тесты взаимодействия компонентов (с DI)
+│   ├── test_di_integration.py          # Интеграция dependency injection
+│   ├── test_scraping_orchestrator.py   # Координация scraping операций
+│   ├── test_bot_handlers_integration.py # Интеграция bot handlers
+│   └── test_service_communication.py   # Взаимодействие сервисов
+├── e2e/                           # Сквозные тесты (с полным DI контейнером)
+│   ├── test_real_urls.py               # Тесты с реальными URL
+│   ├── test_full_workflow.py           # Полные пользовательские сценарии
+│   └── test_error_scenarios.py         # Сценарии обработки ошибок
 ├── fixtures/                      # Тестовые данные и фикстуры
 │   ├── test_data.json                  # Основные тестовые данные
+│   ├── di_fixtures.py                  # DI контейнер фикстуры
 │   └── generated_fixtures.py           # Автогенерируемые фикстуры
 ├── utils/                         # Утилиты для тестирования
-│   └── data_updater.py                 # Автообновление тестовых данных
-├── conftest.py                    # Глобальные фикстуры pytest
+│   ├── data_updater.py                 # Автообновление тестовых данных
+│   ├── di_test_helpers.py             # Помощники для DI тестирования
+│   └── mock_factories.py              # Фабрики моков для интерфейсов
+├── conftest.py                    # Глобальные фикстуры pytest с DI
 └── README.md                      # Краткое руководство
 ```
 
-### 🔄 Поток данных в тестах
+### 🔄 Поток данных в тестах (с Dependency Injection)
 
 ```mermaid
 graph TD
-    A[conftest.py] --> B[Unit Tests]
-    A --> C[Integration Tests]
-    A --> D[E2E Tests]
+    A[conftest.py + DI Container] --> B[Unit Tests + Mocked Services]
+    A --> C[Integration Tests + Real DI]
+    A --> D[E2E Tests + Full DI Container]
     
     E[fixtures/test_data.json] --> A
     F[utils/data_updater.py] --> E
+    G[fixtures/di_fixtures.py] --> A
     
-    G[Real Services] --> F
-    G --> D
+    H[Real Services] --> F
+    H --> D
     
-    B --> H[Coverage Report]
-    C --> H
-    D --> H
+    I[Mock Factories] --> B
+    I --> C
     
-    H --> I[CI/CD Pipeline]
+    B --> J[Coverage Report]
+    C --> J
+    D --> J
+    
+    J --> K[CI/CD Pipeline]
+    
+    L[Service Interfaces] --> I
+    M[Protocol Validation] --> B
+```
+
+---
+
+## Dependency Injection в тестах
+
+### 🔧 Настройка DI контейнера для тестов
+
+Каждый уровень тестирования использует свою конфигурацию dependency injection:
+
+#### Unit Tests - Полностью мокированные зависимости
+
+```python
+@pytest.fixture
+def unit_test_container():
+    """DI контейнер с полностью мокированными сервисами."""
+    container = Container()
+    
+    # Моки для всех интерфейсов
+    container.register(ICurrencyService, MockCurrencyService, lifetime=Lifetime.SINGLETON)
+    container.register(IReliabilityService, MockReliabilityService, lifetime=Lifetime.SINGLETON)
+    container.register(IShippingService, MockShippingService, lifetime=Lifetime.SINGLETON)
+    container.register(IMarketplaceScraper, MockEbayScraper, lifetime=Lifetime.TRANSIENT)
+    
+    return container
+```
+
+#### Integration Tests - Частично реальные сервисы
+
+```python
+@pytest.fixture
+def integration_test_container():
+    """DI контейнер с реальными бизнес-сервисами и мокированными внешними API.""" 
+    container = Container()
+    
+    # Реальные бизнес-сервисы
+    container.register(IReliabilityService, ReliabilityService, lifetime=Lifetime.SINGLETON)
+    container.register(IShippingService, ShippingService, lifetime=Lifetime.SINGLETON)
+    
+    # Мокированные внешние зависимости
+    container.register(ICurrencyService, MockCurrencyService, lifetime=Lifetime.SINGLETON)
+    container.register(IMarketplaceScraper, MockEbayScraper, lifetime=Lifetime.TRANSIENT)
+    
+    return container
+```
+
+#### E2E Tests - Полный реальный контейнер
+
+```python
+@pytest.fixture
+def e2e_test_container():
+    """Полный DI контейнер с реальными сервисами для E2E тестирования."""
+    container = Container()
+    
+    # Полная конфигурация как в production
+    container.register(ICurrencyService, CurrencyService, lifetime=Lifetime.SINGLETON)
+    container.register(IReliabilityService, ReliabilityService, lifetime=Lifetime.SINGLETON)
+    container.register(IShippingService, ShippingService, lifetime=Lifetime.SINGLETON)
+    container.register(IMarketplaceScraper, EbayScraper, lifetime=Lifetime.TRANSIENT)
+    container.register(IMarketplaceScraper, GrailedScraper, lifetime=Lifetime.TRANSIENT)
+    
+    return container
+```
+
+### 🎭 Mock Factories для Protocol-based тестирования
+
+```python
+class MockCurrencyService:
+    """Mock реализация ICurrencyService для unit тестов."""
+    
+    async def get_usd_to_rub_rate(self, session) -> Optional[CurrencyRate]:
+        return CurrencyRate(rate=90.0, source="mock", timestamp=datetime.now())
+    
+    async def get_eur_to_usd_rate(self, session) -> Optional[CurrencyRate]:
+        return CurrencyRate(rate=1.1, source="mock", timestamp=datetime.now())
 ```
 
 ---
@@ -96,8 +206,8 @@ graph TD
 
 ### 🔧 Системные требования
 
-- **Python 3.11+**: Основной интерпретатор
-- **Docker**: Для изолированного тестирования
+- **Python 3.11+**: Основной интерпретатор с поддержкой современных типов
+- **Docker**: Для изолированного тестирования с DI контейнерами
 - **Playwright**: Для headless browser тестов
 - **Git**: Для pre-commit хуков
 
@@ -267,864 +377,693 @@ pytest tests_new/integration/ -v --pdb  # С отладчиком
 
 ## Типы тестов
 
-### 🎯 Unit тесты (tests_new/unit/)
+### 🎯 Unit тесты (tests_new/unit/) - с Dependency Injection
 
-**Назначение**: Тестирование изолированных функций и модулей
+**Назначение**: Тестирование изолированных сервисов и компонентов через интерфейсы
 
 **Характеристики**:
 - Выполнение < 1 секунды каждый
-- Без внешних зависимостей
-- Используют моки для всех внешних вызовов
+- Полная изоляция через DI контейнер с моками
+- Protocol-based тестирование интерфейсов
 - Детерминированные результаты
 
-#### test_commission_contracts.py
+#### Unit/Core - Тестирование инфраструктуры DI
+
 ```python
-def test_commission_calculation_contract(self, commission_test_cases, mock_config):
-    """Тест контракта расчёта комиссии."""
-    for item_price, us_shipping, expected_commission, commission_type, description in commission_test_cases:
-        result = calculate_final_price(
-            Decimal(str(item_price)), 
-            Decimal(str(us_shipping)), 
-            Decimal("25.00")
-        )
-        assert result.commission == Decimal(str(expected_commission))
+# tests_new/unit/core/test_container.py
+async def test_dependency_injection_container_registration():
+    """Тест регистрации сервисов в DI контейнере."""
+    container = Container()
+    container.register(ICurrencyService, CurrencyService, lifetime=Lifetime.SINGLETON)
+    
+    # Проверяем корректность разрешения зависимостей
+    service = container.resolve(ICurrencyService)
+    assert isinstance(service, CurrencyService)
+    
+    # Проверяем singleton lifetime
+    service2 = container.resolve(ICurrencyService)
+    assert service is service2
 ```
 
-**Тестируемые сценарии**:
-- Расчёт комиссии ниже/выше порога $150
-- Граничные случаи ($149.99, $150.00, $150.01)
-- Точность вычислений с Decimal
-- Нулевые и большие значения
-- Корректность заполнения модели PriceCalculation
+#### Unit/Services - Тестирование бизнес-логики
 
-#### test_shipping_contracts.py
 ```python
-def test_shipping_estimation_contract(self, shipping_test_cases, mock_config):
-    """Тест контракта оценки доставки."""
-    for title, expected_weight, description in shipping_test_cases:
-        result = estimate_shopfans_shipping(title)
-        assert result.weight_kg == Decimal(str(expected_weight))
+# tests_new/unit/services/test_commission_contracts.py
+def test_commission_calculation_with_di_container(unit_test_container):
+    """Тест расчёта комиссии через DI контейнер."""
+    # Resolve зависимостей через DI
+    currency_service = unit_test_container.resolve(ICurrencyService)
+    shipping_service = unit_test_container.resolve(IShippingService)
+    
+    # Тест бизнес-логики
+    result = calculate_final_price(
+        item_price=Decimal("120.00"),
+        us_shipping=Decimal("25.00"),
+        russia_shipping=shipping_service.estimate_shipping_cost("hoodie", 145.0)
+    )
+    assert result.commission == Decimal("15.00")  # Fixed commission <$150
 ```
 
-**Тестируемые сценарии**:
-- Сопоставление паттернов (hoodie, sneakers, t-shirt, tie)
-- Регистронезависимость поиска
-- Обработка специальных символов
-- Расчёт стоимости по формуле Shopfans
-- Монотонность роста стоимости с весом
+#### Unit/Scrapers - Тестирование ScraperProtocol
 
-#### test_currency_contracts.py
 ```python
-async def test_successful_exchange_rate_parsing(self, mock_cbr_api, mock_http_session):
-    """Тест успешного парсинга курса CBR."""
-    rate = await get_rate("USD", "RUB", mock_http_session)
-    assert rate.rate == Decimal("100.28")  # 95.5 * 1.05
-    assert rate.markup_percentage == 5.0
+# tests_new/unit/scrapers/test_scraper_protocol.py
+async def test_scraper_protocol_compliance():
+    """Тест соответствия ScraperProtocol всех реализаций."""
+    scrapers = [EbayScraper(), GrailedScraper()]
+    
+    for scraper in scrapers:
+        # Проверяем наличие всех методов протокола
+        assert hasattr(scraper, 'scrape_item')
+        assert hasattr(scraper, 'scrape_seller')
+        assert hasattr(scraper, 'supports_url')
+        assert hasattr(scraper, 'is_seller_profile')
+        
+        # Тест типов возвращаемых значений
+        assert isinstance(scraper.supports_url("https://example.com"), bool)
 ```
 
-**Тестируемые сценарии**:
-- Парсинг XML ответа CBR API
-- Применение 5% наценки
-- Обработка некорректных ответов
-- Кэширование курсов
-- Точность арифметики с Decimal
+#### Unit/Bot - Тестирование слоя представления
 
-### 🔗 Integration тесты (tests_new/integration/)
+```python
+# tests_new/unit/bot/test_error_boundary.py  
+async def test_error_boundary_classification(unit_test_container):
+    """Тест классификации ошибок Error Boundary."""
+    error_boundary = unit_test_container.resolve(IErrorBoundary)
+    
+    # Тест различных типов ошибок
+    network_error = aiohttp.ClientError("Connection failed")
+    classification = error_boundary.classify_error(network_error)
+    
+    assert classification['category'] == 'network_error'
+    assert classification['user_message'] is not None
+    assert classification['should_retry'] == True
+```
 
-**Назначение**: Тестирование взаимодействия компонентов с моками внешних сервисов
+**Тестируемые сценарии Unit уровня**:
+- DI контейнер: регистрация, разрешение, lifetime управление
+- Сервисы: изолированное тестирование бизнес-логики через интерфейсы
+- Протоколы: соответствие всех реализаций ScraperProtocol
+- Error Boundary: классификация ошибок и выбор стратегии обработки
+- Слой представления: форматирование ответов, валидация URL
+
+### 🔗 Integration тесты (tests_new/integration/) - с реальными сервисами
+
+**Назначение**: Тестирование взаимодействия компонентов через настоящий DI контейнер
 
 **Характеристики**:
 - Выполнение < 5 секунд каждый
-- Моки для внешних API (eBay, Grailed, CBR)
-- Тестирование потока данных между модулями
-- Проверка корректной интеграции
+- Частично реальные сервисы, частично моки
+- Тестирование сложных взаимодействий
+- Проверка корректной интеграции слоёв
 
-#### test_bot_handlers.py
+#### test_di_integration.py
 ```python
-async def test_handle_listing_full_flow(self, mock_config, mock_http_session, sample_item_data):
-    """Тест полного потока обработки листинга."""
-    with patch('app.scrapers.ebay.scrape_ebay_item') as mock_scrape:
-        mock_scrape.return_value = sample_item_data['ebay_item']
-        await handle_link(update, context)
-        # Проверяем, что все компоненты вызваны корректно
+async def test_service_orchestration_through_di():
+    """Тест оркестрации сервисов через DI контейнер."""
+    container = create_integration_test_container()
+    
+    # Полный поток с частично реальными сервисами
+    orchestrator = container.resolve(IScrapingOrchestrator)
+    formatter = container.resolve(IResponseFormatter)
+    
+    # Тест координации между сервисами
+    results = await orchestrator.process_urls_concurrent(test_urls, user_id=123)
+    formatted_response = await formatter.format_item_response(results[0])
+    
+    assert "Расчёт стоимости" in formatted_response
 ```
 
-**Тестируемые сценарии**:
-- Полный поток от URL до ответа пользователю
-- Обработка нескольких URL в одном сообщении
-- Интеграция расчёта комиссии и доставки
-- Конвертация валют в финальном ответе
-- Анализ продавца для Grailed листингов
-- Обработка offer-only товаров
-- Graceful handling ошибок скрапинга
+#### test_scraping_orchestrator.py
+```python
+async def test_concurrent_scraping_coordination(integration_test_container):
+    """Тест координации параллельного scraping."""
+    orchestrator = integration_test_container.resolve(IScrapingOrchestrator)
+    
+    # Тест обработки смешанных URL (eBay + Grailed)
+    mixed_urls = [
+        "https://www.ebay.com/itm/123456789",
+        "https://www.grailed.com/listings/123456", 
+        "https://www.grailed.com/username"  # Profile URL
+    ]
+    
+    results = await orchestrator.process_urls_concurrent(mixed_urls, user_id=123)
+    
+    # Проверяем правильную категоризацию и обработку
+    assert len(results) == 3
+    assert any(r['type'] == 'item_listing' for r in results)
+    assert any(r['type'] == 'seller_profile' for r in results)
+```
 
-### 🌐 E2E тесты (tests_new/e2e/)
+**Тестируемые сценарии Integration уровня**:
+- DI оркестрация: взаимодействие сервисов через контейнер
+- Scraping координация: параллельная обработка URL разных типов
+- Обработка данных: поток от извлечения до форматирования
+- Error handling: обработка ошибок на границах сервисов
+- Analytics: сбор метрик взаимодействий компонентов
 
-**Назначение**: Сквозное тестирование с реальными внешними сервисами
+### 🌐 E2E тесты (tests_new/e2e/) - с полным DI контейнером
+
+**Назначение**: Сквозное тестирование полного workflow с реальными сервисами
 
 **Характеристики**:
 - Выполнение < 60 секунд каждый
-- Использование реальных API
-- Могут быть нестабильными из-за внешних факторов
-- Проверка реального поведения системы
+- Полный production DI контейнер
+- Реальные внешние API и сервисы
+- Валидация пользовательских сценариев
 
-#### test_real_urls.py
+#### test_full_workflow.py
 ```python
-async def test_ebay_real_listing(self):
-    """Тест скрапинга реального eBay листинга."""
-    test_url = "https://www.ebay.com/itm/266024628787"
-    item_data = await ebay.scrape_ebay_item(test_url, session)
-    if item_data is None:
-        pytest.skip("eBay listing not accessible")
-    assert item_data.price > Decimal("0")
+async def test_complete_user_workflow_with_di():
+    """Тест полного пользовательского workflow через DI."""
+    # Инициализация полного production контейнера
+    container = create_e2e_test_container()
+    
+    # Получение всех необходимых сервисов через DI
+    url_processor = container.resolve(IURLProcessor)
+    orchestrator = container.resolve(IScrapingOrchestrator)
+    formatter = container.resolve(IResponseFormatter)
+    error_boundary = container.resolve(IErrorBoundary)
+    
+    try:
+        # Симуляция пользовательского сообщения
+        user_message = "https://www.grailed.com/listings/59397754"
+        
+        # Полный поток обработки
+        processed_urls = url_processor.process_message(user_message, user_id=123)
+        results = await orchestrator.process_urls_concurrent(
+            processed_urls['valid_urls'], 
+            user_id=123
+        )
+        response = await formatter.format_item_response(results[0])
+        
+        # Проверка результата
+        assert "Расчёт стоимости" in response
+        assert "Товар:" in response
+        assert "₽" in response  # RUB conversion
+        
+    except Exception as e:
+        # Тест error boundary в реальных условиях
+        handled = await error_boundary.handle_error(e, context={"user_id": 123})
+        assert handled is True
 ```
 
-**Тестируемые сценарии**:
-- Скрапинг реальных eBay листингов
-- Скрапинг реальных Grailed листингов
-- Анализ профилей продавцов с headless browser
-- Получение курсов валют из CBR API
-- Полный пайплайн от URL до RUB
-- Одновременное скрапинг нескольких URL
-- Разрешение Grailed shortlinks
+#### test_real_urls.py  
+```python
+async def test_grailed_with_seller_analysis_e2e(e2e_test_container):
+    """E2E тест Grailed с анализом продавца."""
+    orchestrator = e2e_test_container.resolve(IScrapingOrchestrator)
+    
+    # Реальный Grailed URL
+    test_url = "https://www.grailed.com/listings/59397754"
+    
+    results = await orchestrator.process_urls_concurrent([test_url], user_id=123)
+    
+    if not results or results[0].get('error'):
+        pytest.skip("Grailed listing not accessible")
+    
+    result = results[0]
+    
+    # Проверка полного результата
+    assert result['item_data']['price'] > Decimal("0")
+    assert result['item_data']['title'] is not None
+    assert 'seller_data' in result  # Seller analysis performed
+    assert result['final_price_rub'] > 0  # Full price calculation
+```
+
+#### test_error_scenarios.py
+```python
+async def test_error_boundary_real_scenarios(e2e_test_container):
+    """Тест Error Boundary с реальными сценариями ошибок."""
+    orchestrator = e2e_test_container.resolve(IScrapingOrchestrator)
+    error_boundary = e2e_test_container.resolve(IErrorBoundary)
+    
+    # Тест с недоступным URL
+    invalid_urls = ["https://www.grailed.com/listings/invalid-listing-id"]
+    
+    results = await orchestrator.process_urls_concurrent(invalid_urls, user_id=123)
+    
+    # Проверка обработки ошибок
+    assert len(results) == 1
+    assert results[0].get('error') is not None
+    assert results[0]['error']['category'] in ['scraping_error', 'not_found_error']
+    assert results[0]['error']['user_message'] is not None
+```
+
+**Тестируемые сценарии E2E уровня**:
+- Полный пользовательский workflow: от сообщения до ответа
+- Реальные API интеграции: eBay, Grailed, CBR, Shopfans pricing
+- Headless browser операции: анализ профилей продавцов Grailed
+- Error handling: реальные сценарии недоступности сервисов
+- Performance: время отклика полного pipeline
+- Data integrity: корректность данных на всех этапах обработки
+- Currency conversion: актуальные курсы валют
+- Customs duty calculation: интеграция с EUR/USD rates
 
 ---
 
 ## Написание новых тестов
 
-### 📝 Шаблон Unit теста
+### 📝 Шаблон Unit теста с Dependency Injection
 
 ```python
-"""Модуль для тестирования [ОПИСАНИЕ ФУНКЦИОНАЛЬНОСТИ]."""
+"""Модуль для тестирования [ОПИСАНИЕ ФУНКЦИОНАЛЬНОСТИ] через DI контейнер."""
 
 import pytest
 from decimal import Decimal
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock
 
-from app.module_to_test import function_to_test
+from app.core.interfaces import IServiceInterface
+from app.services.service_to_test import ServiceToTest
 
 
-class TestFunctionName:
-    """Тестирование функции function_to_test."""
+class TestServiceToTest:
+    """Тестирование сервиса ServiceToTest через DI."""
     
-    def test_normal_case(self, mock_config):
-        """Тест нормального случая работы."""
-        # Arrange (подготовка)
+    def test_normal_case_with_di(self, unit_test_container):
+        """Тест нормального случая через DI контейнер."""
+        # Arrange - получение сервиса через DI
+        service = unit_test_container.resolve(IServiceInterface)
+        
+        # Arrange - подготовка тестовых данных
         input_data = "test_input"
         expected_output = "expected_result"
         
-        # Act (выполнение)
-        result = function_to_test(input_data)
+        # Act - выполнение через DI resolved сервис
+        result = service.method_to_test(input_data)
         
-        # Assert (проверка)
+        # Assert - проверка результата
         assert result == expected_output, f"Expected {expected_output}, got {result}"
     
-    def test_edge_case(self, mock_config):
-        """Тест граничного случая."""
-        # Тест с граничными значениями
-        pass
+    def test_dependency_injection_resolution(self, unit_test_container):
+        """Тест корректности разрешения зависимостей."""
+        # Проверяем что DI корректно резолвит зависимости
+        service = unit_test_container.resolve(IServiceInterface)
+        assert service is not None
+        assert isinstance(service, ServiceToTest)
+        
+        # Проверяем что зависимости тоже резолвятся
+        dependency = unit_test_container.resolve(IDependencyInterface)
+        assert dependency is not None
     
-    def test_error_handling(self, mock_config):
-        """Тест обработки ошибок."""
+    async def test_async_operation_with_di(self, unit_test_container):
+        """Тест асинхронной операции через DI."""
+        service = unit_test_container.resolve(IServiceInterface)
+        
+        # Мокированные зависимости уже настроены в unit_test_container
+        result = await service.async_method("test_input")
+        
+        assert result is not None
+        assert result.status == "success"
+    
+    def test_error_handling_with_mocked_dependencies(self, unit_test_container):
+        """Тест обработки ошибок с мокированными зависимостями."""
+        service = unit_test_container.resolve(IServiceInterface)
+        
+        # В unit тестах внешние зависимости уже замокированы
         with pytest.raises(ValueError, match="Expected error message"):
-            function_to_test(invalid_input)
+            service.method_that_should_fail("invalid_input")
     
     @pytest.mark.parametrize("input_val,expected", [
         ("case1", "result1"),
         ("case2", "result2"),
         ("case3", "result3"),
     ])
-    def test_multiple_cases(self, input_val, expected, mock_config):
-        """Тест множественных случаев."""
-        assert function_to_test(input_val) == expected
+    def test_multiple_cases_through_di(self, input_val, expected, unit_test_container):
+        """Тест множественных случаев через DI."""
+        service = unit_test_container.resolve(IServiceInterface)
+        assert service.method_to_test(input_val) == expected
 ```
 
-### 📝 Шаблон Integration теста
+### 📝 Шаблон Integration теста с частично реальными сервисами
 
 ```python
-"""Integration тесты для [ОПИСАНИЕ КОМПОНЕНТА]."""
+"""Integration тесты для [ОПИСАНИЕ КОМПОНЕНТА] с реальными сервисами."""
 
 import pytest
 from unittest.mock import patch, AsyncMock
 
-from app.component import ComponentClass
+from app.core.interfaces import IServiceInterface, IDependencyInterface
 
 
-class TestComponentIntegration:
-    """Тестирование интеграции компонента."""
+class TestServiceIntegration:
+    """Integration тестирование сервиса с реальными зависимостями."""
     
-    @pytest.mark.asyncio
-    async def test_component_workflow(self, mock_config, mock_http_session):
-        """Тест полного workflow компонента."""
-        # Подготовка моков
-        with patch('app.external.service') as mock_service:
-            mock_service.return_value = "mocked_response"
-            
-            # Выполнение теста
-            component = ComponentClass()
-            result = await component.process_data("test_input")
-            
-            # Проверки
-            assert result is not None
-            mock_service.assert_called_once_with("test_input")
-```
-
-### 📝 Шаблон E2E теста
-
-```python
-"""E2E тесты с реальными сервисами."""
-
-import pytest
-
-from app.real_service import RealServiceClient
-
-
-class TestRealServiceE2E:
-    """E2E тестирование с реальным сервисом."""
-    
-    @pytest.mark.asyncio
-    @pytest.mark.timeout(30)
-    @pytest.mark.network
-    async def test_real_service_integration(self):
-        """Тест интеграции с реальным сервисом."""
-        client = RealServiceClient()
+    async def test_service_interaction_through_di(self, integration_test_container):
+        """Тест взаимодействия сервисов через DI контейнер."""
+        # В integration тестах часть сервисов реальные, часть мокированные
+        primary_service = integration_test_container.resolve(IServiceInterface)
+        dependency_service = integration_test_container.resolve(IDependencyInterface)
         
-        try:
-            result = await client.fetch_data("test_query")
-            
-            if result is None:
-                pytest.skip("Service not accessible")
-            
-            # Проверки результата
-            assert result.status == "success"
-            assert len(result.data) > 0
-            
-        except Exception as e:
-            pytest.fail(f"Service integration failed: {e}")
+        # Тестируем реальное взаимодействие
+        result = await primary_service.complex_operation("test_data")
+        
+        # Проверяем что сервисы корректно взаимодействуют
+        assert result.status == "completed"
+        assert result.processed_by == dependency_service.__class__.__name__
+    
+    async def test_error_propagation_between_services(self, integration_test_container):
+        """Тест распространения ошибок между сервисами."""
+        service = integration_test_container.resolve(IServiceInterface)
+        
+        # Тестируем как ошибки передаются через границы сервисов
+        with pytest.raises(ServiceException) as exc_info:
+            await service.operation_that_depends_on_external_service()
+        
+        # Проверяем корректность Error Boundary
+        assert exc_info.value.original_error is not None
+        assert exc_info.value.service_name == "ExternalService"
+    
+    def test_configuration_injection(self, integration_test_container):
+        """Тест инъекции конфигурации через DI."""
+        service = integration_test_container.resolve(IServiceInterface)
+        
+        # Проверяем что конфигурация корректно инжектируется
+        assert service.config is not None
+        assert service.config.test_mode == True  # Integration test config
 ```
 
-### 🎯 Маркеры для тестов
+### 📝 Шаблон E2E теста с полным DI контейнером
 
 ```python
+"""E2E тесты для [ПОЛНЫЙ WORKFLOW] с реальными сервисами."""
+
 import pytest
-
-@pytest.mark.unit          # Быстрый unit тест
-@pytest.mark.integration   # Integration тест
-@pytest.mark.e2e          # End-to-end тест
-@pytest.mark.slow         # Медленный тест (>5 секунд)
-@pytest.mark.network      # Требует сетевого доступа
-@pytest.mark.browser      # Требует headless browser
-@pytest.mark.real_data    # Использует реальные внешние данные
-@pytest.mark.skip         # Пропустить тест
-@pytest.mark.xfail        # Ожидается падение
-@pytest.mark.timeout(60)  # Timeout в секундах
-```
-
-### 🧪 Создание фикстур
-
-```python
-# В conftest.py или в начале тестового файла
-
-@pytest.fixture
-def sample_data():
-    """Примерные данные для тестов."""
-    return {
-        "item_price": Decimal("100.00"),
-        "shipping_cost": Decimal("15.00"),
-        "description": "Test item description"
-    }
-
-@pytest.fixture
-async def async_client():
-    """Асинхронный клиент для тестов."""
-    async with aiohttp.ClientSession() as session:
-        yield session
-
-@pytest.fixture(scope="session")
-def expensive_setup():
-    """Дорогая настройка, выполняемая один раз за сессию."""
-    # Настройка
-    yield "configured_resource"
-    # Очистка
-```
-
----
-
-## CI/CD интеграция
-
-### 🏭 GitHub Actions Workflow
-
-Файл `.github/workflows/test-and-deploy.yml` содержит полный пайплайн:
-
-```mermaid
-graph LR
-    A[Push/PR] --> B[Lint]
-    B --> C[Unit Tests]
-    C --> D[Integration Tests]
-    D --> E[Security Scan]
-    E --> F[Docker Build]
-    F --> G[E2E Tests]
-    G --> H[Deploy]
-```
-
-#### Этапы пайплайна
-
-1. **Lint & Format** (2-3 минуты)
-   ```bash
-   ruff check app/ tests_new/
-   ruff format --check app/ tests_new/
-   mypy app/
-   pydocstyle app/
-   ```
-
-2. **Unit Tests** (1-2 минуты)
-   ```bash
-   pytest tests_new/unit/ -v --cov=app --cov-report=xml
-   ```
-
-3. **Integration Tests** (3-5 минут)
-   ```bash
-   pytest tests_new/integration/ -v --cov=app --cov-append
-   ```
-
-4. **Security Scan** (1-2 минуты)
-   ```bash
-   safety check
-   bandit -r app/
-   ```
-
-5. **Docker Build Test** (2-3 минуты)
-   ```bash
-   docker build -f Dockerfile.test .
-   ```
-
-6. **E2E Tests** (5-10 минут, только на main)
-   ```bash
-   pytest tests_new/e2e/ -v --timeout=120
-   ```
-
-7. **Deploy** (автоматически при успехе всех тестов)
-
-#### Конфигурация секретов
-
-В GitHub Repository Settings → Secrets:
-```
-TEST_BOT_TOKEN: 8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
-CODECOV_TOKEN: [токен для отчётов покрытия]
-```
-
-#### Условия выполнения
-
-- **Unit/Integration**: На каждый push и PR
-- **E2E**: Только на push в main/develop
-- **Deploy**: Только на push в main после всех тестов
-
-### 🪝 Pre-commit хуки
-
-Файл `.pre-commit-config.yaml` настраивает автоматические проверки:
-
-```bash
-# Установка
-pre-commit install
-
-# Запуск вручную
-pre-commit run --all-files
-
-# Что проверяется:
-# - Форматирование кода (Ruff)
-# - Синтаксис YAML/JSON
-# - Быстрые unit тесты
-# - Trailing whitespace
-```
-
----
-
-## Отладка и диагностика
-
-### 🐛 Частые проблемы и решения
-
-#### 1. ImportError при запуске тестов
-```bash
-# Проблема: Модуль не найден
-ImportError: cannot import name 'function_name' from 'app.module'
-
-# Решение: Проверить PYTHONPATH и структуру импортов
-export PYTHONPATH=/home/iegorov553/projects/price-gh-bot:$PYTHONPATH
-python -c "import app.module; print(dir(app.module))"
-```
-
-#### 2. Ошибки конфигурации pytest
-```bash
-# Проблема: Некорректный pytest.ini
-ERROR: /path/to/pytest.ini:42: unexpected line
-
-# Решение: Проверить синтаксис
-pytest --collect-only  # Проверка без выполнения
-```
-
-#### 3. Timeout в E2E тестах
-```bash
-# Проблема: Тест превышает лимит времени
-TimeoutError: Test exceeded 30 seconds
-
-# Решение: Увеличить timeout или оптимизировать
-pytest tests_new/e2e/ --timeout=120
-```
-
-#### 4. Недоступность внешних сервисов
-```bash
-# Проблема: eBay/Grailed недоступны
-ConnectionError: Unable to connect to ebay.com
-
-# Решение: Skip E2E тесты или обновить URL
-pytest tests_new/unit/ tests_new/integration/ -v
-```
-
-#### 5. Устаревшие тестовые данные
-```bash
-# Проблема: Тест падает из-за изменения внешних данных
-AssertionError: Expected weight 0.8, got 0.7
-
-# Решение: Обновить тестовые данные
-python tests_new/utils/data_updater.py
-```
-
-### 🔍 Отладочные команды
-
-#### Максимальная детализация
-```bash
-# Полная информация об ошибках
-pytest tests_new/ -v -s --tb=long --show-capture=all
-
-# Запуск с отладчиком
-pytest tests_new/unit/test_commission_contracts.py::test_specific --pdb
-
-# Профилирование производительности
-pytest tests_new/ --profile --profile-svg
-```
-
-#### Анализ покрытия
-```bash
-# Детальный отчёт покрытия
-pytest tests_new/ --cov=app --cov-report=html --cov-report=term-missing
-
-# Покрытие конкретного модуля
-pytest tests_new/ --cov=app.services.currency --cov-report=term
-
-# Проверка непокрытых строк
-coverage report --show-missing
-```
-
-#### Выборочное выполнение
-```bash
-# Только неудавшиеся тесты
-pytest tests_new/ --lf
-
-# Тесты по названию
-pytest tests_new/ -k "commission and not precision"
-
-# Конкретный тест с параметрами
-pytest tests_new/unit/test_commission_contracts.py::TestCommissionContracts::test_commission_calculation_contract[case1] -v
-```
-
-### 📊 Мониторинг производительности
-
-#### Время выполнения тестов
-```bash
-# Показать время выполнения всех тестов
-pytest tests_new/ --durations=0
-
-# Показать только медленные тесты
-pytest tests_new/ --durations=10 --durations-min=1.0
-```
-
-#### Использование ресурсов
-```bash
-# Запуск с мониторингом памяти
-pytest tests_new/ --memprof
-
-# Параллельное выполнение для ускорения
-pytest tests_new/ -n auto  # Автоматическое количество процессов
-pytest tests_new/ -n 4     # 4 параллельных процесса
-```
-
----
-
-## Автообновление данных
-
-### 🔄 Система автообновления
-
-Модуль `tests_new/utils/data_updater.py` автоматически синхронизирует тестовые ожидания с реальными данными:
-
-#### Что обновляется автоматически
-1. **Веса и стоимость доставки**: На основе текущих паттернов Shopfans
-2. **Диапазоны курсов валют**: На основе текущего курса CBR
-3. **Примеры расчёта комиссии**: На основе актуальной логики
-4. **Доступность тестовых URL**: Проверка работоспособности ссылок
-
-#### Запуск обновления
-```bash
-# Полное обновление всех данных
-python tests_new/utils/data_updater.py
-
-# Обновление конкретных категорий
-python -c "
-from tests_new.utils.data_updater import TestDataUpdater
 import asyncio
+from decimal import Decimal
 
-async def main():
-    updater = TestDataUpdater()
-    await updater.update_shipping_expectations()
-    await updater.update_currency_ranges()
 
-asyncio.run(main())
-"
-
-# Через Makefile
-make test-update-data
+class TestCompleteWorkflow:
+    """E2E тестирование полного пользовательского workflow."""
+    
+    async def test_complete_user_scenario_e2e(self, e2e_test_container):
+        """Полный E2E тест пользовательского сценария."""
+        # Получение всех сервисов через production DI контейнер
+        url_processor = e2e_test_container.resolve(IURLProcessor)
+        orchestrator = e2e_test_container.resolve(IScrapingOrchestrator)
+        formatter = e2e_test_container.resolve(IResponseFormatter)
+        analytics = e2e_test_container.resolve(IAnalyticsService)
+        
+        # Симуляция реального пользовательского ввода
+        user_input = "https://www.grailed.com/listings/real-listing-id"
+        user_id = 12345
+        
+        # Полный workflow
+        processed_urls = url_processor.process_message(user_input, user_id)
+        results = await orchestrator.process_urls_concurrent(
+            processed_urls['valid_urls'], 
+            user_id
+        )
+        formatted_response = await formatter.format_item_response(results[0])
+        
+        # Проверка полного результата
+        assert "Расчёт стоимости" in formatted_response
+        assert "Товар:" in formatted_response
+        assert "₽" in formatted_response
+        
+        # Проверка что аналитика записалась
+        user_stats = analytics.get_user_stats(user_id, days=1)
+        assert user_stats['total_requests'] >= 1
+    
+    @pytest.mark.slow  
+    async def test_performance_under_load_e2e(self, e2e_test_container):
+        """E2E тест производительности под нагрузкой."""
+        orchestrator = e2e_test_container.resolve(IScrapingOrchestrator)
+        
+        # Тест с множественными одновременными запросами
+        urls = [
+            "https://www.ebay.com/itm/real-item-1",
+            "https://www.grailed.com/listings/real-item-2",
+            "https://www.grailed.com/real-seller-profile"
+        ]
+        
+        start_time = asyncio.get_event_loop().time()
+        
+        # Параллельная обработка
+        results = await orchestrator.process_urls_concurrent(urls, user_id=123)
+        
+        end_time = asyncio.get_event_loop().time()
+        execution_time = end_time - start_time
+        
+        # Проверка производительности
+        assert execution_time < 30.0  # Максимум 30 секунд для 3 URL
+        assert len(results) == 3
+        assert all(r.get('item_data') or r.get('seller_data') for r in results)
 ```
 
-#### Конфигурация в CI/CD
-```yaml
-# GitHub Actions: еженедельное обновление
-- name: Update test data
-  run: python tests_new/utils/data_updater.py
-  schedule:
-    - cron: '0 2 * * 1'  # Каждый понедельник в 02:00
-```
-
-### 📊 Структура тестовых данных
-
-Файл `tests_new/fixtures/test_data.json`:
-```json
-{
-  "last_updated": "2025-06-09T12:00:00Z",
-  "test_urls": {
-    "ebay": [
-      {
-        "url": "https://www.ebay.com/itm/266024628787",
-        "description": "Nike Air Jordan 1 High OG Chicago",
-        "expected_price_range": [100, 300],
-        "last_verified": "2025-06-09",
-        "status": "accessible"
-      }
-    ]
-  },
-  "shipping_expectations": {
-    "Supreme hoodie black large": {
-      "weight": 0.7,
-      "cost": 18.99,
-      "cost_range": [16.99, 20.99],
-      "pattern_matched": "hoodie",
-      "updated": "2025-06-09T12:00:00Z"
-    }
-  },
-  "commission_examples": [
-    {
-      "item_price": 120,
-      "us_shipping": 40,
-      "commission_base": 160,
-      "expected_commission": 16.00,
-      "commission_type": "percentage",
-      "updated": "2025-06-09T12:00:00Z"
-    }
-  ]
-}
-```
-
-### 🔧 Кастомизация обновлений
+### 🔧 Конфигурация фикстур для DI
 
 ```python
-# tests_new/utils/custom_updater.py
-from data_updater import TestDataUpdater
+# tests_new/conftest.py
+import pytest
+from app.core.container import Container
+from app.core.interfaces import *
+from tests_new.utils.mock_factories import *
 
-class CustomTestDataUpdater(TestDataUpdater):
-    """Кастомный updater с дополнительной логикой."""
+
+@pytest.fixture
+def unit_test_container():
+    """DI контейнер для unit тестов с полными моками."""
+    container = Container()
     
-    async def update_custom_expectations(self):
-        """Обновление пользовательских ожиданий."""
-        # Ваша логика обновления
-        pass
+    # Регистрация мокированных сервисов
+    container.register(ICurrencyService, MockCurrencyService, lifetime=Lifetime.SINGLETON)
+    container.register(IReliabilityService, MockReliabilityService, lifetime=Lifetime.SINGLETON)
+    container.register(IShippingService, MockShippingService, lifetime=Lifetime.SINGLETON)
+    container.register(IMarketplaceScraper, MockEbayScraper, lifetime=Lifetime.TRANSIENT)
     
-    async def validate_updated_data(self):
-        """Валидация обновлённых данных."""
-        data = self.load_test_data()
-        
-        # Проверки корректности данных
-        for url_data in data.get('test_urls', {}).get('ebay', []):
-            assert 'url' in url_data
-            assert 'last_verified' in url_data
-        
-        print("✅ Validation passed")
+    return container
+
+
+@pytest.fixture
+def integration_test_container():
+    """DI контейнер для integration тестов с частично реальными сервисами."""
+    container = Container()
+    
+    # Реальные бизнес-сервисы
+    container.register(IReliabilityService, ReliabilityService, lifetime=Lifetime.SINGLETON)
+    container.register(IShippingService, ShippingService, lifetime=Lifetime.SINGLETON)
+    
+    # Мокированные внешние зависимости
+    container.register(ICurrencyService, MockCurrencyService, lifetime=Lifetime.SINGLETON)
+    
+    return container
+
+
+@pytest.fixture
+def e2e_test_container():
+    """Полный production DI контейнер для E2E тестов."""
+    container = Container()
+    
+    # Полная конфигурация как в production
+    # (см. app/core/service_locator.py)
+    configure_production_container(container)
+    
+    return container
 ```
-
----
 
 ## Лучшие практики
 
-### ✅ Принципы написания хороших тестов
+### 🎯 SOLID принципы в тестах
 
-#### 1. Именование тестов
+1. **Single Responsibility**: Каждый тест проверяет одну конкретную функциональность
+2. **Open/Closed**: Тесты легко расширяются для новых сценариев без изменения существующих
+3. **Liskov Substitution**: Моки корректно заменяют реальные сервисы
+4. **Interface Segregation**: Тестируются только необходимые интерфейсы
+5. **Dependency Inversion**: Тесты зависят от абстракций (интерфейсов), не от конкретных реализаций
+
+### 🏗️ Архитектурные принципы
+
 ```python
-# ❌ Плохо: неясное название
-def test_commission():
-    pass
+# ✅ Правильно - тестирование через интерфейс
+def test_service_through_interface(unit_test_container):
+    service = unit_test_container.resolve(ICurrencyService)  # Интерфейс
+    result = await service.get_usd_to_rub_rate(session)
+    assert result.rate > 0
 
-# ✅ Хорошо: описательное название
-def test_commission_calculation_with_high_shipping_above_threshold():
-    pass
-
-# ✅ Ещё лучше: с контекстом
-def test_commission_calculation_for_160_dollar_base_should_use_percentage_rate():
-    pass
+# ❌ Неправильно - прямое создание экземпляра
+def test_service_direct_instantiation():
+    service = CurrencyService()  # Прямое создание
+    result = await service.get_usd_to_rub_rate(session)
+    assert result.rate > 0
 ```
 
-#### 2. Структура тестов (AAA Pattern)
+### 📊 Покрытие и качество
+
+#### Цели покрытия по слоям архитектуры
+- **Core (DI/Interfaces)**: 95%+ - критичная инфраструктура
+- **Services (Business Logic)**: 85%+ - основная бизнес-логика
+- **Scrapers (Data Access)**: 75%+ - внешние интеграции
+- **Bot (Presentation)**: 70%+ - пользовательский интерфейс
+
+#### Качественные метрики
+- **Cyclomatic Complexity**: < 10 для всех методов
+- **Test Execution Time**: Unit < 1s, Integration < 5s, E2E < 60s
+- **Flaky Test Rate**: < 1% (особенно для E2E тестов)
+- **Coverage Gaps**: Нет непокрытых критических путей
+
+### 🔄 CI/CD интеграция
+
+#### GitHub Actions конфигурация
+
+```yaml
+# .github/workflows/test.yml
+name: Comprehensive Testing
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt -r requirements-dev.txt
+        playwright install chromium
+    
+    - name: Unit tests with DI validation
+      run: |
+        pytest tests_new/unit/ -v --cov=app --cov-branch
+        
+    - name: Integration tests with service interaction
+      run: |
+        pytest tests_new/integration/ -v --cov=app --cov-append
+        
+    - name: E2E tests with real services
+      run: |
+        pytest tests_new/e2e/ -v --cov=app --cov-append
+      env:
+        BOT_TOKEN: ${{ secrets.TEST_BOT_TOKEN }}
+        ENABLE_HEADLESS_BROWSER: true
+    
+    - name: Coverage report
+      run: |
+        coverage report --fail-under=70
+        coverage html
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+```
+
+### 🛠️ Отладка и диагностика
+
+#### Debugging DI проблем
+
 ```python
-def test_function_behavior(self):
-    """Тест поведения функции в конкретном сценарии."""
-    # Arrange: подготовка данных
-    input_data = create_test_input()
-    expected_output = "expected_result"
+def test_debug_di_container(unit_test_container):
+    """Отладка проблем с dependency injection."""
     
-    # Act: выполнение тестируемой функции
-    actual_output = function_under_test(input_data)
+    # Проверка регистраций
+    registrations = unit_test_container.get_registrations()
+    print(f"Registered services: {list(registrations.keys())}")
     
-    # Assert: проверка результата
-    assert actual_output == expected_output, f"Expected {expected_output}, got {actual_output}"
+    # Проверка разрешения
+    try:
+        service = unit_test_container.resolve(IProblematicService)
+        print(f"Service resolved: {type(service)}")
+    except Exception as e:
+        print(f"Resolution failed: {e}")
+        
+    # Валидация зависимостей
+    validation = unit_test_container.validate_services()
+    if not validation['success']:
+        for error in validation['errors']:
+            print(f"Validation error: {error}")
 ```
 
-#### 3. Независимость тестов
+#### Performance профилирование
+
 ```python
-# ❌ Плохо: тесты зависят друг от друга
-class TestBadExample:
-    shared_state = None
-    
-    def test_step_1(self):
-        self.shared_state = "initialized"
-    
-    def test_step_2(self):
-        assert self.shared_state == "initialized"  # Зависит от test_step_1
+import cProfile
+import asyncio
 
-# ✅ Хорошо: каждый тест независим
-class TestGoodExample:
-    def test_scenario_1(self, fresh_state):
-        # Каждый тест получает свежее состояние
-        assert process_data(fresh_state) == "expected_result"
+def test_performance_profiling(e2e_test_container):
+    """Профилирование производительности."""
     
-    def test_scenario_2(self, fresh_state):
-        # Независимо от других тестов
-        assert process_data(fresh_state) == "expected_result"
+    def run_test():
+        orchestrator = e2e_test_container.resolve(IScrapingOrchestrator)
+        
+        async def async_test():
+            return await orchestrator.process_urls_concurrent(
+                ["https://www.grailed.com/listings/test"], 
+                user_id=123
+            )
+        
+        return asyncio.run(async_test())
+    
+    # Профилирование
+    profiler = cProfile.Profile()
+    profiler.enable()
+    
+    result = run_test()
+    
+    profiler.disable()
+    profiler.dump_stats('test_performance.prof')
+    
+    # Анализ результатов
+    import pstats
+    stats = pstats.Stats('test_performance.prof')
+    stats.sort_stats('cumulative').print_stats(10)
 ```
 
-#### 4. Осмысленные сообщения об ошибках
+### 📈 Мониторинг и метрики
+
+#### Test Analytics Dashboard
+
 ```python
-# ❌ Плохо: неинформативная ошибка
-assert result == expected
-
-# ✅ Хорошо: контекстная ошибка
-assert result == expected, f"Commission calculation failed: item=${item_price}, shipping=${us_shipping}, expected=${expected}, got=${result}"
-
-# ✅ Ещё лучше: структурированная ошибка
-assert result.commission == expected_commission, (
-    f"Commission calculation failed for case: {description}\n"
-    f"Input: item=${item_price}, us_shipping=${us_shipping}\n"
-    f"Expected commission: ${expected_commission}\n" 
-    f"Actual commission: ${result.commission}\n"
-    f"Commission base: ${item_price + us_shipping}"
-)
-```
-
-### 🎯 Организация тестового кода
-
-#### 1. Группировка по функциональности
-```python
-class TestCommissionCalculation:
-    """Все тесты расчёта комиссии в одном классе."""
+# tests_new/utils/test_analytics.py
+class TestAnalytics:
+    """Сбор аналитики выполнения тестов."""
     
-    def test_fixed_commission_below_threshold(self):
-        pass
+    def collect_test_metrics(self):
+        return {
+            'execution_times': self.get_execution_times(),
+            'failure_rates': self.get_failure_rates(),
+            'coverage_trends': self.get_coverage_trends(),
+            'dependency_health': self.check_dependency_health()
+        }
     
-    def test_percentage_commission_above_threshold(self):
-        pass
-    
-    def test_threshold_boundary_cases(self):
-        pass
-
-class TestShippingEstimation:
-    """Все тесты оценки доставки в одном классе."""
-    
-    def test_pattern_matching(self):
-        pass
-    
-    def test_weight_calculation(self):
-        pass
+    def generate_report(self):
+        """Генерация отчёта для CI/CD dashboard."""
+        metrics = self.collect_test_metrics()
+        
+        return {
+            'overall_health': self.calculate_health_score(metrics),
+            'recommendations': self.generate_recommendations(metrics),
+            'trends': self.analyze_trends(metrics)
+        }
 ```
 
-#### 2. Использование параметризации
-```python
-@pytest.mark.parametrize("item_price,us_shipping,expected_commission,description", [
-    (80, 20, 15.00, "Below threshold with shipping"),
-    (120, 40, 16.00, "Above threshold due to shipping"),
-    (200, 50, 25.00, "High value with high shipping"),
-])
-def test_commission_calculation_scenarios(self, item_price, us_shipping, expected_commission, description):
-    """Тест различных сценариев расчёта комиссии."""
-    result = calculate_final_price(
-        Decimal(str(item_price)),
-        Decimal(str(us_shipping)),
-        Decimal("25.00")
-    )
-    assert result.commission == Decimal(str(expected_commission))
-```
+### 🎯 Заключение
 
-#### 3. Эффективное использование фикстур
-```python
-# Глобальная фикстура в conftest.py
-@pytest.fixture
-def mock_config():
-    """Мок конфигурации для всех тестов."""
-    with patch('app.config.config') as mock:
-        mock.commission.fixed_amount = 15.0
-        yield mock
+Система тестирования Price-GH-Bot представляет собой современную, scalable архитектуру, построенную на принципах:
 
-# Специализированная фикстура
-@pytest.fixture
-def high_value_item():
-    """Фикстура для товара высокой стоимости."""
-    return ItemData(
-        price=Decimal("200.00"),
-        shipping_us=Decimal("25.00"),
-        is_buyable=True,
-        title="Expensive item"
-    )
-```
+- **Clean Architecture**: Чёткое разделение слоёв и ответственности
+- **SOLID Principles**: Соблюдение всех принципов объектно-ориентированного дизайна  
+- **Dependency Injection**: Loose coupling и лёгкое тестирование
+- **Protocol-based Design**: Унификация интерфейсов и взаимозаменяемость
+- **Comprehensive Coverage**: Трёхуровневая пирамида тестов (Unit/Integration/E2E)
 
-### 🚀 Оптимизация производительности
+Эта система обеспечивает:
+- ✅ Высокую надёжность и стабильность
+- ✅ Быструю обратную связь при разработке
+- ✅ Лёгкую расширяемость для новых функций
+- ✅ Автоматическую валидацию архитектурных принципов
+- ✅ Полное покрытие критических пользовательских сценариев
 
-#### 1. Быстрые unit тесты
-```python
-# ✅ Хорошо: быстрые тесты без I/O
-def test_calculation_logic():
-    result = pure_function(input_data)
-    assert result == expected
-
-# ❌ Плохо: медленные тесты с I/O в unit тестах
-def test_calculation_with_database():
-    # Не делайте это в unit тестах
-    data = fetch_from_database()
-    result = calculate(data)
-```
-
-#### 2. Умное использование моков
-```python
-# ✅ Хорошо: мок только внешних зависимостей
-@patch('app.external_service.api_call')
-def test_business_logic(mock_api):
-    mock_api.return_value = "mocked_response"
-    result = business_function()
-    assert result.processed_correctly
-
-# ❌ Плохо: избыточное мокание
-@patch('app.internal_module.helper_function')  # Не мокайте внутренние функции
-def test_over_mocked(mock_helper):
-    pass
-```
-
-#### 3. Параллельное выполнение
-```bash
-# Настройка pytest-xdist для параллельного выполнения
-pip install pytest-xdist
-
-# Автоматическое определение количества процессов
-pytest tests_new/ -n auto
-
-# Указание конкретного количества
-pytest tests_new/ -n 4
-```
-
-### 📊 Мониторинг качества тестов
-
-#### 1. Метрики покрытия
-```bash
-# Настройка минимального покрытия
-pytest tests_new/ --cov=app --cov-fail-under=70
-
-# Отчёт по непокрытым строкам
-pytest tests_new/ --cov=app --cov-report=term-missing
-
-# HTML отчёт для детального анализа
-pytest tests_new/ --cov=app --cov-report=html
-open htmlcov/index.html
-```
-
-#### 2. Анализ флакинеса (нестабильности)
-```bash
-# Многократный запуск для выявления нестабильных тестов
-pytest tests_new/ --count=10
-
-# Запуск до первого падения
-pytest tests_new/ --maxfail=1 --count=100
-```
-
-#### 3. Бенчмаркинг производительности
-```python
-# tests_new/test_performance.py
-import pytest
-
-@pytest.mark.benchmark
-def test_commission_calculation_performance(benchmark):
-    """Бенчмарк производительности расчёта комиссии."""
-    result = benchmark(
-        calculate_final_price,
-        Decimal("100"),
-        Decimal("15"),
-        Decimal("25")
-    )
-    assert result.commission > 0
-
-# Запуск бенчмарков
-pytest tests_new/ -k benchmark --benchmark-json=benchmark.json
-```
-
----
-
-## 🎓 Заключение
-
-### Достигнутые цели
-
-✅ **Надёжность**: Три уровня тестов обеспечивают полное покрытие  
-✅ **Скорость**: Unit тесты дают мгновенную обратную связь  
-✅ **Автоматизация**: CI/CD исключает человеческие ошибки  
-✅ **Реалистичность**: E2E тесты проверяют реальные сценарии  
-✅ **Поддерживаемость**: Автообновление данных предотвращает устаревание  
-
-### Регулярные задачи
-
-#### Еженедельно
-- Обновление тестовых данных: `make test-update-data`
-- Проверка доступности URL: `make test-verify`
-- Анализ отчётов покрытия в CI/CD
-
-#### Ежемесячно
-- Обзор медленных тестов: `pytest --durations=20`
-- Обновление зависимостей в requirements-dev.txt
-- Анализ флакинеса в CI/CD логах
-
-#### При добавлении новой функциональности
-1. Написать unit тесты для бизнес-логики
-2. Добавить integration тесты для взаимодействий
-3. При необходимости расширить E2E тесты
-4. Обновить документацию и примеры
-
-### Контакты и поддержка
-
-При возникновении вопросов по тестированию:
-1. Проверьте документацию в `tests_new/README.md`
-2. Изучите примеры в существующих тестах
-3. Запустите `pytest --help` для справки по pytest
-4. Обратитесь к [документации pytest](https://docs.pytest.org/)
-
----
-
-*Эта система тестирования обеспечивает высокое качество кода и предотвращает регрессии. Следуйте лучшим практикам, и ваши тесты станут надёжной защитой от багов! 🛡️*
+**Для получения помощи по тестированию**:
+- Изучите примеры в `tests_new/` директории
+- Используйте шаблоны из этой документации
+- Следуйте принципам SOLID и dependency injection
+- Поддерживайте чистоту архитектуры во всех тестах

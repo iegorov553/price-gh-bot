@@ -2,279 +2,165 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ CRITICAL ARCHITECTURE NOTES
+
+This project has undergone **complete architectural modernization** implementing SOLID principles, dependency injection, and clean architecture patterns. Always maintain these standards:
+
+### 🏗️ Architecture Principles
+- **SOLID Compliance**: Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
+- **Dependency Injection**: All services must use DI container (`app/core/container.py`)
+- **Error Boundary**: Centralized error handling (`app/bot/error_boundary.py`)
+- **Protocol-based Design**: Use interfaces from `app/core/interfaces.py`
+- **Clean Separation**: Presentation → Business Logic → Data Access layers
+
+### 🚫 Architectural Violations to Avoid
+- **God Objects**: Keep components focused (150 lines max for handlers)
+- **Direct Instantiation**: Use service locator or DI container
+- **Tight Coupling**: Depend on abstractions, not concrete implementations
+- **Mixed Concerns**: Separate presentation, business logic, and data access
+- **Global State**: Use dependency injection instead
+
+### ✅ Current Architecture (Post-Refactoring)
+```
+app/
+├── core/                   # Infrastructure (DI, interfaces)
+├── bot/                   # Presentation (handlers, formatters) 
+├── scrapers/              # Data Access (marketplace APIs)
+├── services/              # Business Logic (pricing, reliability)
+└── models.py             # Domain Models
+```
+
 ## Development Commands
 
+### Core Commands
 - **Install dependencies**: `pip install -r requirements.txt`
-- **Run bot locally**: `python app/main.py`
-- **Run tests**: `pytest tests/`
+- **Install dev dependencies**: `pip install -r requirements-dev.txt`
+- **Run bot locally**: `python -m app.main` (uses dependency injection initialization)
 - **Lint code**: `ruff check app/ tests/`
 - **Type check**: `mypy app/`
 - **Check docstrings**: `pydocstyle app/`
 - **Build docs**: `mkdocs build`
 - **Serve docs locally**: `mkdocs serve`
 - **Pre-commit hooks**: `pre-commit run --all-files`
-- **Deploy to Railway**: Automatically handled by `railway.toml` config
+- **Deploy to Railway**: Automatically handled by `railway.toml` config with DI container setup
 
-## Comprehensive Testing System
+### Modern Testing System
 
 **📖 Complete Testing Documentation**: [docs/TESTING.md](docs/TESTING.md)
 
-The project includes a robust multi-level testing framework:
-
-### Quick Test Commands
-- **Unit tests (fast)**: `BOT_TOKEN=your_bot_token pytest tests_new/unit/ -v`
-- **Integration tests**: `BOT_TOKEN=your_bot_token pytest tests_new/integration/ -v`
-- **E2E tests (slow)**: `BOT_TOKEN=your_bot_token pytest tests_new/e2e/ -v`
+#### Quick Test Commands
+- **Unit tests (fast)**: `BOT_TOKEN=your_token pytest tests_new/unit/ -v`
+- **Integration tests**: `BOT_TOKEN=your_token pytest tests_new/integration/ -v`
+- **E2E tests (slow)**: `BOT_TOKEN=your_token pytest tests_new/e2e/ -v` (with real APIs)
 - **All tests**: `make test-all` (requires Makefile.test setup)
 - **Docker tests**: `docker-compose -f docker-compose.test.yml up test-all`
+- **Legacy tests**: `pytest tests/ -v` (deprecated, use tests_new/ instead)
 
-### Test Categories
-- **Unit Tests** (`tests_new/unit/`): Fast isolated tests for business logic (commission, shipping, currency)
-- **Integration Tests** (`tests_new/integration/`): Component interaction tests with mocked external services
-- **E2E Tests** (`tests_new/e2e/`): Full workflow tests with real eBay/Grailed URLs and APIs
+#### Test Architecture
+- **Unit Tests** (`tests_new/unit/`): Fast isolated business logic tests
+- **Integration Tests** (`tests_new/integration/`): Component interaction with mocks
+- **E2E Tests** (`tests_new/e2e/`): Full workflow with real external services
 
-### Key Features
-- **Contract Testing**: Validates business logic against defined requirements
-- **Auto-updating Test Data**: Synchronizes test expectations with real external services
+#### Key Features
+- **Contract Testing**: Validates business requirements against defined interfaces
+- **Auto-updating Test Data**: Synchronizes with real external services
 - **CI/CD Integration**: GitHub Actions pipeline with comprehensive quality checks
 - **Docker Isolation**: Containerized testing environment for consistency
 - **Performance Monitoring**: Benchmarks and coverage reporting
 - **Pre-commit Hooks**: Automated quality checks before commits
 
-### Test Data Management
+#### Test Data Management
 - **Automated Updates**: `python tests_new/utils/data_updater.py`
 - **URL Verification**: `make test-verify`
 - **Custom Fixtures**: Located in `tests_new/fixtures/`
 
-See [docs/TESTING.md](docs/TESTING.md) for complete documentation including setup, usage examples, debugging guides, and best practices.
+## Modern Architecture Overview (Post-SOLID Refactoring)
 
-## Web Scraping Guidelines
+This Telegram bot implements **clean architecture** with **SOLID principles** and **dependency injection**:
 
-**CRITICAL**: Always analyze target website structure before implementing scraping logic:
+### 🏗️ Layered Architecture
+- **Infrastructure Layer** (`app/core/`): DI container, service locator, interfaces
+- **Presentation Layer** (`app/bot/`): Telegram handlers, formatters, error boundary
+- **Business Logic Layer** (`app/services/`): Domain services (currency, shipping, reliability)
+- **Data Access Layer** (`app/scrapers/`): Marketplace integrations with unified protocols
+- **Domain Models** (`app/models.py`): Pydantic models with validation
 
-1. **Page Structure Analysis**: Before writing any scraping code, use WebFetch tool to analyze the actual HTML/JSON structure of target pages
-2. **Multiple Pattern Support**: Implement multiple regex patterns and fallback strategies since websites frequently change their data formats
-3. **Dynamic Content**: Modern sites (like Grailed) use React SPA with dynamic JSON loading - account for various data formats and field names
-4. **Robust Extraction**: Use multiple extraction strategies:
-   - JSON parsing with various field name patterns
-   - HTML element parsing as fallback
-   - Comprehensive error handling and logging
-5. **Pattern Evolution**: Websites evolve - implement flexible patterns that can handle format changes without breaking
+### 🔄 Dependency Flow
+```
+Telegram Update → Handlers → Services → Scrapers → External APIs
+                     ↓
+              DI Container resolves all dependencies
+                     ↓
+            Error Boundary handles all exceptions
+```
 
-### Grailed.com Specific Knowledge (Critical)
+### 🎯 Key Components
+- **Service Locator** (`app/core/service_locator.py`): Central service registry
+- **DI Container** (`app/core/container.py`): Automatic dependency resolution
+- **Error Boundary** (`app/bot/error_boundary.py`): Centralized error handling
+- **ScraperProtocol** (`app/scrapers/base.py`): Unified marketplace interface
+- **Clean Handlers** (`app/bot/handlers.py`): 150 lines vs original 789
 
-**UPDATED June 2025**: Grailed now uses Next.js architecture with dual parsing strategies for listings and profiles.
+### 🚀 Operational Modes
+- **Webhook mode**: Production deployment with Railway webhooks
+- **Polling mode**: Local development with long-polling
+- **Service initialization**: Automatic DI container configuration on startup
+- **Graceful shutdown**: Proper resource cleanup and service disposal
 
-#### Modern Grailed Architecture (Next.js)
+### Modern Component Architecture (Post-Refactoring)
 
-**Listing Pages**: Now use Next.js with data embedded in `__NEXT_DATA__` script tags
-- **Primary extraction method**: Parse JSON from `<script id="__NEXT_DATA__">` 
-- **Data location**: `props.pageProps.listing` contains all listing information
-- **Available data**: price, title, shipping costs, seller info, buyability status
-- **Fallback strategy**: Legacy HTML parsing for older listings
+#### 🏗️ Infrastructure Layer (`app/core/`)
+- **Dependency Injection Container** (`container.py`): Automatic service resolution with lifecycle management
+- **Service Locator** (`service_locator.py`): Global service registry with validation
+- **Interface Protocols** (`interfaces.py`): Service contracts for loose coupling
 
-**Seller Profile Pages**: Still use React SPA requiring headless browser
-- **Dynamic loading**: Seller data loaded via authenticated APIs after page render
-- **Headless browser required**: Only method to extract rating, reviews, trusted badge
-- **Static HTML limitation**: Profile data not available in initial HTML response
+#### 🎯 Presentation Layer (`app/bot/`) 
+- **Clean Handlers** (`handlers.py`): Focused Telegram message handling (150 lines)
+- **URL Processor** (`url_processor.py`): URL detection, validation, and categorization
+- **Scraping Orchestrator** (`scraping_orchestrator.py`): Concurrent marketplace coordination
+- **Response Formatter** (`response_formatter.py`): Russian user message formatting
+- **Analytics Tracker** (`analytics_tracker.py`): Usage and performance tracking
+- **Error Boundary** (`error_boundary.py`): Centralized error handling with classification
+- **Messages** (`messages.py`): Localized Russian text with minimal emoji usage
 
-#### Profile Pages Limitations
-- **Profile pages** (e.g., `grailed.com/username`) use **client-side rendering**
-- Seller data (rating, reviews, trusted badge) is **NOT available in static HTML**
-- Data is loaded dynamically via API calls after page load requiring authentication
-- Profile pages return ~200KB of HTML but contain minimal actual content
-- The HTML contains React root elements (`<div id="app">`) but no seller metrics
-- **DO NOT** expect to extract seller data from profile pages without headless browser
+#### 🔧 Business Logic Layer (`app/services/`)
+- **Currency Service** (`currency.py`): Exchange rate management with CBR API integration
+- **Shipping Service** (`shipping.py`): Tiered Shopfans cost calculation (Europe/Turkey/Kazakhstan routes)
+- **Reliability Service** (`reliability.py`): Grailed seller scoring (100-point Diamond/Gold/Silver/Bronze system)
+- **Customs Service** (`customs.py`): Russian duty calculation (15% over 200 EUR threshold)
+- **Analytics Service** (`analytics.py`): SQLite data collection and reporting
 
-#### What Works vs What Doesn't (Updated June 2025)
+#### 📡 Data Access Layer (`app/scrapers/`)
+- **ScraperProtocol** (`base.py`): Unified marketplace interface
+- **eBay Scraper** (`ebay_scraper.py`): eBay listing implementation
+- **Grailed Scraper** (`grailed_scraper.py`): Grailed listing + seller analysis
+- **Headless Browser** (`headless.py`): Playwright automation for React SPA extraction
+- **Scraper Registry**: Automatic marketplace detection and routing
 
-✅ **Listing Pages (Next.js + HTTP requests)**:
-- **Complete item data**: price, title, shipping costs, buyability status
-- **Accurate extraction**: Real-time data from `__NEXT_DATA__` JSON
-- **Seller profile URLs**: Extracted for further analysis
-- **Performance**: Fast HTTP-only parsing (~2-3 seconds)
-- **Compatibility**: Works with both modern Next.js and legacy HTML listings
-
-❌ **Profile Pages (Require headless browser)**:
-- **Seller ratings**: Only available via headless browser JavaScript execution
-- **Review counts**: Dynamic loading after page render
-- **Trusted badges**: Client-side verification
-- **Activity timestamps**: Requires scrolling and dynamic content loading
-- **Performance cost**: ~8-10 seconds per profile analysis
-
-#### API Endpoints Discovery (May 2025)
-- `grailed.com/api/users/{username}` exists but requires authentication (401)
-- Access tokens found in HTML are for analytics/tracking, not user data access
-- GraphQL endpoint `/graphql` returns 404
-- No public API for seller profile data
-
-#### Recommended Approach
-1. **For seller analysis**: Focus on data extraction from **listing pages**, not profile pages
-2. **Profile URLs**: Use for navigation/identification only, not data extraction  
-3. **Fallback handling**: Always implement graceful degradation when seller data unavailable
-4. **User communication**: Clearly explain limitations to users when profile analysis fails
-5. **Alternative strategy**: Suggest users share specific listing URLs for seller analysis
-
-#### Technical Implementation Notes (Updated June 2025)
-
-**Listing Parsing (HTTP-based)**:
-- **Next.js priority**: `_parse_next_data()` extracts from `<script id="__NEXT_DATA__">`
-- **Data structure**: `props.pageProps.listing` contains complete item information
-- **Enhanced headers**: Browser-like headers prevent bot detection and JSON config responses
-- **Legacy fallback**: Maintains compatibility with older listing formats
-- **Error handling**: Content-Type validation prevents parsing JSON config as HTML
-
-**Profile Parsing (Headless browser)**:
-- **JavaScript execution**: Required for dynamic content loading
-- **Scrolling mechanism**: Loads activity data by scrolling to listings
-- **Stealth features**: Anti-detection measures for stable extraction
-- **Resource optimization**: Selective content loading for performance
-
-#### Debugging History & Lessons Learned (May 2025)
-**Investigation conducted**: Exhaustive analysis of Grailed profile page structure including:
-- WebFetch analysis of profile URLs
-- Manual inspection of ~200KB HTML responses
-- Script tag analysis for JSON data (found only category configuration data)
-- API endpoint testing (discovered /api/users/{username} requires auth)
-- Access token extraction and testing (tokens are for analytics, not user data)
-- Multiple header combinations and user agent testing
-- React root element inspection (confirmed SPA architecture)
-
-**Key findings**:
-- Profile pages return substantial HTML (~200KB) but it's mostly framework code
-- No seller data exists in static HTML - all loaded post-render via authenticated APIs
-- React app renders seller data client-side after page load
-- `Thousandfacesstore` and `grailhunter` profiles confirmed to have zero extractable data in static content
-
-**Attempted solutions that failed**:
-- Enhanced regex patterns for seller data
-- Deep JSON parsing of all script tags
-- API endpoint discovery and token-based authentication
-- Multiple user agent and header combinations
-
-**Working solution implemented**:
-- Enhanced `analyze_seller_profile()` with comprehensive search patterns
-- Graceful degradation to "No Data" category when extraction fails
-- Clear user communication about technical limitations
-- Focus redirected to listing page data extraction where seller info is available
-
-**Headless Browser Implementation (June 2025) - OPTIMIZED SOLUTION**:
-- **Playwright integration** implemented as the ONLY working method for seller data extraction
-- **Static HTML methods removed**: All JSON parsing, regex patterns, and script extraction methods removed as they don't work with React SPA
-- **Dynamic content handling**: Headless browser waits for JavaScript execution and DOM manipulation to load seller data
-- **Activity timestamp extraction**: Parses "X days/weeks/months ago" text patterns from seller profile pages after scrolling to load listings
-- **Resource management**: Proper browser lifecycle with async context managers
-- **Performance optimization**: Optimized for speed while maintaining human-like behavior to avoid bot detection
-- **Configuration**: Can be disabled via `ENABLE_HEADLESS_BROWSER=false` environment variable
-- **Graceful degradation**: Falls back to "No Data" category when headless browser disabled or fails
-
-**Performance Optimizations (June 2025)**:
-- **Speed improvements**: Reduced execution time from ~20 seconds to ~8-10 seconds (2.3x faster)
-- **Human-like behavior**: Balanced speed with bot detection avoidance
-- **Resource blocking**: Intelligent blocking of heavy media while keeping essential CSS/JS
-- **Browser reuse**: Global browser instance for repeated requests (3-5 seconds for subsequent calls)
-- **Stealth features**: Hidden automation markers and realistic browser behavior
-- **Random delays**: Human-like timing patterns to avoid detection
-
-**Technical Implementation**:
-- **Single extraction method**: `app/scrapers/grailed.py` now uses only headless browser via `get_grailed_seller_data_headless()`
-- **Selector strategy**: Multiple CSS selectors and text patterns to find rating, reviews, and trusted badge
-- **Activity extraction**: Scrolls profile page to load listings, then extracts first "X time ago" pattern for accurate last activity timestamp
-- **Time conversion**: Converts relative time expressions ("5 days ago") to absolute timestamps for reliability scoring
-- **Error handling**: Comprehensive logging and fallback to "No Data" category
-- **Dependencies**: Requires `playwright` and `playwright install chromium`
-
-**Performance Notes**:
-- Headless browser adds ~20 seconds per profile analysis
-- Successfully extracts data that is impossible to get via static HTML
-- Accurate activity timestamps enable proper reliability scoring (was giving all sellers 30/30 points)
-- Essential for accurate seller reliability analysis on Grailed
-- Scrolling mechanism ensures dynamic listing content loads before extraction
-- Resource-efficient with proper browser lifecycle management
-
-**Activity Extraction Breakthrough (May 2025)**:
-- **Problem solved**: Replaced hardcoded "current time" with actual seller activity extraction
-- **Method**: Parse listing update text ("5 days ago", "2 months ago") from seller profile pages
-- **Implementation**: Scroll page to load dynamic listings, extract first time pattern with regex
-- **Validation**: Tested with DP1211 seller - correctly shows 5 days since last activity
-- **Impact**: Enables accurate activity scoring in reliability system (was previously giving all sellers maximum 30/30 activity points)
-
-#### User Interface and Experience
-- **Listing analysis**: Seller reliability shown for buyable Grailed items when data available
-- **Direct profile analysis**: Full seller reliability analysis using headless browser extraction
-- **Loading indicators**: Immediate feedback with "⏳ Загружаем данные и производим расчёт..." messages
-- **Clean UX**: Loading messages automatically deleted when results are ready
-- **Performance transparency**: Users see processing status during 8-10 second analysis time
-- **Clean formatting**: Minimal emoji usage for better readability
-- **Russian language**: All user messages in simple, neutral Russian with honest explanations of constraints
-- **Enhanced error diagnostics**: Intelligent error handling with site availability checking
-  - Automatic Grailed availability check when listing scraping fails
-  - Context-aware error messages distinguishing between site downtime and listing issues
-  - Response time monitoring for performance diagnostics
-  - Three-tier error classification: site down, site slow, or listing-specific issues
-- **Error handling**: Graceful fallback to "No Data" category with clear explanations
-- **Real-time updates**: Activity timestamps reflect actual seller behavior, not system time
-- **Enhanced price display**: Structured multi-line format showing each cost component separately for better readability
-
-**Lessons Learned (Updated June 2025)**:
-- **Next.js architecture shift**: Grailed migrated listings to Next.js requiring new parsing strategies
-- **Dual approach necessity**: Listings (HTTP + Next.js) vs Profiles (headless browser)
-- **Data availability split**: Complete listing data in `__NEXT_DATA__`, seller data requires JS execution
-- **Legacy compatibility**: Must maintain fallback parsing for older listing formats
-- **Performance optimization**: HTTP parsing for listings (2-3s) vs headless for profiles (8-10s)
-- **Bot detection evolved**: Enhanced headers prevent JSON config responses
-- **Extraction accuracy**: Next.js parsing provides exact prices/shipping vs estimated defaults
-- **Architecture adaptation**: Parser evolved from HTML-only to JSON-first with HTML fallback
-
-## Architecture Overview
-
-This Telegram bot uses a modular architecture with the following structure:
-- **Entry point**: `app/main.py` - Application startup and configuration
-- **Bot handlers**: `app/bot/handlers.py` - Message processing and URL handling  
-- **Scrapers**: `app/scrapers/` - eBay and Grailed price/data extraction
-- **Services**: `app/services/` - Currency, shipping, and reliability calculations
-- **Models**: `app/models.py` - Pydantic data models for type safety
-- **Configuration**: `app/config.py` - Settings and environment management
-- **Messages**: `app/bot/messages.py` - Russian localized user messages
-
-The bot scrapes prices from eBay and Grailed listings, adds US shipping costs, estimates Russia delivery costs via Shopfans Lite, applies tiered commission structure, converts to RUB, and provides comprehensive Grailed seller reliability analysis. It operates in two modes:
-- **Webhook mode**: When deployed with a public domain (Railway), uses webhooks for production
-- **Polling mode**: Falls back to long-polling when no public domain is available (local development)
-
-### Core Components
-
-- **Messages module**: `app/bot/messages.py` containing all user-facing text in Russian for easy localization and editing, with clean formatting and minimal emoji usage
-- **Price scrapers**: Functions in `app/scrapers/` that extract item price, US shipping cost, buyability status, item title, and seller data from eBay and Grailed listings
-- **Next.js parsing (June 2025)**: Grailed scraper prioritizes `__NEXT_DATA__` extraction for modern listings with fallback to legacy HTML parsing
-- **Dual extraction strategy**: HTTP requests for listing data (fast), headless browser for seller profiles (comprehensive)
-- **Buyability detection**: Grailed scraper analyzes JSON data to determine if items have fixed buy-now pricing or are offer-only
-- **Seller analysis**: Comprehensive system in `app/services/reliability.py` for evaluating Grailed seller reliability 
-- **Profile processing**: Functions to extract seller profile URLs and fetch seller data from their profile pages
-- **Shipping estimation**: `app/services/shipping.py` calculates delivery costs to Russia based on item title categorization and Shopfans Lite pricing
-- **Link resolution**: Handles Grailed app.link shorteners by following redirects
-- **Concurrent processing**: Uses `asyncio.gather()` to scrape multiple URLs in parallel when multiple links are detected
-- **HTTP session**: Configured with retries and proper user agent for reliable scraping
-- **Currency conversion**: `app/services/currency.py` fetches USD to RUB exchange rate from Central Bank of Russia XML API with 5% markup
-- **Admin notifications**: Sends Telegram alerts to admin when CBR API fails
-- **Tiered pricing logic**: 
-  - Items < $150 (including US shipping): Fixed $15 commission
-  - Items ≥ $150 (including US shipping): 10% of (item price + US shipping)
-  - **Commission calculation**: Based on item price + US shipping costs (both values from listing)
-  - **Updated logic (June 2025)**: Commission now includes US shipping in calculation base for fairer pricing
-  - **Example**: $120 item + $40 US shipping = $160 base, 10% commission = $16 (was $15 fixed)
-- **Russian Customs Duty (December 2025)**: 
-  - **Threshold**: 200 EUR for personal imports
-  - **Rate**: 15% of amount exceeding 200 EUR threshold
-  - **Calculation base**: Item price + US shipping costs (same as commission base)
-  - **Currency conversion**: EUR/USD rate from Central Bank of Russia XML API
-  - **Example**: $250 item + $20 shipping = $270 (~240€), duty = 15% × (240€ - 200€) = 15% × 40€ ≈ $6.75
-- **Seller reliability scoring**: 4-criteria evaluation system (activity, rating, review volume, trusted badge) with Diamond/Gold/Silver/Bronze/Ghost categories
+#### 🔄 Key Integration Points
+- **Next.js Support**: Prioritizes `__NEXT_DATA__` extraction with HTML fallback
+- **Dual Strategy**: HTTP for listings (fast), headless browser for profiles (comprehensive)
+- **Concurrent Processing**: `asyncio.gather()` for parallel URL processing
+- **Error Recovery**: Graceful degradation with user-friendly Russian messages
+- **Commission Logic**: $15 fixed (<$150) or 10% (≥$150) including US shipping
+- **Russian Customs**: Automatic 15% duty on imports exceeding 200 EUR
 
 ### Environment Variables
 
-- `BOT_TOKEN`: Required Telegram bot token
+#### Required Variables
+- `BOT_TOKEN`: Telegram bot token (required)
+- `ADMIN_CHAT_ID`: Admin user ID for error notifications (required)
+
+#### Optional Variables  
 - `PORT`: Server port (defaults to 8000)
-- `RAILWAY_PUBLIC_DOMAIN` or `RAILWAY_URL`: Used to determine webhook mode vs polling mode
+- `RAILWAY_PUBLIC_DOMAIN` or `RAILWAY_URL`: Webhook mode detection
+- `ENABLE_HEADLESS_BROWSER`: Enable Playwright browser (defaults to "true")
+
+#### Production Configuration
+- All services automatically registered via Service Locator
+- Dependency injection container initialized on startup
+- Error boundary configured for admin notifications
+- Analytics database created if not exists
 
 ### Currency Exchange Rate Sources
 
@@ -376,26 +262,34 @@ The bot implements a comprehensive seller evaluation system for Grailed with sop
 - **Direct profile analysis**: **Limited functionality** - Users informed about technical limitations and encouraged to share listing URLs instead
 - **Russian language**: All user messages in simple, neutral Russian with honest explanations of constraints
 
-### Bot Behavior
+### Modern Bot Behavior (Clean Architecture)
 
-#### URL Processing
-1. **Profile URLs**: Functions in `app/bot/utils.py` detect Grailed seller profiles and process them accordingly
-2. **Listing URLs**: Regular price calculation with optional seller reliability for Grailed buyable items
-3. **Buyability detection**: Grailed items analyzed for buy-now vs offer-only status using JSON parsing
+#### URL Processing Pipeline
+1. **URL Processor**: Extracts, validates, and categorizes URLs with security filtering
+2. **Scraping Orchestrator**: Coordinates marketplace scraping with concurrent processing
+3. **Response Formatter**: Creates structured Russian messages with proper formatting
+4. **Error Boundary**: Handles all exceptions with user-friendly error messages
 
-#### Message Types
-- **Buyable items**: Item title with hyperlink + price calculation + seller reliability (for Grailed, when data available)
-- **Offer-only items**: Message explaining need to contact seller + displayed price for reference
-- **Profile analysis**: Full seller reliability analysis using headless browser extraction
-- **Errors**: Simple Russian error messages with context about technical limitations
+#### Processing Flow
+```
+User Message → URL Processor → Scraping Orchestrator → Response Formatter → User
+                    ↓                ↓                      ↓
+              Security Filter   ScraperProtocol      Error Boundary
+```
 
-#### Message Formatting (Updated December 2025)
-- **Item title display**: Added product name with clickable hyperlink to original listing page
-- **Clean design**: Removed excessive emoji usage for better readability
-- **Emoji positioning**: Moved emoji from headers to inline with category names
-- **Seller info format**: "Продавец: 💎 Diamond (95/100)" instead of "💎 Продавец: Diamond (95/100)"
-- **Badge display**: Simplified to "Проверенный продавец" / "Нет бейджа" without checkmark/cross emoji
-- **Header cleanup**: "Анализ продавца Grailed" without leading emoji
+#### Message Types & Formatting
+- **Buyable Items**: Product title + structured price breakdown + seller analysis
+- **Offer-only Items**: Contact seller message with reference price
+- **Seller Profiles**: Comprehensive Diamond/Gold/Silver/Bronze analysis
+- **Errors**: Classified error messages with actionable user guidance
+
+#### Enhanced UX (December 2025)
+- **Structured Pricing**: Two-tier format (subtotal → additional costs → final total)
+- **Item Title Links**: Clickable product names linking to original listings
+- **Clean Design**: Minimal emoji usage, clear visual hierarchy
+- **Loading States**: Progress indicators for 8-10 second processing times
+- **Customs Integration**: Automatic duty display when applicable
+- **Performance Transparency**: Users see processing status during analysis
 
 ### Enhanced Price Display Format (Updated December 2025)
 **Implemented structured multi-line format with Russian customs duty integration and item title display:**
@@ -483,23 +377,238 @@ shipping_cost = max($13.99, route_rate × weight_kg) + handling_fee
 - $250 order, 0.6kg: max($13.99, 35.27 × 0.6) + $3 = $24.16  
 - $1200 order, 0.6kg: max($13.99, 41.89 × 0.6) + $3 = $28.13
 
-## Code Quality and Documentation
+## Web Scraping Guidelines
 
-### Development Tools
-- **Code quality**: Enforced via `ruff` linter and `mypy` type checker
-- **Documentation**: Google-style docstrings with `pydocstyle` validation
-- **Pre-commit hooks**: Automatic code formatting and quality checks
-- **API documentation**: Auto-generated with `mkdocs` and `mkdocstrings`
-- **Testing**: Unit tests with `pytest` framework
-- **Browser automation**: Playwright for headless browser testing and scraping
-- **Development dependencies**: Managed via `requirements-dev.txt` for testing environment
+**CRITICAL**: Always analyze target website structure before implementing scraping logic:
 
-### Documentation Standards
-- All modules, classes, and functions must have Google-style docstrings
-- Include Args, Returns, Raises, and Examples sections where applicable
-- Type hints required for all function parameters and return values
-- Comprehensive README with architecture diagrams and setup instructions
+1. **Page Structure Analysis**: Before writing any scraping code, use WebFetch tool to analyze the actual HTML/JSON structure of target pages
+2. **Multiple Pattern Support**: Implement multiple regex patterns and fallback strategies since websites frequently change their data formats
+3. **Dynamic Content**: Modern sites (like Grailed) use React SPA with dynamic JSON loading - account for various data formats and field names
+4. **Robust Extraction**: Use multiple extraction strategies:
+   - JSON parsing with various field name patterns
+   - HTML element parsing as fallback
+   - Comprehensive error handling and logging
+5. **Pattern Evolution**: Websites evolve - implement flexible patterns that can handle format changes without breaking
 
-### Deployment
+### Grailed.com Specific Knowledge (Critical)
 
-The bot is designed for Railway deployment with automatic webhook configuration. The `railway.toml` specifies build and start commands.
+**UPDATED June 2025**: Grailed now uses Next.js architecture with dual parsing strategies for listings and profiles.
+
+#### Modern Grailed Architecture (Next.js)
+
+**Listing Pages**: Now use Next.js with data embedded in `__NEXT_DATA__` script tags
+- **Primary extraction method**: Parse JSON from `<script id="__NEXT_DATA__">` 
+- **Data location**: `props.pageProps.listing` contains all listing information
+- **Available data**: price, title, shipping costs, seller info, buyability status
+- **Fallback strategy**: Legacy HTML parsing for older listings
+
+**Seller Profile Pages**: Still use React SPA requiring headless browser
+- **Dynamic loading**: Seller data loaded via authenticated APIs after page render
+- **Headless browser required**: Only method to extract rating, reviews, trusted badge
+- **Static HTML limitation**: Profile data not available in initial HTML response
+
+#### Profile Pages Limitations
+- **Profile pages** (e.g., `grailed.com/username`) use **client-side rendering**
+- Seller data (rating, reviews, trusted badge) is **NOT available in static HTML**
+- Data is loaded dynamically via API calls after page load requiring authentication
+- Profile pages return ~200KB of HTML but contain minimal actual content
+- The HTML contains React root elements (`<div id="app">`) but no seller metrics
+- **DO NOT** expect to extract seller data from profile pages without headless browser
+
+#### What Works vs What Doesn't (Updated June 2025)
+
+✅ **Listing Pages (Next.js + HTTP requests)**:
+- **Complete item data**: price, title, shipping costs, buyability status
+- **Accurate extraction**: Real-time data from `__NEXT_DATA__` JSON
+- **Seller profile URLs**: Extracted for further analysis
+- **Performance**: Fast HTTP-only parsing (~2-3 seconds)
+- **Compatibility**: Works with both modern Next.js and legacy HTML listings
+
+❌ **Profile Pages (Require headless browser)**:
+- **Seller ratings**: Only available via headless browser JavaScript execution
+- **Review counts**: Dynamic loading after page render
+- **Trusted badges**: Client-side verification
+- **Activity timestamps**: Requires scrolling and dynamic content loading
+- **Performance cost**: ~8-10 seconds per profile analysis
+
+#### API Endpoints Discovery (May 2025)
+- `grailed.com/api/users/{username}` exists but requires authentication (401)
+- Access tokens found in HTML are for analytics/tracking, not user data access
+- GraphQL endpoint `/graphql` returns 404
+- No public API for seller profile data
+
+#### Recommended Approach
+1. **For seller analysis**: Focus on data extraction from **listing pages**, not profile pages
+2. **Profile URLs**: Use for navigation/identification only, not data extraction  
+3. **Fallback handling**: Always implement graceful degradation when seller data unavailable
+4. **User communication**: Clearly explain limitations to users when profile analysis fails
+5. **Alternative strategy**: Suggest users share specific listing URLs for seller analysis
+
+#### Technical Implementation Notes (Updated June 2025)
+
+**Listing Parsing (HTTP-based)**:
+- **Next.js priority**: `_parse_next_data()` extracts from `<script id="__NEXT_DATA__">`
+- **Data structure**: `props.pageProps.listing` contains complete item information
+- **Enhanced headers**: Browser-like headers prevent bot detection and JSON config responses
+- **Legacy fallback**: Maintains compatibility with older listing formats
+- **Error handling**: Content-Type validation prevents parsing JSON config as HTML
+
+**Profile Parsing (Headless browser)**:
+- **JavaScript execution**: Required for dynamic content loading
+- **Scrolling mechanism**: Loads activity data by scrolling to listings
+- **Stealth features**: Anti-detection measures for stable extraction
+- **Resource optimization**: Selective content loading for performance
+
+#### Headless Browser Implementation (June 2025) - OPTIMIZED SOLUTION
+
+- **Playwright integration** implemented as the ONLY working method for seller data extraction
+- **Static HTML methods removed**: All JSON parsing, regex patterns, and script extraction methods removed as they don't work with React SPA
+- **Dynamic content handling**: Headless browser waits for JavaScript execution and DOM manipulation to load seller data
+- **Activity timestamp extraction**: Parses "X days/weeks/months ago" text patterns from seller profile pages after scrolling to load listings
+- **Resource management**: Proper browser lifecycle with async context managers
+- **Performance optimization**: Optimized for speed while maintaining human-like behavior to avoid bot detection
+- **Configuration**: Can be disabled via `ENABLE_HEADLESS_BROWSER=false` environment variable
+- **Graceful degradation**: Falls back to "No Data" category when headless browser disabled or fails
+
+**Performance Optimizations (June 2025)**:
+- **Speed improvements**: Reduced execution time from ~20 seconds to ~8-10 seconds (2.3x faster)
+- **Human-like behavior**: Balanced speed with bot detection avoidance
+- **Resource blocking**: Intelligent blocking of heavy media while keeping essential CSS/JS
+- **Browser reuse**: Global browser instance for repeated requests (3-5 seconds for subsequent calls)
+- **Stealth features**: Hidden automation markers and realistic browser behavior
+- **Random delays**: Human-like timing patterns to avoid detection
+
+**Technical Implementation**:
+- **Single extraction method**: `app/scrapers/grailed.py` now uses only headless browser via `get_grailed_seller_data_headless()`
+- **Selector strategy**: Multiple CSS selectors and text patterns to find rating, reviews, and trusted badge
+- **Activity extraction**: Scrolls profile page to load listings, then extracts first "X time ago" pattern for accurate last activity timestamp
+- **Time conversion**: Converts relative time expressions ("5 days ago") to absolute timestamps for reliability scoring
+- **Error handling**: Comprehensive logging and fallback to "No Data" category
+- **Dependencies**: Requires `playwright` and `playwright install chromium`
+
+**Performance Notes**:
+- Headless browser adds ~8-10 seconds per profile analysis
+- Successfully extracts data that is impossible to get via static HTML
+- Accurate activity timestamps enable proper reliability scoring (was giving all sellers 30/30 points)
+- Essential for accurate seller reliability analysis on Grailed
+- Scrolling mechanism ensures dynamic listing content loads before extraction
+- Resource-efficient with proper browser lifecycle management
+
+**Activity Extraction Breakthrough (May 2025)**:
+- **Problem solved**: Replaced hardcoded "current time" with actual seller activity extraction
+- **Method**: Parse listing update text ("5 days ago", "2 months ago") from seller profile pages
+- **Implementation**: Scroll page to load dynamic listings, extract first time pattern with regex
+- **Validation**: Tested with DP1211 seller - correctly shows 5 days since last activity
+- **Impact**: Enables accurate activity scoring in reliability system (was previously giving all sellers maximum 30/30 activity points)
+
+#### User Interface and Experience
+- **Listing analysis**: Seller reliability shown for buyable Grailed items when data available
+- **Direct profile analysis**: Full seller reliability analysis using headless browser extraction
+- **Loading indicators**: Immediate feedback with "⏳ Загружаем данные и производим расчёт..." messages
+- **Clean UX**: Loading messages automatically deleted when results are ready
+- **Performance transparency**: Users see processing status during 8-10 second analysis time
+- **Clean formatting**: Minimal emoji usage for better readability
+- **Russian language**: All user messages in simple, neutral Russian with honest explanations of constraints
+- **Enhanced error diagnostics**: Intelligent error handling with site availability checking
+  - Automatic Grailed availability check when listing scraping fails
+  - Context-aware error messages distinguishing between site downtime and listing issues
+  - Response time monitoring for performance diagnostics
+  - Three-tier error classification: site down, site slow, or listing-specific issues
+- **Error handling**: Graceful fallback to "No Data" category with clear explanations
+- **Real-time updates**: Activity timestamps reflect actual seller behavior, not system time
+- **Enhanced price display**: Structured multi-line format showing each cost component separately for better readability
+
+**Lessons Learned (Updated June 2025)**:
+- **Next.js architecture shift**: Grailed migrated listings to Next.js requiring new parsing strategies
+- **Dual approach necessity**: Listings (HTTP + Next.js) vs Profiles (headless browser)
+- **Data availability split**: Complete listing data in `__NEXT_DATA__`, seller data requires JS execution
+- **Legacy compatibility**: Must maintain fallback parsing for older listing formats
+- **Performance optimization**: HTTP parsing for listings (2-3s) vs headless for profiles (8-10s)
+- **Bot detection evolved**: Enhanced headers prevent JSON config responses
+- **Extraction accuracy**: Next.js parsing provides exact prices/shipping vs estimated defaults
+- **Architecture adaptation**: Parser evolved from HTML-only to JSON-first with HTML fallback
+
+## Code Quality and Documentation Standards
+
+### Modern Development Tools
+- **Code Quality**: `ruff` linting + `mypy` type checking + `pydocstyle` docstring validation
+- **Architecture Validation**: DI container service validation on startup
+- **Testing Framework**: 3-level testing pyramid (unit/integration/e2e)
+- **Documentation**: Auto-generated API docs with `mkdocs` + `mkdocstrings`
+- **Pre-commit Hooks**: Automated quality checks and formatting
+- **Browser Automation**: Playwright for React SPA testing and scraping
+- **Dependency Management**: Separate dev dependencies for testing environment
+
+### Architecture Documentation Standards
+- **Service Interfaces**: All services must implement protocols from `app/core/interfaces.py`
+- **Dependency Injection**: Document all constructor dependencies with type hints
+- **Error Handling**: Use Error Boundary decorators and document exception types
+- **Testing Strategy**: Write tests at appropriate level (unit for business logic, integration for components, e2e for workflows)
+- **API Documentation**: Google-style docstrings with Args, Returns, Raises, Examples
+- **Architecture Diagrams**: Keep README and CLAUDE.md current with structural changes
+
+### Quality Gates
+1. **Type Safety**: All functions must have complete type hints
+2. **Documentation**: Public APIs require comprehensive docstrings
+3. **Testing**: Minimum 80% coverage for business logic
+4. **Architecture**: Services must use dependency injection
+5. **Error Handling**: All exceptions must go through Error Boundary
+6. **Code Organization**: Follow layered architecture with clear separation
+
+### Deployment with Modern Architecture
+
+#### Railway Deployment (Recommended)
+The bot is optimized for Railway with automatic:
+- **Service Initialization**: DI container configuration on startup
+- **Webhook Configuration**: Automatic mode detection (webhook vs polling)
+- **Dependency Resolution**: All services validated during initialization
+- **Error Monitoring**: Admin notifications for critical issues
+- **Browser Setup**: Playwright Chromium installation during build
+
+#### Configuration Files
+- `railway.toml`: Build and start commands with service initialization
+- `Dockerfile`: Multi-stage build with Playwright browser binaries
+- `requirements.txt`: Production dependencies with DI container
+- `requirements-dev.txt`: Development tools for testing and quality
+
+#### Startup Sequence
+1. **Environment Validation**: Check required variables (BOT_TOKEN, ADMIN_CHAT_ID)
+2. **Service Locator Configuration**: Register all application services
+3. **Container Validation**: Verify all dependencies can be resolved
+4. **Error Boundary Setup**: Configure admin notifications
+5. **Bot Initialization**: Register handlers with Error Boundary decorators
+6. **Mode Detection**: Webhook (production) vs polling (development)
+7. **Health Monitoring**: Service validation and error tracking
+
+# important-instruction-reminders
+
+## 🏗️ ARCHITECTURE COMPLIANCE (CRITICAL)
+This project follows **SOLID principles** and **clean architecture**. ALWAYS maintain:
+
+### ✅ Required Patterns
+- **Dependency Injection**: Use `app/core/service_locator.py` for service resolution
+- **Error Boundary**: Wrap all handlers with `@error_boundary.telegram_handler`
+- **Protocol Interfaces**: Implement services using protocols from `app/core/interfaces.py`
+- **Separation of Concerns**: Keep presentation, business logic, and data access separate
+- **Single Responsibility**: Components should have one clear purpose (max 150 lines)
+
+### ❌ Architectural Violations
+- **Direct Instantiation**: Never use `ClassName()` - use dependency injection
+- **God Objects**: Never create large classes with multiple responsibilities  
+- **Tight Coupling**: Never import concrete implementations - use interfaces
+- **Mixed Concerns**: Never put business logic in handlers or data access in services
+- **Global State**: Never use module-level variables - use DI container
+
+### 📋 Standard Instructions
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+
+### 🔧 When Modifying Code
+1. Check if component uses dependency injection correctly
+2. Ensure Error Boundary decorators are present
+3. Verify protocol compliance for services
+4. Maintain clean architecture layers
+5. Add/update type hints and docstrings
+6. Update tests at appropriate level
