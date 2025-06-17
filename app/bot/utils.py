@@ -328,6 +328,46 @@ def format_price_response(
     return response
 
 
+async def calculate_final_price_from_item(item_data, session: aiohttp.ClientSession = None) -> PriceCalculation:
+    """Calculate final price from ItemData object.
+    
+    Args:
+        item_data: ItemData object with price and shipping info.
+        session: Optional aiohttp session (creates new if None).
+        
+    Returns:
+        PriceCalculation: Complete price breakdown.
+    """
+    if not item_data.price:
+        raise ValueError("Item price is required")
+        
+    # Create session if not provided
+    close_session = False
+    if session is None:
+        session = create_session()
+        close_session = True
+        
+    try:
+        # Calculate Russia shipping cost
+        from ..services.shipping import estimate_shipping_cost
+        order_value = float(item_data.price + (item_data.shipping_us or Decimal('0')))
+        shipping_russia = Decimal(str(estimate_shipping_cost(
+            item_data.title or "Unknown item", 
+            order_value
+        )))
+        
+        # Call the main calculation function
+        return await calculate_final_price(
+            item_price=item_data.price,
+            shipping_us=item_data.shipping_us or Decimal('0'),
+            shipping_russia=shipping_russia,
+            session=session
+        )
+    finally:
+        if close_session:
+            await session.close()
+
+
 def format_seller_profile_response(seller_data: dict) -> str:
     """Format Grailed seller profile analysis into detailed message.
 

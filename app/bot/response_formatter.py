@@ -19,7 +19,7 @@ from .messages import (
     OFFER_ONLY_MESSAGE,
 )
 from .utils import (
-    calculate_final_price,
+    calculate_final_price_from_item,
     format_price_response,
     format_seller_profile_response,
 )
@@ -69,10 +69,28 @@ class ResponseFormatter:
             
         # Calculate final price
         try:
-            price_calculation = await calculate_final_price(item_data)
+            price_calculation = await calculate_final_price_from_item(item_data)
+            
+            # Get USD to RUB exchange rate
+            from ..services import currency
+            exchange_rate = None
+            try:
+                # Use a temporary session for currency
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    exchange_rate = await currency.get_usd_to_rub_rate(session)
+            except Exception as e:
+                logger.warning(f"Failed to get exchange rate: {e}")
             
             # Format main price response
-            response = format_price_response(price_calculation, item_data)
+            response = format_price_response(
+                calculation=price_calculation,
+                exchange_rate=exchange_rate,
+                is_grailed=(scraping_result['platform'] == 'grailed'),
+                item_title=item_data.title,
+                item_url=scraping_result.get('url'),
+                use_markdown=False
+            )
             
             # Add seller reliability if available (Grailed only)
             if seller_data and scraping_result['platform'] == 'grailed':
