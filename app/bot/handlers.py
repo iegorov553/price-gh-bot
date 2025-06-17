@@ -10,6 +10,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import urlparse
 
 import aiohttp
@@ -314,6 +315,46 @@ async def analytics_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     except Exception as e:
         logger.error(f"Error exporting analytics: {e}")
         await update.message.reply_text("❌ Ошибка при экспорте данных")
+
+
+async def analytics_download_db(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /analytics_download_db command for admin.
+    
+    Downloads the complete SQLite database file for external analysis.
+    Only accessible to admin user.
+    
+    Args:
+        update: Telegram update object containing message data.
+        context: Bot context for accessing application instance.
+    """
+    if not update.effective_user or not update.message:
+        return
+    
+    # Check admin permissions
+    if update.effective_user.id != config.bot.admin_chat_id:
+        return
+    
+    try:
+        # Get the database file path
+        db_path = analytics_service.db_path
+        
+        if not Path(db_path).exists():
+            await update.message.reply_text("❌ База данных не найдена")
+            return
+        
+        # Send the database file
+        with open(db_path, 'rb') as f:
+            await update.message.reply_document(
+                document=f,
+                filename=f"analytics_database_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db",
+                caption="📊 SQLite база данных аналитики\n\nМожно открыть в DBeaver, DB Browser или другом SQLite клиенте"
+            )
+        
+        logger.info(f"Admin {update.effective_user.id} downloaded analytics database")
+        
+    except Exception as e:
+        logger.error(f"Failed to download database: {e}")
+        await update.message.reply_text("❌ Ошибка при скачивании базы данных")
 
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -12,6 +12,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from .bot.handlers import (
     analytics_daily,
+    analytics_download_db,
     analytics_errors,
     analytics_export,
     analytics_user,
@@ -66,6 +67,7 @@ def main() -> None:
     app.add_handler(CommandHandler('analytics_user', analytics_user))
     app.add_handler(CommandHandler('analytics_errors', analytics_errors))
     app.add_handler(CommandHandler('analytics_export', analytics_export))
+    app.add_handler(CommandHandler('analytics_download_db', analytics_download_db))
     
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
