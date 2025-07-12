@@ -34,6 +34,7 @@ Thumbs.db
 # Debug and test files
 debug_*.py
 test_*.py
+!tests_new/unit/test_platform_detection.py
 patch_*.py
 verify_*.py
 *.png

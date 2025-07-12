@@ -52,29 +52,6 @@ from .messages import (
 logger = logging.getLogger(__name__)
 
 
-def detect_platform(url: str) -> str:
-    """Detect marketplace platform from URL.
-    
-    Args:
-        url: The URL to analyze.
-        
-    Returns:
-        Platform name ('ebay', 'grailed', 'profile', or 'unknown').
-    """
-    url_lower = url.lower()
-    
-    if "ebay." in url_lower:
-        return "ebay"
-    elif "grailed.com" in url_lower:
-        # Check if it's a profile URL or listing URL
-        if "/users/" in url_lower or url_lower.count("/") == 3:  # grailed.com/username
-            return "profile"
-        else:
-            return "grailed"
-    else:
-        return "unknown"
-
-
 def escape_markdown_v2(text: str) -> str:
     """Escape special characters for MarkdownV2 format.
 
