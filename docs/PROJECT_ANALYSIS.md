@@ -1,6 +1,6 @@
 # 🔍 ПОЛНЫЙ АНАЛИЗ ПРОЕКТА price-gh-bot
 
-**Дата анализа:** 17 июня 2025  
+**Дата анализа:** 17 июня 2025
 **Статус:** ТРЕБУЕТ КРИТИЧЕСКИХ ИСПРАВЛЕНИЙ
 
 ## 📊 ОБЩАЯ ОЦЕНКА ПРОЕКТА
@@ -15,7 +15,7 @@
 
 ### 1. **БЕЗОПАСНОСТЬ - КРИТИЧНО**
 - **🔴 Утечка BOT_TOKEN** в открытом коде (`CLAUDE.md:25`, `tests_new/conftest.py:18`)
-  - Токен: `8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU`
+  - Токен: `<BOT_TOKEN>`
   - **ДЕЙСТВИЕ**: Немедленно сгенерировать новый токен через @BotFather
 - **🔴 Hardcoded admin_chat_id** = 26917201 в `app/config.py:98`
 - **🔴 Отсутствие валидации URL** - может обрабатывать вредоносные ссылки
@@ -39,7 +39,7 @@
 
 ### Выявленные узкие места:
 1. **Headless browser** - 8-10 секунд на анализ Grailed профилей
-2. **Отсутствие кэширования** валютных курсов и результатов скрапинга  
+2. **Отсутствие кэширования** валютных курсов и результатов скрапинга
 3. **Синхронные паттерны** в асинхронном окружении
 4. **Global browser instance** - потенциальные утечки памяти
 5. **Excessive sleep delays** в headless scraper (до 1.2 сек)
@@ -102,7 +102,7 @@ export ADMIN_CHAT_ID="26917201"
 ```python
 # Разделить handlers.py на:
 app/bot/
-├── handlers.py           # Только Telegram handlers  
+├── handlers.py           # Только Telegram handlers
 ├── url_processor.py      # URL detection & validation
 ├── scraping_orchestrator.py # Координация парсинга
 ├── response_formatter.py # Форматирование ответов
@@ -125,12 +125,12 @@ class CacheService:
     async def get_cached_rate(self) -> float | None: ...
     async def cache_rate(self, rate: float, ttl: int = 3600): ...
 
-# 2. Browser pool вместо global instance  
+# 2. Browser pool вместо global instance
 class BrowserPool:
     def __init__(self, max_size: int = 3):
         self._pool: List[Browser] = []
         self._max_size = max_size
-    
+
     async def acquire(self) -> Browser: ...
     async def release(self, browser: Browser): ...
 ```
@@ -152,7 +152,7 @@ jobs:
           pip install bandit safety
           bandit -r app/
           safety check
-  
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -161,7 +161,7 @@ jobs:
         run: |
           pytest tests_new/unit/ -v
           pytest tests_new/integration/ -v
-          
+
   deploy:
     needs: [security, test]
     if: github.ref == 'refs/heads/main'
@@ -179,7 +179,7 @@ jobs:
 
 #### 1. Утечка BOT_TOKEN
 **Файлы:** `CLAUDE.md:25`, `tests_new/conftest.py:18`
-**Токен:** `8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU`
+**Токен:** `<BOT_TOKEN>`
 **Решение:**
 ```bash
 # Создать новый токен через @BotFather
@@ -228,7 +228,7 @@ def safe_path_join(base_path: Path, user_path: str) -> Path:
 **Проблема:** Нарушение Single Responsibility Principle
 **Обязанности:**
 - URL detection and validation
-- Platform-specific scraping orchestration  
+- Platform-specific scraping orchestration
 - Price calculation logic
 - Error handling and admin notifications
 - Response formatting

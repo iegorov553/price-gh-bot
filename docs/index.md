@@ -53,26 +53,26 @@ The application follows a modular async architecture:
 graph TD
     A[Telegram Update] --> B[Bot Handlers]
     B --> C{URL Type?}
-    
+
     C -->|eBay URL| D[eBay Scraper]
     C -->|Grailed Listing| E[Grailed Scraper]
     C -->|Grailed Profile| F[Grailed Seller Analysis]
-    
+
     D --> G[Item Data]
     E --> H[Item Data + Seller Data]
     F --> I[Seller Analysis]
-    
+
     G --> J[Shipping Service]
     H --> J
     H --> K[Reliability Service]
-    
+
     J --> L[Currency Service]
     K --> M[Response Builder]
     L --> M
-    
+
     M --> N[Formatted Response]
     N --> O[Telegram Reply]
-    
+
     P[CBR API] --> L
     Q[Shopfans Estimator] --> J
 ```
@@ -195,13 +195,13 @@ The project includes a sophisticated 3-level testing framework:
 
 ```bash
 # Fast unit tests during development
-BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/unit/ -v
+BOT_TOKEN=<BOT_TOKEN> pytest tests_new/unit/ -v
 
 # Integration tests with component interaction
-BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/integration/ -v
+BOT_TOKEN=<BOT_TOKEN> pytest tests_new/integration/ -v
 
 # End-to-end tests with real external services
-BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/e2e/ -v
+BOT_TOKEN=<BOT_TOKEN> pytest tests_new/e2e/ -v
 
 # All tests via Makefile
 make test-all

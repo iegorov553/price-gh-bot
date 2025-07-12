@@ -104,23 +104,23 @@ graph TD
     A[conftest.py + DI Container] --> B[Unit Tests + Mocked Services]
     A --> C[Integration Tests + Real DI]
     A --> D[E2E Tests + Full DI Container]
-    
+
     E[fixtures/test_data.json] --> A
     F[utils/data_updater.py] --> E
     G[fixtures/di_fixtures.py] --> A
-    
+
     H[Real Services] --> F
     H --> D
-    
+
     I[Mock Factories] --> B
     I --> C
-    
+
     B --> J[Coverage Report]
     C --> J
     D --> J
-    
+
     J --> K[CI/CD Pipeline]
-    
+
     L[Service Interfaces] --> I
     M[Protocol Validation] --> B
 ```
@@ -140,13 +140,13 @@ graph TD
 def unit_test_container():
     """DI контейнер с полностью мокированными сервисами."""
     container = Container()
-    
+
     # Моки для всех интерфейсов
     container.register(ICurrencyService, MockCurrencyService, lifetime=Lifetime.SINGLETON)
     container.register(IReliabilityService, MockReliabilityService, lifetime=Lifetime.SINGLETON)
     container.register(IShippingService, MockShippingService, lifetime=Lifetime.SINGLETON)
     container.register(IMarketplaceScraper, MockEbayScraper, lifetime=Lifetime.TRANSIENT)
-    
+
     return container
 ```
 
@@ -155,17 +155,17 @@ def unit_test_container():
 ```python
 @pytest.fixture
 def integration_test_container():
-    """DI контейнер с реальными бизнес-сервисами и мокированными внешними API.""" 
+    """DI контейнер с реальными бизнес-сервисами и мокированными внешними API."""
     container = Container()
-    
+
     # Реальные бизнес-сервисы
     container.register(IReliabilityService, ReliabilityService, lifetime=Lifetime.SINGLETON)
     container.register(IShippingService, ShippingService, lifetime=Lifetime.SINGLETON)
-    
+
     # Мокированные внешние зависимости
     container.register(ICurrencyService, MockCurrencyService, lifetime=Lifetime.SINGLETON)
     container.register(IMarketplaceScraper, MockEbayScraper, lifetime=Lifetime.TRANSIENT)
-    
+
     return container
 ```
 
@@ -176,14 +176,14 @@ def integration_test_container():
 def e2e_test_container():
     """Полный DI контейнер с реальными сервисами для E2E тестирования."""
     container = Container()
-    
+
     # Полная конфигурация как в production
     container.register(ICurrencyService, CurrencyService, lifetime=Lifetime.SINGLETON)
     container.register(IReliabilityService, ReliabilityService, lifetime=Lifetime.SINGLETON)
     container.register(IShippingService, ShippingService, lifetime=Lifetime.SINGLETON)
     container.register(IMarketplaceScraper, EbayScraper, lifetime=Lifetime.TRANSIENT)
     container.register(IMarketplaceScraper, GrailedScraper, lifetime=Lifetime.TRANSIENT)
-    
+
     return container
 ```
 
@@ -192,10 +192,10 @@ def e2e_test_container():
 ```python
 class MockCurrencyService:
     """Mock реализация ICurrencyService для unit тестов."""
-    
+
     async def get_usd_to_rub_rate(self, session) -> Optional[CurrencyRate]:
         return CurrencyRate(rate=90.0, source="mock", timestamp=datetime.now())
-    
+
     async def get_eur_to_usd_rate(self, session) -> Optional[CurrencyRate]:
         return CurrencyRate(rate=1.1, source="mock", timestamp=datetime.now())
 ```
@@ -233,7 +233,7 @@ playwright --version
 #### Обязательные
 ```bash
 # Токен тестового бота
-export BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+export BOT_TOKEN=<BOT_TOKEN>
 ```
 
 #### Опциональные
@@ -258,7 +258,7 @@ export TEST_TIMEOUT=120
 [tool:pytest]
 testpaths = tests_new
 addopts = --strict-markers --verbose --tb=short --cov-config=.coveragerc
-markers = 
+markers =
     unit: Быстрые изолированные тесты
     integration: Тесты взаимодействия компонентов
     e2e: Сквозные тесты с реальными сервисами
@@ -287,16 +287,16 @@ show_missing = True
 #### Базовые команды
 ```bash
 # Все unit тесты (быстро, ~10 секунд)
-BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/unit/ -v
+BOT_TOKEN=<BOT_TOKEN> pytest tests_new/unit/ -v
 
 # Все integration тесты (~30 секунд)
-BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/integration/ -v
+BOT_TOKEN=<BOT_TOKEN> pytest tests_new/integration/ -v
 
 # Все E2E тесты (медленно, ~5 минут)
-BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU ENABLE_HEADLESS_BROWSER=true pytest tests_new/e2e/ -v
+BOT_TOKEN=<BOT_TOKEN> ENABLE_HEADLESS_BROWSER=true pytest tests_new/e2e/ -v
 
 # Все тесты подряд
-BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/ -v
+BOT_TOKEN=<BOT_TOKEN> pytest tests_new/ -v
 ```
 
 #### Специальные режимы
@@ -333,7 +333,7 @@ make test-e2e           # E2E тесты
 make test-all           # Все тесты последовательно
 make test-coverage      # Тесты с отчётом покрытия
 
-# Docker команды  
+# Docker команды
 make test-docker        # Все тесты в Docker
 make test-docker-unit   # Unit тесты в Docker
 make test-docker-dev    # Development окружение
@@ -395,11 +395,11 @@ async def test_dependency_injection_container_registration():
     """Тест регистрации сервисов в DI контейнере."""
     container = Container()
     container.register(ICurrencyService, CurrencyService, lifetime=Lifetime.SINGLETON)
-    
+
     # Проверяем корректность разрешения зависимостей
     service = container.resolve(ICurrencyService)
     assert isinstance(service, CurrencyService)
-    
+
     # Проверяем singleton lifetime
     service2 = container.resolve(ICurrencyService)
     assert service is service2
@@ -414,7 +414,7 @@ def test_commission_calculation_with_di_container(unit_test_container):
     # Resolve зависимостей через DI
     currency_service = unit_test_container.resolve(ICurrencyService)
     shipping_service = unit_test_container.resolve(IShippingService)
-    
+
     # Тест бизнес-логики
     result = calculate_final_price(
         item_price=Decimal("120.00"),
@@ -431,14 +431,14 @@ def test_commission_calculation_with_di_container(unit_test_container):
 async def test_scraper_protocol_compliance():
     """Тест соответствия ScraperProtocol всех реализаций."""
     scrapers = [EbayScraper(), GrailedScraper()]
-    
+
     for scraper in scrapers:
         # Проверяем наличие всех методов протокола
         assert hasattr(scraper, 'scrape_item')
         assert hasattr(scraper, 'scrape_seller')
         assert hasattr(scraper, 'supports_url')
         assert hasattr(scraper, 'is_seller_profile')
-        
+
         # Тест типов возвращаемых значений
         assert isinstance(scraper.supports_url("https://example.com"), bool)
 ```
@@ -446,15 +446,15 @@ async def test_scraper_protocol_compliance():
 #### Unit/Bot - Тестирование слоя представления
 
 ```python
-# tests_new/unit/bot/test_error_boundary.py  
+# tests_new/unit/bot/test_error_boundary.py
 async def test_error_boundary_classification(unit_test_container):
     """Тест классификации ошибок Error Boundary."""
     error_boundary = unit_test_container.resolve(IErrorBoundary)
-    
+
     # Тест различных типов ошибок
     network_error = aiohttp.ClientError("Connection failed")
     classification = error_boundary.classify_error(network_error)
-    
+
     assert classification['category'] == 'network_error'
     assert classification['user_message'] is not None
     assert classification['should_retry'] == True
@@ -482,15 +482,15 @@ async def test_error_boundary_classification(unit_test_container):
 async def test_service_orchestration_through_di():
     """Тест оркестрации сервисов через DI контейнер."""
     container = create_integration_test_container()
-    
+
     # Полный поток с частично реальными сервисами
     orchestrator = container.resolve(IScrapingOrchestrator)
     formatter = container.resolve(IResponseFormatter)
-    
+
     # Тест координации между сервисами
     results = await orchestrator.process_urls_concurrent(test_urls, user_id=123)
     formatted_response = await formatter.format_item_response(results[0])
-    
+
     assert "Расчёт стоимости" in formatted_response
 ```
 
@@ -499,16 +499,16 @@ async def test_service_orchestration_through_di():
 async def test_concurrent_scraping_coordination(integration_test_container):
     """Тест координации параллельного scraping."""
     orchestrator = integration_test_container.resolve(IScrapingOrchestrator)
-    
+
     # Тест обработки смешанных URL (eBay + Grailed)
     mixed_urls = [
         "https://www.ebay.com/itm/123456789",
-        "https://www.grailed.com/listings/123456", 
+        "https://www.grailed.com/listings/123456",
         "https://www.grailed.com/username"  # Profile URL
     ]
-    
+
     results = await orchestrator.process_urls_concurrent(mixed_urls, user_id=123)
-    
+
     # Проверяем правильную категоризацию и обработку
     assert len(results) == 3
     assert any(r['type'] == 'item_listing' for r in results)
@@ -538,52 +538,52 @@ async def test_complete_user_workflow_with_di():
     """Тест полного пользовательского workflow через DI."""
     # Инициализация полного production контейнера
     container = create_e2e_test_container()
-    
+
     # Получение всех необходимых сервисов через DI
     url_processor = container.resolve(IURLProcessor)
     orchestrator = container.resolve(IScrapingOrchestrator)
     formatter = container.resolve(IResponseFormatter)
     error_boundary = container.resolve(IErrorBoundary)
-    
+
     try:
         # Симуляция пользовательского сообщения
         user_message = "https://www.grailed.com/listings/59397754"
-        
+
         # Полный поток обработки
         processed_urls = url_processor.process_message(user_message, user_id=123)
         results = await orchestrator.process_urls_concurrent(
-            processed_urls['valid_urls'], 
+            processed_urls['valid_urls'],
             user_id=123
         )
         response = await formatter.format_item_response(results[0])
-        
+
         # Проверка результата
         assert "Расчёт стоимости" in response
         assert "Товар:" in response
         assert "₽" in response  # RUB conversion
-        
+
     except Exception as e:
         # Тест error boundary в реальных условиях
         handled = await error_boundary.handle_error(e, context={"user_id": 123})
         assert handled is True
 ```
 
-#### test_real_urls.py  
+#### test_real_urls.py
 ```python
 async def test_grailed_with_seller_analysis_e2e(e2e_test_container):
     """E2E тест Grailed с анализом продавца."""
     orchestrator = e2e_test_container.resolve(IScrapingOrchestrator)
-    
+
     # Реальный Grailed URL
     test_url = "https://www.grailed.com/listings/59397754"
-    
+
     results = await orchestrator.process_urls_concurrent([test_url], user_id=123)
-    
+
     if not results or results[0].get('error'):
         pytest.skip("Grailed listing not accessible")
-    
+
     result = results[0]
-    
+
     # Проверка полного результата
     assert result['item_data']['price'] > Decimal("0")
     assert result['item_data']['title'] is not None
@@ -597,12 +597,12 @@ async def test_error_boundary_real_scenarios(e2e_test_container):
     """Тест Error Boundary с реальными сценариями ошибок."""
     orchestrator = e2e_test_container.resolve(IScrapingOrchestrator)
     error_boundary = e2e_test_container.resolve(IErrorBoundary)
-    
+
     # Тест с недоступным URL
     invalid_urls = ["https://www.grailed.com/listings/invalid-listing-id"]
-    
+
     results = await orchestrator.process_urls_concurrent(invalid_urls, user_id=123)
-    
+
     # Проверка обработки ошибок
     assert len(results) == 1
     assert results[0].get('error') is not None
@@ -639,51 +639,51 @@ from app.services.service_to_test import ServiceToTest
 
 class TestServiceToTest:
     """Тестирование сервиса ServiceToTest через DI."""
-    
+
     def test_normal_case_with_di(self, unit_test_container):
         """Тест нормального случая через DI контейнер."""
         # Arrange - получение сервиса через DI
         service = unit_test_container.resolve(IServiceInterface)
-        
+
         # Arrange - подготовка тестовых данных
         input_data = "test_input"
         expected_output = "expected_result"
-        
+
         # Act - выполнение через DI resolved сервис
         result = service.method_to_test(input_data)
-        
+
         # Assert - проверка результата
         assert result == expected_output, f"Expected {expected_output}, got {result}"
-    
+
     def test_dependency_injection_resolution(self, unit_test_container):
         """Тест корректности разрешения зависимостей."""
         # Проверяем что DI корректно резолвит зависимости
         service = unit_test_container.resolve(IServiceInterface)
         assert service is not None
         assert isinstance(service, ServiceToTest)
-        
+
         # Проверяем что зависимости тоже резолвятся
         dependency = unit_test_container.resolve(IDependencyInterface)
         assert dependency is not None
-    
+
     async def test_async_operation_with_di(self, unit_test_container):
         """Тест асинхронной операции через DI."""
         service = unit_test_container.resolve(IServiceInterface)
-        
+
         # Мокированные зависимости уже настроены в unit_test_container
         result = await service.async_method("test_input")
-        
+
         assert result is not None
         assert result.status == "success"
-    
+
     def test_error_handling_with_mocked_dependencies(self, unit_test_container):
         """Тест обработки ошибок с мокированными зависимостями."""
         service = unit_test_container.resolve(IServiceInterface)
-        
+
         # В unit тестах внешние зависимости уже замокированы
         with pytest.raises(ValueError, match="Expected error message"):
             service.method_that_should_fail("invalid_input")
-    
+
     @pytest.mark.parametrize("input_val,expected", [
         ("case1", "result1"),
         ("case2", "result2"),
@@ -708,36 +708,36 @@ from app.core.interfaces import IServiceInterface, IDependencyInterface
 
 class TestServiceIntegration:
     """Integration тестирование сервиса с реальными зависимостями."""
-    
+
     async def test_service_interaction_through_di(self, integration_test_container):
         """Тест взаимодействия сервисов через DI контейнер."""
         # В integration тестах часть сервисов реальные, часть мокированные
         primary_service = integration_test_container.resolve(IServiceInterface)
         dependency_service = integration_test_container.resolve(IDependencyInterface)
-        
+
         # Тестируем реальное взаимодействие
         result = await primary_service.complex_operation("test_data")
-        
+
         # Проверяем что сервисы корректно взаимодействуют
         assert result.status == "completed"
         assert result.processed_by == dependency_service.__class__.__name__
-    
+
     async def test_error_propagation_between_services(self, integration_test_container):
         """Тест распространения ошибок между сервисами."""
         service = integration_test_container.resolve(IServiceInterface)
-        
+
         # Тестируем как ошибки передаются через границы сервисов
         with pytest.raises(ServiceException) as exc_info:
             await service.operation_that_depends_on_external_service()
-        
+
         # Проверяем корректность Error Boundary
         assert exc_info.value.original_error is not None
         assert exc_info.value.service_name == "ExternalService"
-    
+
     def test_configuration_injection(self, integration_test_container):
         """Тест инъекции конфигурации через DI."""
         service = integration_test_container.resolve(IServiceInterface)
-        
+
         # Проверяем что конфигурация корректно инжектируется
         assert service.config is not None
         assert service.config.test_mode == True  # Integration test config
@@ -755,7 +755,7 @@ from decimal import Decimal
 
 class TestCompleteWorkflow:
     """E2E тестирование полного пользовательского workflow."""
-    
+
     async def test_complete_user_scenario_e2e(self, e2e_test_container):
         """Полный E2E тест пользовательского сценария."""
         # Получение всех сервисов через production DI контейнер
@@ -763,48 +763,48 @@ class TestCompleteWorkflow:
         orchestrator = e2e_test_container.resolve(IScrapingOrchestrator)
         formatter = e2e_test_container.resolve(IResponseFormatter)
         analytics = e2e_test_container.resolve(IAnalyticsService)
-        
+
         # Симуляция реального пользовательского ввода
         user_input = "https://www.grailed.com/listings/real-listing-id"
         user_id = 12345
-        
+
         # Полный workflow
         processed_urls = url_processor.process_message(user_input, user_id)
         results = await orchestrator.process_urls_concurrent(
-            processed_urls['valid_urls'], 
+            processed_urls['valid_urls'],
             user_id
         )
         formatted_response = await formatter.format_item_response(results[0])
-        
+
         # Проверка полного результата
         assert "Расчёт стоимости" in formatted_response
         assert "Товар:" in formatted_response
         assert "₽" in formatted_response
-        
+
         # Проверка что аналитика записалась
         user_stats = analytics.get_user_stats(user_id, days=1)
         assert user_stats['total_requests'] >= 1
-    
-    @pytest.mark.slow  
+
+    @pytest.mark.slow
     async def test_performance_under_load_e2e(self, e2e_test_container):
         """E2E тест производительности под нагрузкой."""
         orchestrator = e2e_test_container.resolve(IScrapingOrchestrator)
-        
+
         # Тест с множественными одновременными запросами
         urls = [
             "https://www.ebay.com/itm/real-item-1",
             "https://www.grailed.com/listings/real-item-2",
             "https://www.grailed.com/real-seller-profile"
         ]
-        
+
         start_time = asyncio.get_event_loop().time()
-        
+
         # Параллельная обработка
         results = await orchestrator.process_urls_concurrent(urls, user_id=123)
-        
+
         end_time = asyncio.get_event_loop().time()
         execution_time = end_time - start_time
-        
+
         # Проверка производительности
         assert execution_time < 30.0  # Максимум 30 секунд для 3 URL
         assert len(results) == 3
@@ -825,13 +825,13 @@ from tests_new.utils.mock_factories import *
 def unit_test_container():
     """DI контейнер для unit тестов с полными моками."""
     container = Container()
-    
+
     # Регистрация мокированных сервисов
     container.register(ICurrencyService, MockCurrencyService, lifetime=Lifetime.SINGLETON)
     container.register(IReliabilityService, MockReliabilityService, lifetime=Lifetime.SINGLETON)
     container.register(IShippingService, MockShippingService, lifetime=Lifetime.SINGLETON)
     container.register(IMarketplaceScraper, MockEbayScraper, lifetime=Lifetime.TRANSIENT)
-    
+
     return container
 
 
@@ -839,14 +839,14 @@ def unit_test_container():
 def integration_test_container():
     """DI контейнер для integration тестов с частично реальными сервисами."""
     container = Container()
-    
+
     # Реальные бизнес-сервисы
     container.register(IReliabilityService, ReliabilityService, lifetime=Lifetime.SINGLETON)
     container.register(IShippingService, ShippingService, lifetime=Lifetime.SINGLETON)
-    
+
     # Мокированные внешние зависимости
     container.register(ICurrencyService, MockCurrencyService, lifetime=Lifetime.SINGLETON)
-    
+
     return container
 
 
@@ -854,11 +854,11 @@ def integration_test_container():
 def e2e_test_container():
     """Полный production DI контейнер для E2E тестов."""
     container = Container()
-    
+
     # Полная конфигурация как в production
     # (см. app/core/service_locator.py)
     configure_production_container(container)
-    
+
     return container
 ```
 
@@ -918,40 +918,40 @@ jobs:
     strategy:
       matrix:
         python-version: [3.11, 3.12]
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: |
         pip install -r requirements.txt -r requirements-dev.txt
         playwright install chromium
-    
+
     - name: Unit tests with DI validation
       run: |
         pytest tests_new/unit/ -v --cov=app --cov-branch
-        
+
     - name: Integration tests with service interaction
       run: |
         pytest tests_new/integration/ -v --cov=app --cov-append
-        
+
     - name: E2E tests with real services
       run: |
         pytest tests_new/e2e/ -v --cov=app --cov-append
       env:
         BOT_TOKEN: ${{ secrets.TEST_BOT_TOKEN }}
         ENABLE_HEADLESS_BROWSER: true
-    
+
     - name: Coverage report
       run: |
         coverage report --fail-under=70
         coverage html
-    
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
 ```
@@ -963,18 +963,18 @@ jobs:
 ```python
 def test_debug_di_container(unit_test_container):
     """Отладка проблем с dependency injection."""
-    
+
     # Проверка регистраций
     registrations = unit_test_container.get_registrations()
     print(f"Registered services: {list(registrations.keys())}")
-    
+
     # Проверка разрешения
     try:
         service = unit_test_container.resolve(IProblematicService)
         print(f"Service resolved: {type(service)}")
     except Exception as e:
         print(f"Resolution failed: {e}")
-        
+
     # Валидация зависимостей
     validation = unit_test_container.validate_services()
     if not validation['success']:
@@ -990,27 +990,27 @@ import asyncio
 
 def test_performance_profiling(e2e_test_container):
     """Профилирование производительности."""
-    
+
     def run_test():
         orchestrator = e2e_test_container.resolve(IScrapingOrchestrator)
-        
+
         async def async_test():
             return await orchestrator.process_urls_concurrent(
-                ["https://www.grailed.com/listings/test"], 
+                ["https://www.grailed.com/listings/test"],
                 user_id=123
             )
-        
+
         return asyncio.run(async_test())
-    
+
     # Профилирование
     profiler = cProfile.Profile()
     profiler.enable()
-    
+
     result = run_test()
-    
+
     profiler.disable()
     profiler.dump_stats('test_performance.prof')
-    
+
     # Анализ результатов
     import pstats
     stats = pstats.Stats('test_performance.prof')
@@ -1025,7 +1025,7 @@ def test_performance_profiling(e2e_test_container):
 # tests_new/utils/test_analytics.py
 class TestAnalytics:
     """Сбор аналитики выполнения тестов."""
-    
+
     def collect_test_metrics(self):
         return {
             'execution_times': self.get_execution_times(),
@@ -1033,11 +1033,11 @@ class TestAnalytics:
             'coverage_trends': self.get_coverage_trends(),
             'dependency_health': self.check_dependency_health()
         }
-    
+
     def generate_report(self):
         """Генерация отчёта для CI/CD dashboard."""
         metrics = self.collect_test_metrics()
-        
+
         return {
             'overall_health': self.calculate_health_score(metrics),
             'recommendations': self.generate_recommendations(metrics),
@@ -1050,7 +1050,7 @@ class TestAnalytics:
 Система тестирования Price-GH-Bot представляет собой современную, scalable архитектуру, построенную на принципах:
 
 - **Clean Architecture**: Чёткое разделение слоёв и ответственности
-- **SOLID Principles**: Соблюдение всех принципов объектно-ориентированного дизайна  
+- **SOLID Principles**: Соблюдение всех принципов объектно-ориентированного дизайна
 - **Dependency Injection**: Loose coupling и лёгкое тестирование
 - **Protocol-based Design**: Унификация интерфейсов и взаимозаменяемость
 - **Comprehensive Coverage**: Трёхуровневая пирамида тестов (Unit/Integration/E2E)
