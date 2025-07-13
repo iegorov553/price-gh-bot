@@ -68,21 +68,17 @@ class AnalyticsTracker:
                 platform=platform,
                 success=success,
                 processing_time_ms=processing_time_ms,
-                error_type=error_type,
+                error_message=error_type,
                 
                 # Item data
                 item_title=getattr(item_data, 'title', None),
-                item_price_usd=getattr(item_data, 'price', None),
-                shipping_cost_usd=getattr(item_data, 'shipping_cost', None),
-                item_buyable=getattr(item_data, 'buyable', None),
+                item_price=getattr(item_data, 'price', None),
+                shipping_us=getattr(item_data, 'shipping_cost', None),
+                is_buyable=getattr(item_data, 'buyable', None),
                 
                 # Seller data
-                seller_rating=getattr(seller_data, 'rating', None),
-                seller_reviews=getattr(seller_data, 'total_reviews', None),
-                seller_trusted=getattr(seller_data, 'trusted_badge', None),
-                
-                # Final calculation
-                total_price_rub=final_price_rub
+                # Unsupported legacy seller fields removed
+                # Final calculation placeholder (USD not available)
             )
             
             analytics_service.log_search(analytics_data)
@@ -126,16 +122,11 @@ class AnalyticsTracker:
                 platform='grailed',  # Only Grailed has seller profiles
                 success=success,
                 processing_time_ms=processing_time_ms,
-                error_type=error_type,
-                
-                # Seller data
-                seller_rating=getattr(seller_data, 'rating', None),
-                seller_reviews=getattr(seller_data, 'total_reviews', None),
-                seller_trusted=getattr(seller_data, 'trusted_badge', None),
-                
+                error_message=error_type,
+
                 # Reliability metrics
-                reliability_category=getattr(reliability_score, 'category', None),
-                reliability_total_score=getattr(reliability_score, 'total_score', None)
+                seller_category=getattr(reliability_score, 'category', None),
+                seller_score=getattr(reliability_score, 'total_score', None)
             )
             
             analytics_service.log_search(analytics_data)
@@ -213,7 +204,7 @@ class AnalyticsTracker:
                     platform='suspicious',
                     success=False,
                     processing_time_ms=0,
-                    error_type='security_filtered',
+                    error_message='security_filtered',
                     
                     # Store message context
                     item_title=f"Suspicious: {message_text[:100]}"

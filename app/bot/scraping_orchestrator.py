@@ -330,20 +330,17 @@ class ScrapingOrchestrator:
                 platform=result['platform'],
                 success=result['success'],
                 processing_time_ms=result['processing_time_ms'],
-                error_type=result.get('error'),
+                error_message=result.get('error'),
                 
                 # Item data if available
                 item_title=getattr(result.get('item_data'), 'title', None),
-                item_price_usd=getattr(result.get('item_data'), 'price', None),
-                shipping_cost_usd=getattr(result.get('item_data'), 'shipping_cost', None),
+                item_price=getattr(result.get('item_data'), 'price', None),
+                shipping_us=getattr(result.get('item_data'), 'shipping_cost', None),
                 
                 # Seller data if available
-                seller_rating=getattr(result.get('seller_data'), 'rating', None),
-                seller_reviews=getattr(result.get('seller_data'), 'total_reviews', None),
-                seller_trusted=getattr(result.get('seller_data'), 'trusted_badge', None),
-                
-                # Final price if calculated
-                total_price_rub=None  # Will be filled by response formatter
+                # Reliability metrics if available
+                seller_category=getattr(result.get('reliability_score'), 'category', None),
+                seller_score=getattr(result.get('reliability_score'), 'total_score', None)
             )
             
             analytics_service.log_search(analytics_data)
