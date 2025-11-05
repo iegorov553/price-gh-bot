@@ -37,9 +37,12 @@ class TestCommissionContracts:
                 f"Commission base: ${item_price + us_shipping}"
             )
             
-            # Verify total calculation consistency
-            expected_total = item_price + us_shipping + 25.00 + expected_commission
-            assert result.final_price_usd == Decimal(str(expected_total)).quantize(Decimal('0.01')), (
+            # Verify structured breakdown consistency
+            expected_subtotal = (item_price_decimal + us_shipping_decimal + result.commission).quantize(Decimal('0.01'))
+            assert result.subtotal == expected_subtotal, f"Subtotal mismatch for case: {description}"
+            assert result.shipping_russia == ru_shipping_decimal
+            assert result.additional_costs == (result.customs_duty + ru_shipping_decimal).quantize(Decimal('0.01'))
+            assert result.final_price_usd == (result.subtotal + result.additional_costs).quantize(Decimal('0.01')), (
                 f"Total price calculation inconsistent for case: {description}"
             )
     
@@ -154,7 +157,9 @@ class TestCommissionContracts:
         assert result.shipping_russia == Decimal("20.00")
         assert result.total_cost == Decimal("135.00")  # 100 + 15 + 20
         assert result.commission == Decimal("11.50")    # (100 + 15) * 0.10
-        assert result.final_price_usd == Decimal("146.50")  # 135 + 11.50
+        assert result.subtotal == Decimal("126.50")  # 100 + 15 + 11.50
+        assert result.additional_costs == (result.customs_duty + Decimal("20.00")).quantize(Decimal("0.01"))
+        assert result.final_price_usd == (result.subtotal + result.additional_costs).quantize(Decimal("0.01"))
         
         # Optional fields should be None by default
         assert result.final_price_rub is None

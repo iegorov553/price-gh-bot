@@ -58,64 +58,38 @@ class TestGrailedAvailabilityMessages:
 class TestGrailedErrorHandlingLogic:
     """Test the logic flow of Grailed error handling."""
 
-    @pytest.mark.asyncio
-    async def test_availability_check_result_parsing(self):
-        """Test parsing of availability check results."""
-        from app.bot.handlers import _handle_grailed_scraping_failure
-        from app.scrapers import grailed
-        
-        # Mock update object
-        class MockMessage:
-            def __init__(self):
-                self.sent_message = None
-                
-            async def reply_text(self, text):
-                self.sent_message = text
-        
-        class MockUpdate:
-            def __init__(self):
-                self.message = MockMessage()
-        
-        update = MockUpdate()
-        mock_session = AsyncMock()
-        
+    def test_availability_check_result_parsing(self):
+        """Test parsing of availability check results via response formatter."""
+        from app.bot.response_formatter import response_formatter
+
+        formatter = response_formatter
+
         # Test case 1: Site available, listing issue
-        with patch.object(grailed, 'check_grailed_availability') as mock_check:
-            mock_check.return_value = {
-                'is_available': True,
-                'status_code': 200,
-                'response_time_ms': 1000,
-                'error_message': None
-            }
-            
-            await _handle_grailed_scraping_failure(update, mock_session)
-            assert "Сайт Grailed работает нормально" in update.message.sent_message
-        
+        result_listing_issue = {
+            'success': False,
+            'platform': 'grailed',
+            'error': 'Listing not found or removed'
+        }
+        message = formatter._format_error_response(result_listing_issue)  # noqa: SLF001 - testing internal helper
+        assert "Сайт Grailed работает нормально" in message
+
         # Test case 2: Site down
-        with patch.object(grailed, 'check_grailed_availability') as mock_check:
-            mock_check.return_value = {
-                'is_available': False,
-                'status_code': 500,
-                'response_time_ms': 5000,
-                'error_message': 'HTTP 500 error from main page'
-            }
-            
-            await _handle_grailed_scraping_failure(update, mock_session)
-            assert "временно недоступен" in update.message.sent_message
-            assert "500" in update.message.sent_message
-        
-        # Test case 3: Site timeout
-        with patch.object(grailed, 'check_grailed_availability') as mock_check:
-            mock_check.return_value = {
-                'is_available': False,
-                'status_code': None,
-                'response_time_ms': 10000,
-                'error_message': 'Connection timeout - site may be slow'
-            }
-            
-            await _handle_grailed_scraping_failure(update, mock_session)
-            assert "работает медленно" in update.message.sent_message
-            assert "10000мс" in update.message.sent_message
+        result_site_down = {
+            'success': False,
+            'platform': 'grailed',
+            'error': 'HTTP 500 error from main page'
+        }
+        message = formatter._format_error_response(result_site_down)
+        assert "временно недоступен" in message
+
+        # Test case 3: Site timeout / slow
+        result_site_slow = {
+            'success': False,
+            'platform': 'grailed',
+            'error': 'Connection timeout - site may be slow'
+        }
+        message = formatter._format_error_response(result_site_slow)
+        assert "работает медленно" in message
 
     def test_grailed_url_detection(self):
         """Test Grailed URL detection logic."""

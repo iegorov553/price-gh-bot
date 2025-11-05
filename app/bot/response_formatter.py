@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 
 from ..models import PriceCalculation, ReliabilityScore
 from ..services import shipping
-from ..services.currency_optimized import get_optimized_currency_service
+from ..services.currency import get_optimized_currency_service
 from .messages import (
     ERROR_PRICE_NOT_FOUND,
     ERROR_SELLER_ANALYSIS,
@@ -166,14 +166,21 @@ class ResponseFormatter:
         """
         platform = result['platform']
         error = result.get('error', 'Unknown error')
+        error_lower = error.lower()
         
         # Grailed-specific error handling
         if platform == 'grailed':
-            if 'timeout' in error.lower() or 'slow' in error.lower():
+            if 'timeout' in error_lower or 'slow' in error_lower:
                 return GRAILED_SITE_SLOW
-            elif 'connection' in error.lower() or 'unavailable' in error.lower():
+            elif (
+                'connection' in error_lower
+                or 'unavailable' in error_lower
+                or ' 500' in error_lower
+                or ' 503' in error_lower
+                or 'server error' in error_lower
+            ):
                 return GRAILED_SITE_DOWN
-            elif 'listing' in error.lower():
+            elif 'listing' in error_lower:
                 return GRAILED_LISTING_ISSUE
                 
         # Generic error message

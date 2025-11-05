@@ -69,24 +69,18 @@ class AnalyticsTracker:
                 platform=platform,
                 success=success,
                 processing_time_ms=processing_time_ms,
-                error_type=error_type,
-                
-                # Item data
+                error_message=error_type,
                 item_title=getattr(item_data, 'title', None),
-                item_price_usd=getattr(item_data, 'price', None),
-                shipping_cost_usd=getattr(item_data, 'shipping_cost', None),
-                item_buyable=getattr(item_data, 'buyable', None),
-                
-                # Seller data
-                seller_rating=getattr(seller_data, 'rating', None),
-                seller_reviews=getattr(seller_data, 'total_reviews', None),
-                seller_trusted=getattr(seller_data, 'trusted_badge', None),
-                
-                # Final calculation
-                total_price_rub=final_price_rub
+                item_price=getattr(item_data, 'price', None),
+                shipping_us=getattr(item_data, 'shipping_us', None),
+                is_buyable=getattr(item_data, 'is_buyable', None),
+                final_price_usd=None,
+                commission=None,
+                seller_score=None,
+                seller_category=None
             )
             
-            analytics_service.log_search(analytics_data)
+            self.analytics_service.log_search(analytics_data)
             logger.debug(f"Logged analytics for user {user_id}: {platform} - {success}")
             
         except Exception as e:
@@ -127,19 +121,18 @@ class AnalyticsTracker:
                 platform='grailed',  # Only Grailed has seller profiles
                 success=success,
                 processing_time_ms=processing_time_ms,
-                error_type=error_type,
-                
-                # Seller data
-                seller_rating=getattr(seller_data, 'rating', None),
-                seller_reviews=getattr(seller_data, 'total_reviews', None),
-                seller_trusted=getattr(seller_data, 'trusted_badge', None),
-                
-                # Reliability metrics
-                reliability_category=getattr(reliability_score, 'category', None),
-                reliability_total_score=getattr(reliability_score, 'total_score', None)
+                error_message=error_type,
+                item_title=None,
+                item_price=None,
+                shipping_us=None,
+                is_buyable=None,
+                final_price_usd=None,
+                commission=None,
+                seller_score=getattr(reliability_score, 'total_score', None),
+                seller_category=getattr(reliability_score, 'category', None)
             )
             
-            analytics_service.log_search(analytics_data)
+            self.analytics_service.log_search(analytics_data)
             logger.debug(f"Logged seller analysis for user {user_id}: {success}")
             
         except Exception as e:
@@ -179,7 +172,7 @@ class AnalyticsTracker:
                 item_title=f"Command: {command}"
             )
             
-            analytics_service.log_search(analytics_data)
+            self.analytics_service.log_search(analytics_data)
             logger.debug(f"Logged command usage: {command} by user {user_id}")
             
         except Exception as e:
@@ -241,7 +234,7 @@ class AnalyticsTracker:
             Dictionary with user statistics.
         """
         try:
-            return analytics_service.get_user_stats(user_id, days)
+            return self.analytics_service.get_user_stats(user_id, days=days)
         except Exception as e:
             logger.error(f"Failed to get user stats: {e}")
             return {}
@@ -256,7 +249,7 @@ class AnalyticsTracker:
             Dictionary with platform statistics.
         """
         try:
-            return analytics_service.get_daily_stats(days)
+            return self.analytics_service.get_daily_stats(days)
         except Exception as e:
             logger.error(f"Failed to get platform stats: {e}")
             return {}

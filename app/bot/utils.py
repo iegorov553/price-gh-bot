@@ -16,8 +16,9 @@ import aiohttp
 from telegram.ext import Application
 
 from ..config import config
-from ..models import CurrencyRate, PriceCalculation, ReliabilityScore
+from ..models import CurrencyRate, PriceCalculation, ReliabilityScore, SellerData
 from ..scrapers import ebay, grailed
+from ..services.customs import calculate_rf_customs_duty
 from .messages import (
     ADMIN_NOTIFICATION,
     COMMISSION_LINE,
@@ -180,63 +181,60 @@ async def _calculate_final_price_async(
         session = create_session()
         close_session = True
 
-    # Commission base includes item price + US shipping (both from listing)
-    commission_base = item_price + shipping_us
-    fixed_amount = Decimal(str(config.commission.fixed_amount))
-    percentage_rate = Decimal(str(config.commission.percentage_rate))
-    threshold = Decimal(str(config.commission.fixed_threshold))
+    try:
+        # Commission base includes item price + US shipping (both from listing)
+        commission_base = item_price + shipping_us
+        fixed_amount = Decimal(str(config.commission.fixed_amount))
+        percentage_rate = Decimal(str(config.commission.percentage_rate))
+        threshold = Decimal(str(config.commission.fixed_threshold))
 
-    percentage_commission = (commission_base * percentage_rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
+        percentage_commission = (commission_base * percentage_rate).quantize(
+            Decimal('0.01'), ROUND_HALF_UP
+        )
 
-    if commission_base >= threshold:
-        commission = percentage_commission
-        commission_type = "percentage"
-    elif commission_base <= Decimal("100"):
-        if item_price >= Decimal("90"):
+        if commission_base >= threshold:
             commission = percentage_commission
             commission_type = "percentage"
+        elif commission_base <= Decimal("100"):
+            if item_price >= Decimal("90"):
+                commission = percentage_commission
+                commission_type = "percentage"
+            else:
+                commission = fixed_amount
+                commission_type = "fixed"
+        elif shipping_us == Decimal("0"):
+            commission = max(fixed_amount, percentage_commission)
+            commission_type = "percentage" if commission == percentage_commission else "fixed"
         else:
-            commission = fixed_amount
-            commission_type = "fixed"
-    elif shipping_us == Decimal("0"):
-        commission = max(fixed_amount, percentage_commission)
-        commission_type = "percentage" if commission == percentage_commission else "fixed"
-    else:
-        commission = percentage_commission
-        commission_type = "percentage"
+            commission = percentage_commission
+            commission_type = "percentage"
 
-    # Calculate subtotal: item + US shipping + commission
-    subtotal = (item_price + shipping_us + commission).quantize(Decimal('0.01'), ROUND_HALF_UP)
+        # Calculate subtotal: item + US shipping + commission
+        subtotal = (item_price + shipping_us + commission).quantize(Decimal('0.01'), ROUND_HALF_UP)
 
-    # Calculate RF customs duty
-    if close_session:
-        customs_duty = Decimal("0")
-    else:
-        from ..services.customs import calculate_rf_customs_duty
+        # Calculate RF customs duty
         customs_duty = await calculate_rf_customs_duty(item_price, shipping_us, session)
 
-    # Calculate additional costs: customs duty + RF shipping
-    additional_costs = (customs_duty + shipping_russia).quantize(Decimal('0.01'), ROUND_HALF_UP)
+        # Calculate additional costs: customs duty + RF shipping
+        additional_costs = (customs_duty + shipping_russia).quantize(Decimal('0.01'), ROUND_HALF_UP)
 
-    # Calculate final total: subtotal + additional costs
-    final_price = (subtotal + additional_costs).quantize(Decimal('0.01'), ROUND_HALF_UP)
+        # Calculate final total: subtotal + additional costs
+        final_price = (subtotal + additional_costs).quantize(Decimal('0.01'), ROUND_HALF_UP)
 
-    result = PriceCalculation(
-        item_price=item_price,
-        shipping_us=shipping_us,
-        commission=commission,
-        commission_type=commission_type,
-        subtotal=subtotal,
-        customs_duty=customs_duty,
-        shipping_russia=shipping_russia,
-        additional_costs=additional_costs,
-        final_price_usd=final_price
-    )
-
-    if close_session:
-        await session.close()
-
-    return result
+        return PriceCalculation(
+            item_price=item_price,
+            shipping_us=shipping_us,
+            commission=commission,
+            commission_type=commission_type,
+            subtotal=subtotal,
+            customs_duty=customs_duty,
+            shipping_russia=shipping_russia,
+            additional_costs=additional_costs,
+            final_price_usd=final_price
+        )
+    finally:
+        if close_session:
+            await session.close()
 
 
 def calculate_final_price(
@@ -399,7 +397,10 @@ async def calculate_final_price_from_item(item_data, session: aiohttp.ClientSess
             pass
 
 
-def format_seller_profile_response(seller_data: dict) -> str:
+def format_seller_profile_response(
+    seller_data: SellerData,
+    reliability: ReliabilityScore,
+) -> str:
     """Format Grailed seller profile analysis into detailed message.
 
     Creates comprehensive seller reliability breakdown including activity,
@@ -412,11 +413,10 @@ def format_seller_profile_response(seller_data: dict) -> str:
     Returns:
         str: Formatted seller analysis message in Russian.
     """
-    reliability = seller_data['reliability']
-    emoji = SELLER_RELIABILITY.get(reliability['category'], {}).get('emoji', '❓')
+    emoji = SELLER_RELIABILITY.get(reliability.category, {}).get('emoji', '❓')
 
     # Calculate days since last update
-    days_since_update = (datetime.now(UTC) - seller_data['last_updated']).days
+    days_since_update = (datetime.now(UTC) - seller_data.last_updated).days
 
     # Format last update text
     if days_since_update == 0:
@@ -427,33 +427,33 @@ def format_seller_profile_response(seller_data: dict) -> str:
         last_update_text = TIME_DAYS_AGO.format(days=days_since_update)
 
     # Badge text
-    badge_text = TRUSTED_SELLER_BADGE if seller_data['trusted_badge'] else NO_BADGE
+    badge_text = TRUSTED_SELLER_BADGE if seller_data.trusted_badge else NO_BADGE
 
     response_lines = [
         SELLER_PROFILE_HEADER,
         "",
         SELLER_RELIABILITY_LINE.format(
             emoji=emoji,
-            category=reliability['category'],
-            total_score=reliability['total_score']
+            category=reliability.category,
+            total_score=reliability.total_score
         ),
-        reliability['description'],
+        reliability.description,
         "",
         SELLER_DETAILS_HEADER,
         SELLER_ACTIVITY_LINE.format(
-            activity_score=reliability['activity_score'],
+            activity_score=reliability.activity_score,
             last_update_text=last_update_text
         ),
         SELLER_RATING_LINE.format(
-            rating_score=reliability['rating_score'],
-            avg_rating=seller_data['avg_rating']
+            rating_score=reliability.rating_score,
+            avg_rating=seller_data.avg_rating
         ),
         SELLER_REVIEWS_LINE.format(
-            review_volume_score=reliability['review_volume_score'],
-            num_reviews=seller_data['num_reviews']
+            review_volume_score=reliability.review_volume_score,
+            num_reviews=seller_data.num_reviews
         ),
         SELLER_BADGE_LINE.format(
-            badge_score=reliability['badge_score'],
+            badge_score=reliability.badge_score,
             badge_text=badge_text
         ),
     ]

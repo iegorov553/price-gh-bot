@@ -15,6 +15,8 @@ from datetime import datetime, timedelta
 from typing import Optional, Any, Dict, Union
 from pydantic import BaseModel, Field
 
+from ..models import ItemData, SellerData, ReliabilityScore
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -125,6 +127,7 @@ class CacheService:
             
             if cached:
                 data = json.loads(cached)
+                data = self._deserialize_scraping_result(data)
                 logger.debug(f"Кэш попадание для товара: {url}")
                 return data
             else:
@@ -153,11 +156,9 @@ class CacheService:
             key = self._generate_key("item", url)
             
             # Добавляем метаданные кэша
-            cache_data = {
-                **data,
-                "_cached_at": datetime.now().isoformat(),
-                "_cache_ttl": self.config.item_data_ttl
-            }
+            cache_data = self._serialize_scraping_result(data)
+            cache_data["_cached_at"] = datetime.now().isoformat()
+            cache_data["_cache_ttl"] = self.config.item_data_ttl
             
             await self._redis.setex(
                 key,
@@ -191,6 +192,7 @@ class CacheService:
             
             if cached:
                 data = json.loads(cached)
+                data = self._deserialize_scraping_result(data)
                 logger.debug(f"Кэш попадание для продавца: {seller_url}")
                 return data
             else:
@@ -219,11 +221,9 @@ class CacheService:
             key = self._generate_key("seller", seller_url)
             
             # Добавляем метаданные кэша
-            cache_data = {
-                **data,
-                "_cached_at": datetime.now().isoformat(),
-                "_cache_ttl": self.config.seller_data_ttl
-            }
+            cache_data = self._serialize_scraping_result(data)
+            cache_data["_cached_at"] = datetime.now().isoformat()
+            cache_data["_cache_ttl"] = self.config.seller_data_ttl
             
             await self._redis.setex(
                 key,
@@ -364,6 +364,36 @@ class CacheService:
                 logger.warning(f"Ошибка закрытия Redis: {e}")
             finally:
                 self._connected = False
+
+    @staticmethod
+    def _serialize_scraping_result(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Подготавливает результат скрапинга к сериализации в JSON."""
+        serialized: Dict[str, Any] = {}
+        for key, value in data.items():
+            if hasattr(value, "model_dump"):
+                serialized[key] = value.model_dump(mode="json")
+            else:
+                serialized[key] = value
+        return serialized
+
+    @staticmethod
+    def _deserialize_scraping_result(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Восстанавливает Pydantic-модели из JSON данных кэша."""
+        restored = dict(data)
+
+        item_payload = restored.get("item_data")
+        if isinstance(item_payload, dict):
+            restored["item_data"] = ItemData(**item_payload)
+
+        seller_payload = restored.get("seller_data")
+        if isinstance(seller_payload, dict):
+            restored["seller_data"] = SellerData(**seller_payload)
+
+        reliability_payload = restored.get("reliability_score")
+        if isinstance(reliability_payload, dict):
+            restored["reliability_score"] = ReliabilityScore(**reliability_payload)
+
+        return restored
 
 
 # Глобальный экземпляр сервиса кэширования

@@ -204,12 +204,18 @@ class AnalyticsService:
             logger.error(f"Failed to get daily stats: {e}")
             return {}
     
-    def get_user_stats(self, user_id: int, limit: int = 50) -> Dict[str, Any]:
+    def get_user_stats(
+        self,
+        user_id: int,
+        limit: int = 50,
+        days: int | None = None,
+    ) -> Dict[str, Any]:
         """Get statistics for specific user.
         
         Args:
             user_id: Telegram user ID.
             limit: Maximum number of recent searches to analyze.
+            days: Optional number of days to look back.
             
         Returns:
             Dictionary with user-specific statistics and search history.
@@ -219,12 +225,21 @@ class AnalyticsService:
                 conn.row_factory = sqlite3.Row
                 
                 # User search history
-                searches = conn.execute("""
+                query = """
                     SELECT * FROM search_analytics 
                     WHERE user_id = ?
-                    ORDER BY timestamp DESC
-                    LIMIT ?
-                """, (user_id, limit)).fetchall()
+                """
+                params: list[Any] = [user_id]
+
+                if days is not None:
+                    cutoff = datetime.now() - timedelta(days=days)
+                    query += " AND timestamp >= ?"
+                    params.append(cutoff)
+
+                query += " ORDER BY timestamp DESC LIMIT ?"
+                params.append(limit)
+
+                searches = conn.execute(query, params).fetchall()
                 
                 if not searches:
                     return {"user_id": user_id, "total_searches": 0}
