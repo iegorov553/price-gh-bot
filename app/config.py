@@ -94,8 +94,8 @@ class BotConfig(BaseSettings):
         github_owner: GitHub repository owner.
         github_repo: GitHub repository name.
     """
-    bot_token: str = Field(..., validation_alias="BOT_TOKEN")
-    admin_chat_id: int = Field(..., validation_alias="ADMIN_CHAT_ID")
+    bot_token: str | None = Field(default=None, validation_alias="BOT_TOKEN")
+    admin_chat_id: int | None = Field(default=None, validation_alias="ADMIN_CHAT_ID")
     port: int = Field(default=8000, validation_alias="PORT")
     railway_domain: str | None = Field(default=None, validation_alias="RAILWAY_PUBLIC_DOMAIN")
     railway_url: str | None = Field(default=None, validation_alias="RAILWAY_URL")

@@ -25,8 +25,9 @@ class AnalyticsTracker:
     - Provide analytics aggregation and reporting
     """
     
-    def __init__(self):
+    def __init__(self, analytics_service: "AnalyticsService"):
         """Initialize analytics tracker."""
+        self.analytics_service = analytics_service
         self.enabled = True
         
     def log_url_processing(
@@ -271,5 +272,4 @@ class AnalyticsTracker:
         logger.info("Analytics tracking enabled")
 
 
-# Global analytics tracker instance
-analytics_tracker = AnalyticsTracker()
+analytics_tracker = AnalyticsTracker(analytics_service)

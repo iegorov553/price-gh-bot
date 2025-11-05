@@ -338,5 +338,8 @@ def _check_admin_permissions(update: Update) -> bool:
     """
     if not update.effective_user or not update.message:
         return False
-    
+
+    if not config.bot.admin_chat_id:
+        return False
+
     return update.effective_user.id == config.bot.admin_chat_id

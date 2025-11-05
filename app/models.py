@@ -6,7 +6,7 @@ external API responses. All models include validation and type checking.
 """
 
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from pydantic import BaseModel, Field
 
@@ -109,6 +109,13 @@ class PriceCalculation(BaseModel):
     final_price_usd: Decimal
     final_price_rub: Decimal | None = None
     exchange_rate: Decimal | None = None
+
+    @property
+    def total_cost(self) -> Decimal:
+        """Legacy compatibility: item + US shipping + Russia shipping."""
+        return (self.item_price + self.shipping_us + self.shipping_russia).quantize(
+            Decimal("0.01"), ROUND_HALF_UP
+        )
 
 
 class CurrencyRate(BaseModel):

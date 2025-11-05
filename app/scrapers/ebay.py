@@ -216,3 +216,8 @@ def is_ebay_url(url: str) -> bool:
         return 'ebay' in domain.split('.')
     except Exception:
         return False
+
+
+async def scrape_ebay_item(url: str, session: aiohttp.ClientSession) -> ItemData:
+    """Backward compatibility wrapper for legacy import paths."""
+    return await get_item_data(url, session)

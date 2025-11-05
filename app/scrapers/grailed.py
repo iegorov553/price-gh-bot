@@ -771,3 +771,17 @@ async def check_grailed_availability(session: aiohttp.ClientSession) -> dict[str
             'response_time_ms': response_time_ms,
             'error_message': f"Unexpected error: {str(e)}"
         }
+
+
+async def scrape_grailed_item(url: str, session: aiohttp.ClientSession) -> ItemData | None:
+    """Backward compatibility wrapper that returns only item data."""
+    item_data, _ = await get_item_data(url, session)
+    return item_data
+
+
+async def scrape_grailed_seller(url: str, session: aiohttp.ClientSession) -> SellerData | None:
+    """Backward compatibility wrapper for seller profile scraping."""
+    data = await analyze_seller_profile(url, session)
+    if data:
+        return data.get('seller_data')
+    return None

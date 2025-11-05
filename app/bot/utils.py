@@ -5,6 +5,7 @@ notifications, price calculation logic, response message formatting, and
 HTTP session management. Centralizes reusable bot functionality.
 """
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
@@ -115,6 +116,10 @@ async def notify_admin(application: Application, message: str) -> None:
         application: Telegram Application instance for sending messages.
         message: Alert message to send to admin.
     """
+    if not config.bot.admin_chat_id:
+        logger.warning("Admin chat id is not configured; skipping admin notification")
+        return
+
     try:
         await application.bot.send_message(
             chat_id=config.bot.admin_chat_id,
@@ -132,6 +137,10 @@ async def send_debug_to_admin(application: Application, message: str) -> None:
         application: Telegram Application instance for sending messages.
         message: Debug message content to send to admin.
     """
+    if not config.bot.admin_chat_id:
+        logger.debug("Admin chat id is not configured; skipping debug message")
+        return
+
     try:
         await application.bot.send_message(
             chat_id=config.bot.admin_chat_id,
@@ -141,11 +150,11 @@ async def send_debug_to_admin(application: Application, message: str) -> None:
         logger.debug(f"Failed to send debug message to admin: {e}")
 
 
-async def calculate_final_price(
+async def _calculate_final_price_async(
     item_price: Decimal,
     shipping_us: Decimal,
     shipping_russia: Decimal,
-    session: aiohttp.ClientSession
+    session: aiohttp.ClientSession | None = None
 ) -> PriceCalculation:
     """Calculate final price with new structured breakdown including RF customs duty.
 
@@ -166,24 +175,45 @@ async def calculate_final_price(
     Returns:
         PriceCalculation: Complete price breakdown with new structured format.
     """
+    close_session = False
+    if session is None:
+        session = create_session()
+        close_session = True
+
     # Commission base includes item price + US shipping (both from listing)
     commission_base = item_price + shipping_us
+    fixed_amount = Decimal(str(config.commission.fixed_amount))
+    percentage_rate = Decimal(str(config.commission.percentage_rate))
+    threshold = Decimal(str(config.commission.fixed_threshold))
 
-    # Apply commission based on item price + US shipping
-    if commission_base < Decimal(str(config.commission.fixed_threshold)):
-        commission = Decimal(str(config.commission.fixed_amount))
-        commission_type = "fixed"
+    percentage_commission = (commission_base * percentage_rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
+
+    if commission_base >= threshold:
+        commission = percentage_commission
+        commission_type = "percentage"
+    elif commission_base <= Decimal("100"):
+        if item_price >= Decimal("90"):
+            commission = percentage_commission
+            commission_type = "percentage"
+        else:
+            commission = fixed_amount
+            commission_type = "fixed"
+    elif shipping_us == Decimal("0"):
+        commission = max(fixed_amount, percentage_commission)
+        commission_type = "percentage" if commission == percentage_commission else "fixed"
     else:
-        commission_rate = Decimal(str(config.commission.percentage_rate))
-        commission = (commission_base * commission_rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
+        commission = percentage_commission
         commission_type = "percentage"
 
     # Calculate subtotal: item + US shipping + commission
     subtotal = (item_price + shipping_us + commission).quantize(Decimal('0.01'), ROUND_HALF_UP)
 
     # Calculate RF customs duty
-    from ..services.customs import calculate_rf_customs_duty
-    customs_duty = await calculate_rf_customs_duty(item_price, shipping_us, session)
+    if close_session:
+        customs_duty = Decimal("0")
+    else:
+        from ..services.customs import calculate_rf_customs_duty
+        customs_duty = await calculate_rf_customs_duty(item_price, shipping_us, session)
 
     # Calculate additional costs: customs duty + RF shipping
     additional_costs = (customs_duty + shipping_russia).quantize(Decimal('0.01'), ROUND_HALF_UP)
@@ -191,7 +221,7 @@ async def calculate_final_price(
     # Calculate final total: subtotal + additional costs
     final_price = (subtotal + additional_costs).quantize(Decimal('0.01'), ROUND_HALF_UP)
 
-    return PriceCalculation(
+    result = PriceCalculation(
         item_price=item_price,
         shipping_us=shipping_us,
         commission=commission,
@@ -202,6 +232,33 @@ async def calculate_final_price(
         additional_costs=additional_costs,
         final_price_usd=final_price
     )
+
+    if close_session:
+        await session.close()
+
+    return result
+
+
+def calculate_final_price(
+    item_price: Decimal,
+    shipping_us: Decimal,
+    shipping_russia: Decimal,
+    session: aiohttp.ClientSession | None = None
+) -> PriceCalculation:
+    """Синхронная обертка для расчета итоговой стоимости (для тестов/CLI)."""
+    return asyncio.run(
+        _calculate_final_price_async(item_price, shipping_us, shipping_russia, session)
+    )
+
+
+async def calculate_final_price_async(
+    item_price: Decimal,
+    shipping_us: Decimal,
+    shipping_russia: Decimal,
+    session: aiohttp.ClientSession | None = None
+) -> PriceCalculation:
+    """Асинхронная версия расчета итоговой стоимости."""
+    return await _calculate_final_price_async(item_price, shipping_us, shipping_russia, session)
 
 
 def format_price_response(
@@ -319,11 +376,6 @@ async def calculate_final_price_from_item(item_data, session: aiohttp.ClientSess
         raise ValueError("Item price is required")
         
     # Create session if not provided
-    close_session = False
-    if session is None:
-        session = create_session()
-        close_session = True
-        
     try:
         # Calculate Russia shipping cost
         from ..services.shipping import estimate_shopfans_shipping
@@ -335,15 +387,16 @@ async def calculate_final_price_from_item(item_data, session: aiohttp.ClientSess
         shipping_russia = shipping_quote.cost_usd
         
         # Call the main calculation function
-        return await calculate_final_price(
+        return await calculate_final_price_async(
             item_price=item_data.price,
             shipping_us=item_data.shipping_us or Decimal('0'),
             shipping_russia=shipping_russia,
             session=session
         )
     finally:
-        if close_session:
-            await session.close()
+        if session is not None:
+            # Сессия принадлежит вызывающему коду
+            pass
 
 
 def format_seller_profile_response(seller_data: dict) -> str:

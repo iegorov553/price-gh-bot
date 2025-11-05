@@ -17,7 +17,7 @@ Legacy modules (deprecated, use new scrapers instead):
 """
 
 # Import legacy modules for backward compatibility
-from . import ebay, grailed, headless
+from . import ebay, ebay_scraper, grailed, headless
 
 # Import new unified scraper architecture
 from .base import ScraperProtocol, BaseScraper, scraper_registry
