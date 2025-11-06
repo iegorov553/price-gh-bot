@@ -105,6 +105,7 @@ Mandatory quality gates before every commit or deployment:
 - `poetry run pip-audit`
 - `poetry run pytest`
 - `poetry run pre-commit run --all-files`
+- End-to-end coverage currently excludes the real eBay listing scenario (`tests_new/e2e/test_real_urls.py`) which is temporarily marked as skipped due to upstream listing instability.
 
 The test strategy, tooling, and fixtures are documented in `docs/testing/strategy.md` and `docs/testing/how_to.md`.
 
