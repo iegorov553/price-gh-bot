@@ -5,6 +5,7 @@ lxml
 pydantic[dotenv]
 pydantic-settings
 pyyaml
+defusedxml
 requests
 pydocstyle
 mkdocs-material

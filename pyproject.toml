@@ -15,6 +15,7 @@ lxml = "5.1.0"
 pydantic = { version = "2.5.3", extras = ["dotenv"] }
 pydantic-settings = "2.1.0"
 pyyaml = "6.0.1"
+defusedxml = "0.7.1"
 requests = "2.31.0"
 pandas = "2.1.4"
 redis = { version = "5.0.1", extras = ["hiredis"] }
@@ -41,6 +42,8 @@ mkdocstrings = { version = "0.24.1", extras = ["python"] }
 aioresponses = "0.7.4"
 httpx = "0.25.2"
 pbr = "5.11.1"
+types-PyYAML = "6.0.12.12"
+pandas-stubs = "2.1.4.231227"
 
 [tool.pydocstyle]
 convention = "google"
@@ -85,6 +88,30 @@ strict_equality = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "yaml",
+    "yaml.*",
+    "pandas",
+    "pandas.*",
+    "bs4",
+    "bs4.*",
+    "playwright",
+    "playwright.*",
+    "redis",
+    "redis.*",
+    "defusedxml",
+    "defusedxml.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "app.scrapers.grailed",
+    "app.scrapers.grailed_scraper",
+]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

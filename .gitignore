@@ -38,6 +38,7 @@ test_*.py
 !tests_new/unit/test_grailed_url_resolver.py
 !tests_new/unit/test_scraping_orchestrator_cache.py
 !tests_new/unit/test_url_processor.py
+!tests_new/unit/test_config_bot.py
 patch_*.py
 verify_*.py
 *.png
