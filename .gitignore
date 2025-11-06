@@ -36,6 +36,7 @@ debug_*.py
 test_*.py
 !tests_new/unit/test_platform_detection.py
 !tests_new/unit/test_grailed_url_resolver.py
+!tests_new/unit/test_scraping_orchestrator_cache.py
 patch_*.py
 verify_*.py
 *.png

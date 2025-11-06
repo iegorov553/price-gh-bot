@@ -42,6 +42,25 @@ class ScrapingOrchestrator:
         if self.cache_service is None:
             self.cache_service = await get_cache_service()
     
+    @staticmethod
+    def _is_cached_result_valid(cached: Dict[str, Any] | None) -> bool:
+        """Check if cached scraping result can be reused."""
+        if not cached:
+            return False
+        
+        if not cached.get('success'):
+            return False
+        
+        item_data = cached.get('item_data')
+        if not item_data:
+            return False
+        
+        price = getattr(item_data, 'price', None)
+        if price is None:
+            return False
+        
+        return True
+    
     async def scrape_item_listing_with_cache(
         self, 
         url: str, 
@@ -64,7 +83,7 @@ class ScrapingOrchestrator:
         
         # Проверяем кэш
         cached_data = await self.cache_service.get_item_data(url)
-        if cached_data:
+        if self._is_cached_result_valid(cached_data):
             processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
             logger.info(f"Кэш попадание для {url} (время: {processing_time}мс)")
             
@@ -72,6 +91,8 @@ class ScrapingOrchestrator:
             cached_data['from_cache'] = True
             cached_data['cache_processing_time_ms'] = processing_time
             return cached_data
+        elif cached_data:
+            logger.info(f"Сбрасываем устаревший кэш для {url}")
         
         # Обычная обработка
         result = await self.scrape_item_listing(url, session)
