@@ -7,7 +7,7 @@ rating evaluation, review count tracking, trusted badge detection, and activity 
 Key features:
 - Item price and shipping cost extraction with multiple fallback strategies
 - Buyability detection for buy-now vs offer-only listings
-- Comprehensive seller reliability analysis and scoring
+- Seller advisory data extraction for rating/reviews
 - Robust JSON and HTML parsing with error handling
 - Profile URL extraction and seller activity tracking
 """
@@ -545,7 +545,11 @@ async def _extract_seller_data(
         # Return empty seller data for "No Data" category
         # Static HTML extraction doesn't work due to React SPA architecture
         seller_data = SellerData(
-            num_reviews=0, avg_rating=0.0, trusted_badge=False, last_updated=datetime.now(UTC)
+            num_reviews=0,
+            avg_rating=0.0,
+            trusted_badge=False,
+            last_updated=datetime.now(UTC),
+            technical_issue=True,
         )
 
         logger.warning(

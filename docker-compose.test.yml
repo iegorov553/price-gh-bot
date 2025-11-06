@@ -5,7 +5,7 @@ services:
   test-unit:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile
       target: test
     environment:
       - BOT_TOKEN=<BOT_TOKEN>
@@ -21,7 +21,7 @@ services:
   test-integration:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile
       target: test
     environment:
       - BOT_TOKEN=<BOT_TOKEN>
@@ -39,7 +39,7 @@ services:
   test-e2e:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile
       target: test
     environment:
       - BOT_TOKEN=<BOT_TOKEN>
@@ -57,7 +57,7 @@ services:
   test-all:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile
       target: test
     environment:
       - BOT_TOKEN=<BOT_TOKEN>
@@ -82,8 +82,8 @@ services:
   test-dev:
     build:
       context: .
-      dockerfile: Dockerfile.test
-      target: test-dev
+      dockerfile: Dockerfile
+      target: test
     environment:
       - BOT_TOKEN=<BOT_TOKEN>
       - ENABLE_HEADLESS_BROWSER=true
@@ -104,7 +104,7 @@ services:
   test-coverage:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile
       target: test
     environment:
       - BOT_TOKEN=<BOT_TOKEN>

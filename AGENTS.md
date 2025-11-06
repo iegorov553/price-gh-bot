@@ -5,7 +5,7 @@ This repository contains **price-gh-bot**, a modern Telegram bot for calculating
 ## Key Features
 - Price breakdown with commission, customs duty, and shipping.
 - Multi-platform support: eBay and Grailed listings + Grailed seller profiles.
-- Advanced Grailed seller reliability scoring (Diamond/Gold/Silver/Bronze/Ghost).
+- Seller advisory engine flagging low ratings, missing reviews, and absent buy-now prices.
 - Centralized error boundary with Russian user messages and admin alerts.
 - Analytics subsystem logging usage and errors to SQLite with admin commands.
 
@@ -14,7 +14,7 @@ This repository contains **price-gh-bot**, a modern Telegram bot for calculating
 app/
 ├── core/            # DI container, service locator, interface protocols
 ├── bot/             # Telegram handlers, formatting, analytics tracker, utilities
-├── services/        # Business logic (currency, shipping, customs, reliability)
+├── services/        # Business logic (currency, shipping, customs, seller advisory)
 ├── scrapers/        # Marketplace scraping implementations (eBay, Grailed)
 └── models.py        # Pydantic models used throughout the project
 ```
@@ -51,4 +51,3 @@ The project currently has several open issues highlighted in `docs/PROJECT_ANALY
 2. **Analytics model mismatches** – align logged fields with `SearchAnalytics` model.
 3. **Duplicate `detect_platform` implementations** in `app/bot/utils.py`.
 Future work should address these along with other security and architecture improvements documented in `PROJECT_ANALYSIS.md`.
-

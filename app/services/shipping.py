@@ -17,9 +17,7 @@ class ShippingService:
         self.config = config
 
     def estimate_shopfans_shipping(
-        self,
-        item_title: str | None,
-        order_value: Decimal | None = None
+        self, item_title: str | None, order_value: Decimal | None = None
     ) -> ShippingQuote:
         """Estimate Shopfans shipping cost from US to Russia with tiered pricing.
 
@@ -45,7 +43,7 @@ class ShippingService:
         if order_value is None:
             order_value = Decimal("0")
         else:
-            order_value = self._to_decimal(order_value, order_value)
+            order_value = self._to_decimal(order_value, Decimal("0"))
 
         shipping_params = self._resolve_shipping_params()
 
@@ -61,10 +59,7 @@ class ShippingService:
             route_name = "Europe"
 
         # Calculate base shipping cost
-        base_shipping_cost = max(
-            shipping_params["base_cost"],
-            per_kg_rate * weight_kg
-        )
+        base_shipping_cost = max(shipping_params["base_cost"], per_kg_rate * weight_kg)
 
         # Add handling fee based on weight
         if weight_kg <= shipping_params["light_threshold"]:
@@ -72,18 +67,14 @@ class ShippingService:
         else:
             handling_fee = shipping_params["heavy_handling_fee"]
 
-        total_cost = (base_shipping_cost + handling_fee).quantize(Decimal('0.01'))
+        total_cost = (base_shipping_cost + handling_fee).quantize(Decimal("0.01"))
 
         description = (
             f"Shopfans ({route_name} route): "
             f"base ${base_shipping_cost:.2f} + handling ${handling_fee:.2f}"
         )
 
-        return ShippingQuote(
-            weight_kg=weight_kg,
-            cost_usd=total_cost,
-            description=description
-        )
+        return ShippingQuote(weight_kg=weight_kg, cost_usd=total_cost, description=description)
 
     def _estimate_weight(self, item_title: str | None) -> Decimal:
         """Estimate item weight in kg based on keywords in title.
@@ -100,12 +91,12 @@ class ShippingService:
         title_lower = (item_title or "").lower()
 
         for item in self.config.shipping_patterns:
-            pattern = item.get('pattern')
-            weight = item.get('weight')
+            pattern = item.get("pattern")
+            weight = item.get("weight")
 
             if pattern and weight is not None:
                 try:
-                    if re.search(r'\b' + pattern + r'\b', title_lower):
+                    if re.search(r"\b" + pattern + r"\b", title_lower):
                         return Decimal(str(weight))
                 except re.error:
                     # Handle invalid regex patterns in config
@@ -119,44 +110,47 @@ class ShippingService:
         """Resolve shipping configuration with sensible fallbacks."""
         shipping_conf = getattr(self.config, "shipping", None)
 
-        def value(name: str, default: float) -> Decimal:
+        def value(name: str, default: Decimal) -> Decimal:
             raw = getattr(shipping_conf, name, None) if shipping_conf else None
-            return self._to_decimal(raw, Decimal(str(default)))
+            return self._to_decimal(raw, default)
 
-        per_kg_rate = value("per_kg_rate", 30.86)
+        per_kg_rate = value("per_kg_rate", Decimal("30.86"))
 
         params = {
-            "base_cost": value("base_cost", 13.99),
+            "base_cost": value("base_cost", Decimal("13.99")),
             "per_kg_rate_europe": value("per_kg_rate_europe", per_kg_rate),
             "per_kg_rate_turkey": value("per_kg_rate_turkey", per_kg_rate + Decimal("4.41")),
-            "per_kg_rate_kazakhstan": value("per_kg_rate_kazakhstan", per_kg_rate + Decimal("11.03")),
-            "turkey_threshold": value("turkey_threshold", 200.0),
-            "kazakhstan_threshold": value("kazakhstan_threshold", 1000.0),
-            "light_threshold": value("light_threshold", 1.36),
-            "light_handling_fee": value("light_handling_fee", 3.0),
-            "heavy_handling_fee": value("heavy_handling_fee", 5.0),
+            "per_kg_rate_kazakhstan": value(
+                "per_kg_rate_kazakhstan", per_kg_rate + Decimal("11.03")
+            ),
+            "turkey_threshold": value("turkey_threshold", Decimal("200")),
+            "kazakhstan_threshold": value("kazakhstan_threshold", Decimal("1000")),
+            "light_threshold": value("light_threshold", Decimal("1.36")),
+            "light_handling_fee": value("light_handling_fee", Decimal("3")),
+            "heavy_handling_fee": value("heavy_handling_fee", Decimal("5")),
         }
 
         # Ensure turkey/kazakhstan rates not lower than Europe
-        params["per_kg_rate_turkey"] = max(params["per_kg_rate_turkey"], params["per_kg_rate_europe"])
+        params["per_kg_rate_turkey"] = max(
+            params["per_kg_rate_turkey"], params["per_kg_rate_europe"]
+        )
         params["per_kg_rate_kazakhstan"] = max(
-            params["per_kg_rate_kazakhstan"],
-            params["per_kg_rate_turkey"]
+            params["per_kg_rate_kazakhstan"], params["per_kg_rate_turkey"]
         )
 
         return params
 
-    def _to_decimal(self, value: object, default: Decimal | float) -> Decimal:
+    def _to_decimal(self, value: object, default: Decimal) -> Decimal:
         """Convert arbitrary value to Decimal with fallback."""
         if isinstance(value, Decimal):
             return value
         if value is None:
-            return Decimal(str(default))
+            return default
 
         try:
             return Decimal(str(value))
         except Exception:
-            return Decimal(str(default))
+            return default
 
 
 _shipping_service: ShippingService | None = None
@@ -167,6 +161,7 @@ def get_shipping_service(config: Config | None = None) -> ShippingService:
     global _shipping_service
     if config is None:
         from ..config import config as global_config
+
         config = global_config
 
     if _shipping_service is None or _shipping_service.config is not config:
@@ -175,8 +170,7 @@ def get_shipping_service(config: Config | None = None) -> ShippingService:
 
 
 def estimate_shopfans_shipping(
-    item_title: str | None,
-    order_value: Decimal | None = None
+    item_title: str | None, order_value: Decimal | None = None
 ) -> ShippingQuote:
     """Функциональная обёртка для обратной совместимости с прежним API."""
     service = get_shipping_service()
@@ -184,9 +178,7 @@ def estimate_shopfans_shipping(
 
 
 def calc_shipping(
-    country: str,
-    weight_kg: Decimal,
-    order_value: Decimal | None = None
+    country: str, weight_kg: Decimal, order_value: Decimal | None = None
 ) -> ShippingQuote:
     """Рассчитать доставку в указанную страну (совместимость со старым API)."""
     normalized_country = (country or "").strip().lower()
@@ -199,7 +191,7 @@ def calc_shipping(
         return ShippingQuote(
             weight_kg=weight,
             cost_usd=Decimal("0"),
-            description=f"Shipping to {country or 'unknown'} is not supported"
+            description=f"Shipping to {country or 'unknown'} is not supported",
         )
 
     service = get_shipping_service()
@@ -216,10 +208,7 @@ def calc_shipping(
         per_kg_rate = shipping_params["per_kg_rate_europe"]
         route_name = "Europe"
 
-    base_cost = max(
-        shipping_params["base_cost"],
-        per_kg_rate * weight
-    )
+    base_cost = max(shipping_params["base_cost"], per_kg_rate * weight)
 
     if weight <= shipping_params["light_threshold"]:
         handling_fee = shipping_params["light_handling_fee"]
@@ -232,8 +221,4 @@ def calc_shipping(
         f"base ${base_cost:.2f} + handling ${handling_fee:.2f}"
     )
 
-    return ShippingQuote(
-        weight_kg=weight,
-        cost_usd=total_cost,
-        description=description
-    )
+    return ShippingQuote(weight_kg=weight, cost_usd=total_cost, description=description)

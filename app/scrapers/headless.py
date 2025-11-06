@@ -16,6 +16,7 @@ Key features:
 import asyncio
 import logging
 import re
+import shlex
 from datetime import UTC, datetime, timedelta
 from secrets import randbelow
 from typing import TYPE_CHECKING, Any, cast
@@ -60,6 +61,7 @@ class HeadlessBrowser:
         self.browser: Browser | None = None
         self.context: BrowserContext | None = None
         self.playwright: Playwright | None = None
+        self._install_attempted: bool = False
 
     async def __aenter__(self) -> "HeadlessBrowser":
         """Async context manager entry."""
@@ -135,6 +137,17 @@ class HeadlessBrowser:
 
         except Exception as e:
             logger.error(f"Failed to start headless browser: {e}")
+
+            if not self._install_attempted and _needs_browser_install(str(e)):
+                logger.warning("Playwright browsers missing; attempting automatic installation...")
+                self._install_attempted = True
+                success = await _ensure_playwright_browsers_installed()
+                if success:
+                    logger.info("Playwright browsers installed successfully, retrying launch.")
+                    await self.stop()
+                    await self.start()
+                    return
+
             await self.stop()
             raise
 
@@ -519,16 +532,14 @@ async def _extract_dynamic_seller_data(page: Page) -> SellerData | None:
         except Exception as e:
             logger.debug(f"Failed to extract activity timestamp: {e}")
 
-        # Return results if we found any data
-        if avg_rating > 0 or num_reviews > 0 or trusted_badge:
-            return SellerData(
-                num_reviews=num_reviews,
-                avg_rating=avg_rating,
-                trusted_badge=trusted_badge,
-                last_updated=last_updated,
-            )
-
-        return None
+        # Return results even if there are zero reviews so caller can show "no reviews" warning.
+        return SellerData(
+            num_reviews=num_reviews,
+            avg_rating=avg_rating,
+            trusted_badge=trusted_badge,
+            last_updated=last_updated,
+            technical_issue=False,
+        )
 
     except Exception as e:
         logger.error(f"Error extracting dynamic seller data: {e}")
@@ -573,3 +584,31 @@ async def cleanup_global_browser() -> None:
         if _global_browser is not None:
             await _global_browser.stop()
             _global_browser = None
+
+
+def _needs_browser_install(message: str) -> bool:
+    lowered = message.lower()
+    return "executable doesn't exist" in lowered or "playwright install" in lowered
+
+
+async def _ensure_playwright_browsers_installed() -> bool:
+    """Attempt to install Playwright Chromium binaries on demand."""
+    try:
+        cmd = ["playwright", "install", "chromium"]
+        logger.info("Running %s", " ".join(shlex.quote(part) for part in cmd))
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        stdout, _ = await process.communicate()
+        if stdout:
+            logger.info(stdout.decode(errors="ignore"))
+        if process.returncode == 0:
+            return True
+
+        logger.error("playwright install chromium exited with %s", process.returncode)
+        return False
+    except Exception as exc:
+        logger.error(f"Automatic Playwright installation failed: {exc}")
+        return False

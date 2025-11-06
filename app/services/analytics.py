@@ -70,6 +70,8 @@ class AnalyticsService:
                     processing_time_ms INTEGER,
                     seller_score INTEGER,
                     seller_category TEXT,
+                    seller_warning_reason TEXT,
+                    seller_warning_message TEXT,
                     final_price_usd DECIMAL,
                     commission DECIMAL,
                     is_buyable BOOLEAN
@@ -108,6 +110,16 @@ class AnalyticsService:
 
             conn.commit()
 
+            # Ensure new advisory columns exist for legacy databases
+            for column in ("seller_warning_reason", "seller_warning_message"):
+                try:
+                    conn.execute(
+                        f"ALTER TABLE search_analytics ADD COLUMN {column} TEXT"  # nosec B608
+                    )
+                except sqlite3.OperationalError:
+                    # Column already exists
+                    pass
+
     def log_search(self, analytics: SearchAnalytics) -> None:
         """Record search query in analytics database.
 
@@ -131,8 +143,9 @@ class AnalyticsService:
                     (url, user_id, username, timestamp, platform, success,
                      item_price, shipping_us, item_title, error_message,
                      processing_time_ms, seller_score, seller_category,
+                     seller_warning_reason, seller_warning_message,
                      final_price_usd, commission, is_buyable)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         analytics.url,
@@ -148,6 +161,8 @@ class AnalyticsService:
                         analytics.processing_time_ms,
                         analytics.seller_score,
                         analytics.seller_category,
+                        analytics.seller_warning_reason,
+                        analytics.seller_warning_message,
                         float(analytics.final_price_usd) if analytics.final_price_usd else None,
                         float(analytics.commission) if analytics.commission else None,
                         analytics.is_buyable,

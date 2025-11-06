@@ -15,8 +15,8 @@ from .currency import OptimizedCurrencyService, get_optimized_currency_service
 logger = logging.getLogger(__name__)
 
 # Russian customs duty rate for personal imports exceeding 200 EUR
-DUTY_RATE = Decimal('0.15')  # 15%
-DUTY_THRESHOLD_EUR = Decimal('200')  # 200 EUR threshold
+DUTY_RATE = Decimal("0.15")  # 15%
+DUTY_THRESHOLD_EUR = Decimal("200")  # 200 EUR threshold
 
 
 class CustomsService:
@@ -24,10 +24,7 @@ class CustomsService:
         self.currency_service = currency_service
 
     async def calculate_rf_customs_duty(
-        self, 
-        item_price_usd: Decimal, 
-        shipping_us_usd: Decimal, 
-        session: aiohttp.ClientSession
+        self, item_price_usd: Decimal, shipping_us_usd: Decimal, session: aiohttp.ClientSession
     ) -> Decimal:
         """Calculate Russian customs duty for items exceeding 200 EUR threshold.
 
@@ -47,7 +44,7 @@ class CustomsService:
             eur_usd_rate = await self.currency_service.get_eur_to_usd_rate_optimized(session)
             if not eur_usd_rate:
                 logger.warning("EUR/USD rate unavailable, cannot calculate customs duty")
-                return Decimal('0')
+                return Decimal("0")
 
             logger.info(f"EUR/USD rate for customs calculation: {eur_usd_rate.rate}")
 
@@ -62,13 +59,13 @@ class CustomsService:
             # Check if duty applies
             if total_value_usd <= threshold_usd:
                 logger.info("Total value below customs threshold, no duty applies")
-                return Decimal('0')
+                return Decimal("0")
 
             # Calculate excess amount above threshold
             excess_usd = total_value_usd - threshold_usd
 
             # Calculate 15% duty on excess
-            duty_usd = (excess_usd * DUTY_RATE).quantize(Decimal('0.01'))
+            duty_usd = (excess_usd * DUTY_RATE).quantize(Decimal("0.01"))
 
             logger.info(f"Customs duty calculation: excess ${excess_usd} * 15% = ${duty_usd}")
 
@@ -76,18 +73,18 @@ class CustomsService:
 
         except Exception as e:
             logger.error(f"Error calculating customs duty: {e}")
-            return Decimal('0')
+            return Decimal("0")
 
-    def get_duty_info(self) -> dict[str, any]:
+    def get_duty_info(self) -> dict[str, object]:
         """Get information about Russian customs duty rules.
 
         Returns:
             Dictionary with duty threshold, rate, and description
         """
         return {
-            'threshold_eur': DUTY_THRESHOLD_EUR,
-            'duty_rate_percent': int(DUTY_RATE * 100),
-            'description': 'Russian customs duty for personal imports exceeding 200 EUR'
+            "threshold_eur": DUTY_THRESHOLD_EUR,
+            "duty_rate_percent": int(DUTY_RATE * 100),
+            "description": "Russian customs duty for personal imports exceeding 200 EUR",
         }
 
 
@@ -104,9 +101,7 @@ async def get_customs_service() -> CustomsService:
 
 
 async def calculate_rf_customs_duty(
-    item_price_usd: Decimal,
-    shipping_us_usd: Decimal,
-    session: aiohttp.ClientSession
+    item_price_usd: Decimal, shipping_us_usd: Decimal, session: aiohttp.ClientSession
 ) -> Decimal:
     """Функциональная обёртка для обратной совместимости."""
     service = await get_customs_service()

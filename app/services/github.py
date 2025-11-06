@@ -5,7 +5,7 @@ Handles authentication and basic issue creation without complex features.
 """
 
 import logging
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 import aiohttp
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class GitHubService:
     """Simple GitHub API client for creating issues."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize GitHub service with configuration."""
         self.token = config.bot.github_token
         self.owner = config.bot.github_owner
@@ -25,10 +25,7 @@ class GitHubService:
         self.base_url = "https://api.github.com"
 
     async def create_feedback_issue(
-        self,
-        message: str,
-        username: str | None = None,
-        user_id: int | None = None
+        self, message: str, username: str | None = None, user_id: int | None = None
     ) -> bool:
         """Create a GitHub issue from user feedback.
 
@@ -56,26 +53,23 @@ class GitHubService:
             f"**Дата:** {datetime.now(UTC).strftime('%d.%m.%Y %H:%M')}",
             "",
             "**Сообщение:**",
-            message
+            message,
         ]
         body = "\n".join(body_lines)
 
         # Create issue payload
-        payload = {
-            "title": title,
-            "body": body
-        }
+        payload = {"title": title, "body": body}
 
         try:
             async with aiohttp.ClientSession() as session:
                 headers = {
                     "Authorization": f"token {self.token}",
                     "Accept": "application/vnd.github.v3+json",
-                    "User-Agent": "PriceBot-Feedback/1.0"
+                    "User-Agent": "PriceBot-Feedback/1.0",
                 }
 
                 url = f"{self.base_url}/repos/{self.owner}/{self.repo}/issues"
-                
+
                 async with session.post(url, json=payload, headers=headers) as response:
                     if response.status == 201:
                         data = await response.json()
@@ -84,7 +78,9 @@ class GitHubService:
                         return True
                     else:
                         error_text = await response.text()
-                        logger.error(f"Failed to create GitHub issue: {response.status} - {error_text}")
+                        logger.error(
+                            f"Failed to create GitHub issue: {response.status} - {error_text}"
+                        )
                         return False
 
         except Exception as e:

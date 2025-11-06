@@ -32,9 +32,9 @@ Follow these steps to prepare a development or production environment for Price 
   docker build -t price-gh-bot:latest -f Dockerfile .
   docker run --env-file .env price-gh-bot:latest
   ```
-- **Tests**: `Dockerfile.test` installs dev dependencies and testing tools.  
+- **Tests**: use the `test` target in the multi-stage Dockerfile to build an image with dev dependencies.  
   ```bash
-  docker build -t price-gh-bot-test -f Dockerfile.test .
+  docker build -t price-gh-bot-test --target test .
   ```
 - **Compose**: `docker-compose.test.yml` orchestrates the bot alongside its dependencies for integration testing.
 - **Persistent analytics volume**: When deploying to a platform-as-a-service, mount a volume to `/app/data` (or wherever `ANALYTICS_DB_PATH` points) so `analytics.db` survives restarts.

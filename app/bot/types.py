@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TypedDict
 
-from ..models import ItemData, ReliabilityScore, SellerData
+from ..models import ItemData, SellerAdvisory, SellerData
 
 
 class BaseScrapeResult(TypedDict, total=False):
@@ -16,7 +16,7 @@ class BaseScrapeResult(TypedDict, total=False):
     from_cache: bool
     item_data: ItemData | None
     seller_data: SellerData | None
-    reliability_score: ReliabilityScore | None
+    seller_advisory: SellerAdvisory | None
 
 
 class ItemScrapeResult(BaseScrapeResult, total=False):

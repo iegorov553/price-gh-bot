@@ -24,8 +24,8 @@ poetry run pre-commit run --all-files
 
 ## Docker-Based Testing
 ```bash
-docker build -t price-gh-bot-test -f Dockerfile.test .
-docker run --rm -it --env-file .env.pricebot price-gh-bot-test pytest
+docker build -t price-gh-bot-test --target test .
+docker run --rm -it --env-file .env.pricebot price-gh-bot-test
 ```
 Adjust the env file or environment variables to provide required tokens for integration tests. Use a dedicated test token; never reuse production credentials.
 

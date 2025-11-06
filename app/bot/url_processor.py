@@ -1,63 +1,43 @@
 """URL processing and validation for marketplace links.
 
-Handles URL detection, validation, and categorization for supported
-marketplaces. Provides security filtering and platform detection.
+Provides high-level helpers used by Telegram handlers to extract, validate,
+and categorise marketplace URLs. All public methods are fully typed to
+support strict mypy settings.
 """
+
+from __future__ import annotations
 
 import logging
 import re
-from typing import List
-from urllib.parse import urlparse
+from collections import defaultdict
+from typing import Final
 
 from ..scrapers import scraper_registry
+from .types import CategorizedURLs, ProcessedURLs
 from .utils import validate_marketplace_url
 
 logger = logging.getLogger(__name__)
 
 
 class URLProcessor:
-    """Handles URL detection, validation and categorization.
+    """Handles URL detection, validation and categorisation."""
 
-    Responsible for:
-    - Extracting URLs from user messages
-    - Validating URLs against security whitelist
-    - Categorizing URLs by platform (eBay, Grailed, etc.)
-    - Filtering out malicious or unsupported URLs
-    """
+    URL_PATTERN: Final[re.Pattern[str]] = re.compile(r"(https?://[^\s\)\]\}]+)")
 
-    def __init__(self):
-        """Initialize URL processor with security settings."""
-        # Allow URLs with or without explicit path, including query parameters.
-        # Excludes closing punctuation characters that often follow URLs in text.
-        self.url_pattern = re.compile(r"(https?://[^\s\)\]\}]+)")
-
-    def extract_urls(self, text: str) -> List[str]:
-        """Extract all URLs from text message.
-
-        Args:
-            text: User message text.
-
-        Returns:
-            List of detected URLs.
-        """
+    def extract_urls(self, text: str | None) -> list[str]:
+        """Extract URLs from free-form text."""
         if not text:
             return []
 
-        urls = [url.rstrip(".,);?!") for url in self.url_pattern.findall(text)]
-        logger.debug(f"Extracted {len(urls)} URLs from text")
+        raw_urls = self.URL_PATTERN.findall(text)
+        urls = [url.rstrip(".,);?!") for url in raw_urls]
+        logger.debug("Extracted %d URLs from text", len(urls))
         return urls
 
-    def validate_urls(self, urls: List[str]) -> List[str]:
-        """Filter URLs to only include supported marketplaces.
-
-        Args:
-            urls: List of URLs to validate.
-
-        Returns:
-            List of valid marketplace URLs.
-        """
-        valid_urls = []
-        invalid_urls = []
+    def validate_urls(self, urls: list[str]) -> list[str]:
+        """Keep only URLs that belong to supported marketplaces."""
+        valid_urls: list[str] = []
+        invalid_urls: list[str] = []
 
         for url in urls:
             if validate_marketplace_url(url):
@@ -66,90 +46,60 @@ class URLProcessor:
                 invalid_urls.append(url)
 
         if invalid_urls:
-            logger.warning(f"Filtered out invalid URLs: {invalid_urls}")
+            logger.warning("Filtered out invalid URLs: %s", invalid_urls)
 
-        logger.info(f"Validated {len(valid_urls)}/{len(urls)} URLs")
+        logger.info("Validated %d/%d URLs", len(valid_urls), len(urls))
         return valid_urls
 
-    def categorize_urls(self, urls: List[str]) -> dict:
-        """Categorize URLs by platform and type.
-
-        Args:
-            urls: List of valid URLs.
-
-        Returns:
-            Dictionary with categorized URLs:
-            {
-                'seller_profiles': [urls],
-                'item_listings': [urls],
-                'by_platform': {'ebay': [urls], 'grailed': [urls]}
-            }
-        """
-        result = {
-            "seller_profiles": [],
-            "item_listings": [],
-            "by_platform": {"ebay": [], "grailed": [], "unknown": []},
-        }
+    def categorize_urls(self, urls: list[str]) -> CategorizedURLs:
+        """Split URLs by platform and type (seller profile vs listing)."""
+        seller_profiles: list[str] = []
+        item_listings: list[str] = []
+        by_platform: defaultdict[str, list[str]] = defaultdict(list)
 
         for url in urls:
-            # Find scraper for URL
             scraper = scraper_registry.get_scraper_for_url(url)
-
-            if not scraper:
-                result["by_platform"]["unknown"].append(url)
+            if scraper is None:
+                by_platform["unknown"].append(url)
                 continue
 
             platform = scraper.get_platform_name()
+            by_platform[platform].append(url)
 
-            # Check if it's a seller profile or item listing
             if scraper.is_seller_profile(url):
-                result["seller_profiles"].append(url)
-                result["by_platform"][platform].append(url)
+                seller_profiles.append(url)
             else:
-                result["item_listings"].append(url)
-                result["by_platform"][platform].append(url)
+                item_listings.append(url)
 
-        return result
+        # Ensure eBay/Grailed keys exist for downstream formatting consistency
+        for key in ("ebay", "grailed", "unknown"):
+            by_platform.setdefault(key, [])
 
-    def process_message(self, text: str, user_id: int | None = None) -> dict:
-        """Complete URL processing pipeline for user message.
+        return CategorizedURLs(
+            seller_profiles=seller_profiles,
+            item_listings=item_listings,
+            by_platform=dict(by_platform),
+        )
 
-        Args:
-            text: User message text.
-            user_id: User ID for security logging.
-
-        Returns:
-            Dictionary with processed URLs and metadata:
-            {
-                'valid_urls': [urls],
-                'categorized': {...},
-                'has_suspicious': bool
-            }
-        """
-        # Extract all URLs
+    def process_message(self, text: str | None, user_id: int | None = None) -> ProcessedURLs:
+        """Full URL processing pipeline used by message handlers."""
         raw_urls = self.extract_urls(text)
-
         if not raw_urls:
-            return {"valid_urls": [], "categorized": {}, "has_suspicious": False}
+            return ProcessedURLs(valid_urls=[], categorized=None, has_suspicious=False)
 
-        # Validate URLs
         valid_urls = self.validate_urls(raw_urls)
-
-        # Log suspicious activity
         has_suspicious = len(valid_urls) < len(raw_urls)
-        if has_suspicious and user_id:
+
+        if has_suspicious and user_id is not None:
             suspicious_urls = [url for url in raw_urls if url not in valid_urls]
-            logger.warning(f"User {user_id} sent suspicious URLs: {suspicious_urls}")
+            logger.warning("User %s sent suspicious URLs: %s", user_id, suspicious_urls)
 
-        # Categorize valid URLs
-        categorized = self.categorize_urls(valid_urls) if valid_urls else {}
-
-        return {
-            "valid_urls": valid_urls,
-            "categorized": categorized,
-            "has_suspicious": has_suspicious,
-        }
+        categorized = self.categorize_urls(valid_urls) if valid_urls else None
+        return ProcessedURLs(
+            valid_urls=valid_urls,
+            categorized=categorized,
+            has_suspicious=has_suspicious,
+        )
 
 
-# Global URL processor instance
 url_processor = URLProcessor()

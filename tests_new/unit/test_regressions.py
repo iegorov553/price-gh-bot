@@ -16,12 +16,8 @@ from app.bot.analytics_tracker import AnalyticsTracker
 from app.bot.response_formatter import response_formatter
 from app.bot.scraping_orchestrator import ScrapingOrchestrator
 from app.bot import utils
-from app.models import (
-    ItemData,
-    PriceCalculation,
-    ReliabilityScore,
-    SellerData,
-)
+from app.bot.messages import SELLER_OK_MESSAGE, SELLER_WARNING_LOW_RATING
+from app.models import ItemData, PriceCalculation, SellerAdvisory, SellerData
 from app.scrapers.grailed_scraper import GrailedScraper
 from app.services.analytics import AnalyticsService
 from app.services.cache_service import CacheConfig, CacheService
@@ -67,7 +63,7 @@ async def test_calculate_final_price_includes_customs(monkeypatch: pytest.Monkey
 
 
 def test_format_seller_profile_response_handles_models() -> None:
-    """Ensure seller profile formatter works with SellerData and ReliabilityScore objects."""
+    """Ensure seller profile formatter works with SellerData and SellerAdvisory objects."""
 
     seller = SellerData(
         num_reviews=120,
@@ -75,26 +71,15 @@ def test_format_seller_profile_response_handles_models() -> None:
         trusted_badge=True,
         last_updated=datetime.now(UTC),
     )
-    reliability = ReliabilityScore(
-        activity_score=30,
-        rating_score=35,
-        review_volume_score=25,
-        badge_score=10,
-        total_score=100,
-        category="Diamond",
-        description="Top seller",
-    )
-
     message = response_formatter.format_seller_profile_response(
         {
             "success": True,
             "seller_data": seller,
-            "reliability_score": reliability,
+            "seller_advisory": SellerAdvisory(),
         }
     )
 
-    assert "Diamond" in message
-    assert "100/100" in message
+    assert message == SELLER_OK_MESSAGE
 
 
 def test_cache_service_serialization_roundtrip() -> None:
@@ -209,6 +194,8 @@ def test_analytics_tracker_maps_fields_correctly() -> None:
     assert analytics.shipping_us == Decimal("10.00")
     assert analytics.error_message == "timeout"
     assert analytics.item_title == "Vintage Jacket"
+    assert analytics.seller_warning_reason is None
+    assert analytics.seller_warning_message is None
 
 
 @pytest.mark.asyncio
@@ -238,14 +225,8 @@ async def test_orchestrator_log_analytics_uses_new_schema(monkeypatch: pytest.Mo
             title="Rare Hoodie",
             image_url=None,
         ),
-        "reliability_score": ReliabilityScore(
-            activity_score=24,
-            rating_score=30,
-            review_volume_score=20,
-            badge_score=10,
-            total_score=84,
-            category="Gold",
-            description="Reliable seller",
+        "seller_advisory": SellerAdvisory(
+            reason="low_rating", message=SELLER_WARNING_LOW_RATING
         ),
     }
 
@@ -254,8 +235,10 @@ async def test_orchestrator_log_analytics_uses_new_schema(monkeypatch: pytest.Mo
     analytics = recorded["payload"]
     assert analytics.item_price == Decimal("150.00")
     assert analytics.shipping_us == Decimal("20.00")
-    assert analytics.seller_score == 84
-    assert analytics.seller_category == "Gold"
+    assert analytics.seller_score is None
+    assert analytics.seller_category is None
+    assert analytics.seller_warning_reason == "low_rating"
+    assert analytics.seller_warning_message == SELLER_WARNING_LOW_RATING
 
 
 def test_get_user_stats_supports_day_filter(tmp_path: pytest.TempPathFactory) -> None:
@@ -275,8 +258,9 @@ def test_get_user_stats_supports_day_filter(tmp_path: pytest.TempPathFactory) ->
             INSERT INTO search_analytics
             (url, user_id, username, timestamp, platform, success, item_price,
              shipping_us, item_title, error_message, processing_time_ms,
-             seller_score, seller_category, final_price_usd, commission, is_buyable)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             seller_score, seller_category, seller_warning_reason, seller_warning_message,
+             final_price_usd, commission, is_buyable)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 "https://example.com/recent",
@@ -292,6 +276,8 @@ def test_get_user_stats_supports_day_filter(tmp_path: pytest.TempPathFactory) ->
                 200,
                 None,
                 None,
+                None,
+                None,
                 120.0,
                 12.0,
                 1,
@@ -302,8 +288,9 @@ def test_get_user_stats_supports_day_filter(tmp_path: pytest.TempPathFactory) ->
             INSERT INTO search_analytics
             (url, user_id, username, timestamp, platform, success, item_price,
              shipping_us, item_title, error_message, processing_time_ms,
-             seller_score, seller_category, final_price_usd, commission, is_buyable)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             seller_score, seller_category, seller_warning_reason, seller_warning_message,
+             final_price_usd, commission, is_buyable)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 "https://example.com/old",
@@ -317,6 +304,8 @@ def test_get_user_stats_supports_day_filter(tmp_path: pytest.TempPathFactory) ->
                 "Old item",
                 None,
                 300,
+                None,
+                None,
                 None,
                 None,
                 230.0,

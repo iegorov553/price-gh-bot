@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, Field
 
-from ..models import ItemData, ReliabilityScore, SellerData
+from ..models import ItemData, SellerAdvisory, SellerData
 
 logger = logging.getLogger(__name__)
 
@@ -410,9 +410,14 @@ class CacheService:
         if isinstance(seller_payload, dict):
             restored["seller_data"] = SellerData(**seller_payload)
 
+        advisory_payload = restored.get("seller_advisory")
+        if isinstance(advisory_payload, dict):
+            restored["seller_advisory"] = SellerAdvisory(**advisory_payload)
+
+        # Обратная совместимость с кэшем старого формата
         reliability_payload = restored.get("reliability_score")
-        if isinstance(reliability_payload, dict):
-            restored["reliability_score"] = ReliabilityScore(**reliability_payload)
+        if isinstance(reliability_payload, dict) and "message" in reliability_payload:
+            restored["seller_advisory"] = SellerAdvisory(**reliability_payload)
 
         return restored
 

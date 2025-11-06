@@ -9,7 +9,6 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import cast
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -21,7 +20,7 @@ from .feedback import handle_feedback_message, is_waiting_feedback
 from .messages import LOADING_SELLER_ANALYSIS, START_MESSAGE
 from .response_formatter import response_formatter
 from .scraping_orchestrator import scraping_orchestrator
-from .types import ItemScrapeResult, ProcessedURLs, SellerScrapeResult
+from .types import ProcessedURLs
 from .url_processor import url_processor
 from .utils import safe_open_file
 
@@ -103,7 +102,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             )
 
             if results:
-                seller_result = cast(SellerScrapeResult, results[0])
+                seller_result = results[0]
                 response = response_formatter.format_seller_profile_response(seller_result)
                 await loading_message.edit_text(response, parse_mode="Markdown")
 
@@ -119,8 +118,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await loading_message.delete()
 
             # Send responses for each item
-            for result in results:
-                item_result = cast(ItemScrapeResult, result)
+            for item_result in results:
                 response = await response_formatter.format_item_response(item_result)
 
                 # Send with image if available

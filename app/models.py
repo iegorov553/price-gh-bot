@@ -6,7 +6,7 @@ external API responses. All models include validation and type checking.
 """
 
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from pydantic import BaseModel, Field
 
@@ -21,6 +21,7 @@ class ItemData(BaseModel):
         title: Item title/description for shipping weight estimation.
         image_url: Primary product image URL for display in messages.
     """
+
     price: Decimal | None = None
     shipping_us: Decimal | None = None
     is_buyable: bool = False
@@ -36,32 +37,26 @@ class SellerData(BaseModel):
         avg_rating: Average seller rating (0.0-5.0 scale).
         trusted_badge: Whether seller has verified/trusted status.
         last_updated: When seller profile was last updated.
+        technical_issue: True if metrics were unavailable due to technical failure.
     """
+
     num_reviews: int = 0
     avg_rating: float = 0.0
     trusted_badge: bool = False
     last_updated: datetime = Field(default_factory=lambda: datetime.now())
+    technical_issue: bool = False
 
 
-class ReliabilityScore(BaseModel):
-    """Calculated seller reliability evaluation.
+class SellerAdvisory(BaseModel):
+    """Результат оценки продавца и товара.
 
     Attributes:
-        activity_score: Points for recent activity (0-30).
-        rating_score: Points for high ratings (0-35).
-        review_volume_score: Points for review count (0-25).
-        badge_score: Points for trusted status (0-10).
-        total_score: Sum of all scores (0-100).
-        category: Reliability tier (Diamond/Gold/Silver/Bronze/Ghost).
-        description: Human-readable category explanation.
+        reason: Машинно-читаемый код причины предупреждения.
+        message: Пользовательское сообщение или None, если предупреждения нет.
     """
-    activity_score: int = 0
-    rating_score: int = 0
-    review_volume_score: int = 0
-    badge_score: int = 0
-    total_score: int = 0
-    category: str = "Ghost"
-    description: str = ""
+
+    reason: str | None = None
+    message: str | None = None
 
 
 class ShippingQuote(BaseModel):
@@ -72,6 +67,7 @@ class ShippingQuote(BaseModel):
         cost_usd: Calculated shipping cost in USD.
         description: Explanation of how cost was determined.
     """
+
     weight_kg: Decimal
     cost_usd: Decimal
     description: str = ""
@@ -98,6 +94,7 @@ class PriceCalculation(BaseModel):
         final_price_rub: Final price converted to rubles (if available).
         exchange_rate: USD to RUB rate used for conversion.
     """
+
     item_price: Decimal
     shipping_us: Decimal = Decimal("0")
     commission: Decimal
@@ -129,6 +126,7 @@ class CurrencyRate(BaseModel):
         fetched_at: When rate was retrieved.
         markup_percentage: Applied markup over base rate.
     """
+
     from_currency: str
     to_currency: str
     rate: Decimal
@@ -156,12 +154,15 @@ class SearchAnalytics(BaseModel):
         item_title: Product title/description (if extracted).
         error_message: Error details if processing failed.
         processing_time_ms: Total processing time in milliseconds.
-        seller_score: Calculated seller reliability score (0-100).
-        seller_category: Seller reliability category (Diamond/Gold/etc).
+        seller_score: Legacy seller reliability score (retained for backward compatibility).
+        seller_category: Legacy seller reliability category (retained for backward compatibility).
+        seller_warning_reason: Machine readable advisory reason.
+        seller_warning_message: User-facing advisory message.
         final_price_usd: Complete calculated price in USD.
         commission: Applied commission fee in USD.
         is_buyable: Whether item has fixed buy-now pricing.
     """
+
     url: str
     user_id: int
     username: str | None = None
@@ -175,6 +176,8 @@ class SearchAnalytics(BaseModel):
     processing_time_ms: int | None = None
     seller_score: int | None = None
     seller_category: str | None = None
+    seller_warning_reason: str | None = None
+    seller_warning_message: str | None = None
     final_price_usd: Decimal | None = None
     commission: Decimal | None = None
     is_buyable: bool | None = None

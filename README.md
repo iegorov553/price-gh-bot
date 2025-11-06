@@ -5,7 +5,7 @@ Price GH Bot is a Telegram assistant that estimates the full cost of eBay and Gr
 - **Marketplace coverage**: Resolves eBay and Grailed listings, plus Grailed seller profiles and shortened links.
 - **Total cost breakdown**: Combines item price, domestic shipping, commission rules, currency conversion, and tiered international shipping (Shopfans-based routes for Europe, Turkey, Kazakhstan).
 - **Customs and currency**: Applies the current EUR->USD threshold (200 EUR) and USD->RUB exchange rate retrieved through the Central Bank of Russia API with configurable markup.
-- **Seller reliability scoring**: Runs a Playwright-powered scrape of Grailed profiles, scoring activity, rating, reviews, and trust badge to categorise sellers (Diamond -> Ghost).
+- **Seller advisory checks**: Evaluates Grailed sellers and listings via rating, review presence, and buy-now availability to surface clear “do not buy” warnings.
 - **User messaging**: Produces Russian-language responses with detailed breakdowns, optional item photos, and clear error messages.
 - **Security and abuse controls**: Detects suspicious URLs, guards admin-only commands, isolates text resources, and supports feedback collection.
 - **Analytics subsystem**: Logs searches and errors to SQLite, exposes admin commands for daily/weekly stats, user insights, error reports, and CSV export.
@@ -45,8 +45,14 @@ docker run --env-file .env price-gh-bot:latest
 
 ### Test image
 ```bash
-docker build -t price-gh-bot-test -f Dockerfile.test .
+docker build -t price-gh-bot-test --target test .
+docker run --rm price-gh-bot-test
 ```
+
+### Environment workflow
+- `dev` (local) — рабочее окружение агента; здесь запускаются автотесты и подготавливаются изменения.
+- `staging` (Railway) — тестовый бот для ручной проверки. После успешных автотестов код пушится сюда.
+- `main` (Railway) — боевой бот. Изменения попадают сюда только после ручного теста в `staging`.
 
 ## Configuration
 Set the required environment variables (see `docs/setup/configuration.md` for the full list):
@@ -117,7 +123,11 @@ The test strategy, tooling, and fixtures are documented in `docs/testing/strateg
 1. Ensure `.env` contains production-ready secrets (no defaults or placeholders).
 2. Run the full QA suite (see above) inside the production Docker image.
 3. Build the Docker image (`Dockerfile`) and push it to your registry.
-4. Populate Playwright browsers in the target environment (`playwright install chromium`).
+4. Populate Playwright browsers and system deps in the target environment:
+   ```bash
+   playwright install chromium
+   playwright install-deps
+   ```
 5. Configure persistent storage for `data/analytics.db` if analytics are enabled.
 6. Verify webhook reachability or polling connectivity.
 7. Rotate and securely store the Telegram token and any GitHub credentials after deployment.

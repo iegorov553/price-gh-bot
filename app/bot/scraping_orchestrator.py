@@ -15,7 +15,7 @@ from ..models import SearchAnalytics
 from ..scrapers import scraper_registry
 from ..services.analytics import analytics_service
 from ..services.cache_service import CacheService, get_cache_service
-from ..services.reliability import evaluate_seller_reliability
+from ..services.seller_assessment import evaluate_seller_advisory
 from .types import BaseScrapeResult, ItemScrapeResult, SellerScrapeResult
 from .utils import create_session
 
@@ -97,7 +97,7 @@ class ScrapingOrchestrator:
                 logger.info(f"Кэш попадание для {url} (время: {processing_time}мс)")
 
                 # Добавляем информацию о кэше
-                cached_result = cast(ItemScrapeResult, cached_data.copy())
+                cached_result: ItemScrapeResult = cached_data.copy()
                 cached_result["from_cache"] = True
                 cached_result["cache_processing_time_ms"] = processing_time
                 return cached_result
@@ -147,6 +147,7 @@ class ScrapingOrchestrator:
                     "platform": "unknown",
                     "item_data": None,
                     "seller_data": None,
+                    "seller_advisory": None,
                     "error": "No scraper found for URL",
                     "processing_time_ms": 0,
                     "url": url,
@@ -159,6 +160,7 @@ class ScrapingOrchestrator:
             "platform": platform,
             "item_data": None,
             "seller_data": None,
+            "seller_advisory": None,
             "error": None,
             "processing_time_ms": 0,
             "url": url,
@@ -215,7 +217,7 @@ class ScrapingOrchestrator:
         result: SellerScrapeResult = {
             "success": False,
             "seller_data": None,
-            "reliability_score": None,
+            "seller_advisory": None,
             "error": None,
             "processing_time_ms": 0,
             "url": url,
@@ -243,11 +245,13 @@ class ScrapingOrchestrator:
                 result["success"] = True
                 result["seller_data"] = seller_data
 
-                # Calculate reliability score
-                reliability_score = evaluate_seller_reliability(seller_data)
-                result["reliability_score"] = reliability_score
+                seller_advisory = evaluate_seller_advisory(seller_data=seller_data)
+                result["seller_advisory"] = seller_advisory
 
-                logger.info(f"Seller analysis complete: {reliability_score.category}")
+                if seller_advisory.message:
+                    logger.info(f"Seller advisory triggered for profile: {seller_advisory.reason}")
+                else:
+                    logger.info("Seller profile has no advisory warnings")
             else:
                 result["error"] = "No seller data found"
 
@@ -345,7 +349,7 @@ class ScrapingOrchestrator:
         """
         try:
             item_data = result.get("item_data")
-            reliability_score = result.get("reliability_score")
+            seller_advisory = result.get("seller_advisory")
 
             analytics_data = SearchAnalytics(
                 user_id=user_id,
@@ -359,8 +363,10 @@ class ScrapingOrchestrator:
                 item_title=getattr(item_data, "title", None),
                 item_price=getattr(item_data, "price", None),
                 shipping_us=getattr(item_data, "shipping_us", None),
-                seller_score=getattr(reliability_score, "total_score", None),
-                seller_category=getattr(reliability_score, "category", None),
+                seller_score=None,
+                seller_category=None,
+                seller_warning_reason=getattr(seller_advisory, "reason", None),
+                seller_warning_message=getattr(seller_advisory, "message", None),
                 commission=None,
                 final_price_usd=None,
                 is_buyable=getattr(item_data, "is_buyable", None),

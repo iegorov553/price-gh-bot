@@ -5,7 +5,7 @@ the application's components. This approach to DI helps to decouple the
 application's components and makes them easier to test and maintain.
 """
 
-from dependency_injector import containers, providers
+from dependency_injector import containers, providers  # type: ignore[import-not-found]
 
 from app.bot.analytics_tracker import AnalyticsTracker
 from app.bot.response_formatter import ResponseFormatter
@@ -17,7 +17,6 @@ from app.services.cache_service import CacheService
 from app.services.currency import OptimizedCurrencyService
 from app.services.customs import CustomsService
 from app.services.github import GitHubService
-from app.services.reliability import ReliabilityService
 from app.services.shipping import ShippingService
 
 
@@ -36,7 +35,6 @@ class Container(containers.DeclarativeContainer):
     currency_service = providers.Singleton(OptimizedCurrencyService)
     customs_service = providers.Singleton(CustomsService)
     github_service = providers.Singleton(GitHubService)
-    reliability_service = providers.Singleton(ReliabilityService)
     shipping_service = providers.Singleton(ShippingService)
 
     # Bot components

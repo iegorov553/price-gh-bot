@@ -12,15 +12,15 @@ Modern Architecture:
 
 Legacy modules (deprecated, use new scrapers instead):
 - ebay: Direct eBay scraping functions
-- grailed: Direct Grailed scraping functions  
+- grailed: Direct Grailed scraping functions
 - headless: Headless browser utilities
 """
 
 # Import legacy modules for backward compatibility
-from . import ebay, ebay_scraper, grailed, headless
+from . import ebay, grailed, headless
 
 # Import new unified scraper architecture
-from .base import ScraperProtocol, BaseScraper, scraper_registry
+from .base import BaseScraper, ScraperProtocol, scraper_registry
 from .ebay_scraper import ebay_scraper
 from .grailed_scraper import grailed_scraper
 
@@ -31,14 +31,13 @@ scraper_registry.register(grailed_scraper)
 # Export main interfaces
 __all__ = [
     # New unified architecture (recommended)
-    'ScraperProtocol',
-    'BaseScraper', 
-    'scraper_registry',
-    'ebay_scraper',
-    'grailed_scraper',
-    
+    "ScraperProtocol",
+    "BaseScraper",
+    "scraper_registry",
+    "ebay_scraper",
+    "grailed_scraper",
     # Legacy modules (backward compatibility)
-    'ebay',
-    'grailed', 
-    'headless'
+    "ebay",
+    "grailed",
+    "headless",
 ]
