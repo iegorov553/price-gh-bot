@@ -1,7 +1,5 @@
-# Multi-stage Dockerfile for testing
-# Optimized for fast test execution and caching
-
-FROM python:3.11-slim as base
+# Multi-stage Dockerfile for testing using Playwright base image
+FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy as base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
