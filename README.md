@@ -6,6 +6,7 @@ A modern, scalable Telegram bot that calculates total costs for eBay and Grailed
 
 ### Core Functionality
 - **Multi-marketplace support**: eBay and Grailed price scraping with dynamic content extraction
+- **Shortlink reliability**: Automatic resolution of grailed.app.link shares to canonical listings
 - **Complete cost calculation**: Item price + US shipping + Russian customs duty + Russia delivery + commission
 - **Smart commission structure**: Fixed $15 for orders <$150, 10% for orders ≥$150 (including US shipping)
 - **Russian customs duty**: Automatic 15% duty calculation for imports exceeding 200 EUR threshold

@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 from ..models import ItemData, SellerData
 from .base import BaseScraper
 from .headless import get_grailed_seller_data_headless
+from .grailed_url_resolver import normalize_grailed_url
 
 logger = logging.getLogger(__name__)
 
@@ -291,6 +292,11 @@ class GrailedScraper(BaseScraper):
             ItemData object if successful, None if failed.
         """
         self._log_scraping_start(url, "item")
+
+        normalized_url = normalize_grailed_url(url)
+        if normalized_url != url:
+            self.logger.debug("Normalized Grailed URL %s → %s", url, normalized_url)
+            url = normalized_url
         
         try:
             async with session.get(url) as response:
@@ -363,6 +369,11 @@ class GrailedScraper(BaseScraper):
             SellerData object if successful, None if failed.
         """
         self._log_scraping_start(url, "seller")
+
+        normalized_url = normalize_grailed_url(url)
+        if normalized_url != url:
+            self.logger.debug("Normalized Grailed seller URL %s → %s", url, normalized_url)
+            url = normalized_url
         
         # Check for cached seller data first
         if self._cached_seller_data and url == "https://www.grailed.com/cached_seller":

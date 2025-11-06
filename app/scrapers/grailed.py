@@ -23,6 +23,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 
 from ..models import ItemData, SellerData
+from .grailed_url_resolver import normalize_grailed_url
 
 PRICE_RE = re.compile(r"^\d[\d,.]*$")
 
@@ -519,6 +520,8 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> tuple[ItemD
         ItemData includes price, shipping, buyability, and title.
         SellerData includes rating, reviews, badge status, and last update.
     """
+    url = normalize_grailed_url(url)
+
     try:
         async with session.get(url) as response:
             response.raise_for_status()
@@ -646,6 +649,15 @@ async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSessio
     """
     import logging
     logger = logging.getLogger(__name__)
+
+    normalized_profile_url = normalize_grailed_url(profile_url)
+    if normalized_profile_url != profile_url:
+        logger.debug(
+            "Normalized Grailed seller URL %s → %s",
+            profile_url,
+            normalized_profile_url,
+        )
+        profile_url = normalized_profile_url
 
     # Try headless browser extraction first if enabled
     from ..config import config
