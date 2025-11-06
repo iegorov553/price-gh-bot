@@ -9,7 +9,7 @@ The bot reads configuration from environment variables and YAML files under `app
 | `BOT_TOKEN` | Yes | Telegram bot token issued by @BotFather. |
 | `ADMIN_CHAT_ID` | Yes | Telegram chat ID allowed to run admin commands. |
 | `ENABLE_HEADLESS_BROWSER` | No (default `true`) | Enables Playwright scraping for Grailed data. |
-| `BOT_LISTEN_HOST` | No (default `127.0.0.1`) | Host interface to bind the webhook server. Override to `0.0.0.0` only when exposing the bot publicly. |
+| `BOT_LISTEN_HOST` | No (default `127.0.0.1`) | Host interface to bind the webhook server. Set to `0.0.0.0` when running inside containers or PaaS so Telegram can reach the webhook. |
 | `PORT` | No (default `8000`) | Port for webhook mode. |
 | `RAILWAY_PUBLIC_DOMAIN` / `RAILWAY_URL` | No | Public domain used to register the webhook. Without this, the bot uses long polling. |
 | `ANALYTICS_ENABLED` | No (default `true`) | Toggles analytics collection. |
@@ -38,6 +38,7 @@ The `Config` class (`app/config.py`) reads the YAML files at startup. If files a
 - Default path: `data/analytics.db`. Ensure the directory is writable by the bot process.  
 - To relocate the database, set `ANALYTICS_DB_PATH` and mount the target directory in Docker.  
 - Use `/analytics_download_db` to retrieve the file for investigation or backup.
+- In hosted environments (Railway, Render, etc.), attach a persistent volume to `/app/data` to avoid losing analytics across deployments.
 
 ## Webhook vs Polling
 - If `RAILWAY_PUBLIC_DOMAIN` or `RAILWAY_URL` is populated, the bot runs in webhook mode and binds to `BOT_LISTEN_HOST:<PORT>` (defaults to `127.0.0.1`). Use `BOT_LISTEN_HOST=0.0.0.0` when running inside containers that require public binding.  

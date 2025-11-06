@@ -17,6 +17,7 @@ from .messages import (
     GRAILED_LISTING_ISSUE,
     GRAILED_SITE_DOWN,
     GRAILED_SITE_SLOW,
+    NEGOTIATION_NOTE_LINE,
     OFFER_ONLY_MESSAGE,
 )
 from .utils import (
@@ -99,6 +100,9 @@ class ResponseFormatter:
                 item_url=scraping_result.get('url'),
                 use_markdown=False
             )
+            
+            if response:
+                response = f"{response}\n\n{NEGOTIATION_NOTE_LINE}"
                 
             return response
             

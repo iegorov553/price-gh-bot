@@ -58,6 +58,8 @@ Set the required environment variables (see `docs/setup/configuration.md` for th
 - `ANALYTICS_*`: Control analytics storage, export, and retention
 - `GITHUB_*`: Optional GitHub integration for automated issue filing
 
+When running inside a container or PaaS (Railway, Render, Fly.io), set `BOT_LISTEN_HOST=0.0.0.0` so Telegram can reach the webhook endpoint. The default `127.0.0.1` is meant for local development.
+
 Additional configuration is loaded from `app/config/config.yml` files (commission tiers, shipping routes, currency markup). Shipping weights default to 0.60 kg unless a pattern match is found in `app/config/shipping_table.yml`.
 
 ## Running the Bot
@@ -86,7 +88,9 @@ Refer to `Makefile` for convenience targets (`make install`, `make test`, `make 
 ## Operational Guide
 - **Logging**: Structured logs go to stdout; configure Docker or hosting provider to persist them.
 - **Analytics database**: Stored at `data/analytics.db` by default. Back up or rotate this file if long-term retention is required.
+- **Persistent storage**: Mount a volume to `/app/data` (or adjust `ANALYTICS_DB_PATH`) in production to keep analytics across deployments.
 - **Resource lifecycle**: `app.main` initialises a Playwright browser pool and Redis cache (if configured) on startup and tears them down on shutdown.
+- **Redis cache (optional)**: The bot automatically degrades to in-memory mode if Redis is absent. To enable caching, ensure a Redis instance is reachable at `redis://localhost:6379` (default) or adjust `CacheConfig.redis_url` to your managed Redis endpoint before deploying.
 - **Admin commands**:
   - `/analytics_daily`, `/analytics_week`: Usage metrics
   - `/analytics_user <id>`: Per-user insights

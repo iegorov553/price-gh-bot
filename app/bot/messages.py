@@ -68,6 +68,7 @@ RUSSIA_COSTS_LINE = "└ Расходы: ${additional_costs}"
 
 FINAL_TOTAL_HEADER = "💰 ИТОГО: ${final_price} (₽{rub_price})"
 FINAL_TOTAL_LINE_NO_RUB = "💰 ИТОГО: ${final_price}"
+NEGOTIATION_NOTE_LINE = "ℹ️ Примечание: итоговая сумма ориентировочная; перед выкупом я всегда веду торг с продавцом."
 
 # Commission types
 COMMISSION_TYPE_FIXED = "фикс. сумма"

@@ -37,6 +37,7 @@ Follow these steps to prepare a development or production environment for Price 
   docker build -t price-gh-bot-test -f Dockerfile.test .
   ```
 - **Compose**: `docker-compose.test.yml` orchestrates the bot alongside its dependencies for integration testing.
+- **Persistent analytics volume**: When deploying to a platform-as-a-service, mount a volume to `/app/data` (or wherever `ANALYTICS_DB_PATH` points) so `analytics.db` survives restarts.
 
 ## Headless Browser Requirements
 - Playwright Chromium must be installed in the environment that runs the bot.  
