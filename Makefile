@@ -4,27 +4,30 @@ help:		## Show this help message
 	@echo "Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
+POETRY := poetry
+
 install:	## Install dependencies
-	pip install -r requirements.txt
+	$(POETRY) install
 
 test:		## Run tests
-	pytest -q
+	$(POETRY) run pytest -q
 
 lint:		## Run linting and code quality checks
-	ruff .
-	pydocstyle . --convention=google
+	$(POETRY) run ruff check .
+	$(POETRY) run ruff format --check .
+	$(POETRY) run pydocstyle . --convention=google
 
 type-check:	## Run type checking
-	mypy app/
+	$(POETRY) run mypy app/
 
 docs:		## Alias for docs-serve
 	mkdocs serve
 
 docs-serve:	## Serve documentation locally
-	mkdocs serve
+	$(POETRY) run mkdocs serve
 
 docs-build:	## Build documentation
-	mkdocs build
+	$(POETRY) run mkdocs build
 
 clean:		## Clean build artifacts
 	rm -rf site/
@@ -34,16 +37,17 @@ clean:		## Clean build artifacts
 	find . -name "*.pyo" -delete
 
 pre-commit:	## Run pre-commit hooks
-	pre-commit run --all-files
+	$(POETRY) run pre-commit run --all-files
 
 check-all:	## Run all quality checks
 	@echo "Running linting..."
-	ruff .
+	$(POETRY) run ruff check .
+	$(POETRY) run ruff format --check .
 	@echo "Running docstring checks..."
-	pydocstyle . --convention=google || true
+	$(POETRY) run pydocstyle . --convention=google || true
 	@echo "Running type checks..."
-	mypy app/ || true
+	$(POETRY) run mypy app/ || true
 	@echo "Running tests..."
-	pytest -q || true
+	$(POETRY) run pytest -q || true
 	@echo "Building documentation..."
-	mkdocs build || true
+	$(POETRY) run mkdocs build || true
