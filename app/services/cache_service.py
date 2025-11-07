@@ -1,5 +1,4 @@
-"""
-Сервис кэширования для результатов скрапинга с Redis.
+"""Сервис кэширования для результатов скрапинга с Redis.
 
 Этот модуль предоставляет высокопроизводительное кэширование для:
 - Данных товаров (TTL 24 часа)
@@ -45,16 +44,14 @@ class CacheConfig(BaseModel):
 
 
 class CacheService:
-    """
-    Высокопроизводительный сервис кэширования с Redis.
+    """Высокопроизводительный сервис кэширования с Redis.
 
     Обеспечивает мгновенные ответы для повторных запросов,
     сокращая время обработки с 8-10 секунд до <1 секунды.
     """
 
     def __init__(self, config: CacheConfig):
-        """
-        Инициализирует сервис кэширования.
+        """Инициализирует сервис кэширования.
 
         Args:
             config: Конфигурация Redis соединения
@@ -74,8 +71,7 @@ class CacheService:
         return self._redis
 
     async def connect(self) -> bool:
-        """
-        Подключается к Redis серверу.
+        """Подключается к Redis серверу.
 
         Returns:
             True если подключение успешно, False иначе
@@ -107,8 +103,7 @@ class CacheService:
             return False
 
     def _generate_key(self, prefix: str, identifier: str) -> str:
-        """
-        Генерирует уникальный ключ кэша с хэшированием.
+        """Генерирует уникальный ключ кэша с хэшированием.
 
         Args:
             prefix: Префикс ключа (item, seller, currency)
@@ -123,8 +118,7 @@ class CacheService:
         return f"price_bot:{prefix}:{hash_obj.hexdigest()}"
 
     async def get_item_data(self, url: str) -> dict[str, Any] | None:
-        """
-        Получает кэшированные данные товара.
+        """Получает кэшированные данные товара.
 
         Args:
             url: URL товара
@@ -154,8 +148,7 @@ class CacheService:
             return None
 
     async def set_item_data(self, url: str, data: dict[str, Any]) -> bool:
-        """
-        Кэширует данные товара на 24 часа.
+        """Кэширует данные товара на 24 часа.
 
         Args:
             url: URL товара
@@ -190,8 +183,7 @@ class CacheService:
             return False
 
     async def get_seller_data(self, seller_url: str) -> dict[str, Any] | None:
-        """
-        Получает кэшированные данные продавца.
+        """Получает кэшированные данные продавца.
 
         Args:
             seller_url: URL профиля продавца
@@ -221,8 +213,7 @@ class CacheService:
             return None
 
     async def set_seller_data(self, seller_url: str, data: dict[str, Any]) -> bool:
-        """
-        Кэширует данные продавца на 12 часов.
+        """Кэширует данные продавца на 12 часов.
 
         Args:
             seller_url: URL профиля продавца
@@ -257,8 +248,7 @@ class CacheService:
             return False
 
     async def get_currency_rate(self, from_currency: str, to_currency: str) -> float | None:
-        """
-        Получает кэшированный курс валют.
+        """Получает кэшированный курс валют.
 
         Args:
             from_currency: Исходная валюта
@@ -288,8 +278,7 @@ class CacheService:
             return None
 
     async def set_currency_rate(self, from_currency: str, to_currency: str, rate: float) -> bool:
-        """
-        Кэширует курс валют на 12 часов.
+        """Кэширует курс валют на 12 часов.
 
         Args:
             from_currency: Исходная валюта
@@ -316,8 +305,7 @@ class CacheService:
             return False
 
     async def invalidate_pattern(self, pattern: str) -> int:
-        """
-        Удаляет ключи по паттерну.
+        """Удаляет ключи по паттерну.
 
         Args:
             pattern: Паттерн для поиска ключей (например, "price_bot:item:*")
@@ -343,8 +331,7 @@ class CacheService:
             return 0
 
     async def get_stats(self) -> dict[str, Any]:
-        """
-        Получает статистику кэша.
+        """Получает статистику кэша.
 
         Returns:
             Словарь со статистикой Redis
@@ -427,8 +414,7 @@ _cache_service: CacheService | None = None
 
 
 async def get_cache_service() -> CacheService:
-    """
-    Получает глобальный сервис кэширования.
+    """Получает глобальный сервис кэширования.
 
     Returns:
         Инициализированный CacheService

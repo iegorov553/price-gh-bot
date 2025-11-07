@@ -13,7 +13,10 @@ from ..models import ShippingQuote
 
 
 class ShippingService:
+    """Estimate Shopfans shipping costs based on configuration thresholds."""
+
     def __init__(self, config: Config):
+        """Store configuration used for shipping estimation."""
         self.config = config
 
     def estimate_shopfans_shipping(

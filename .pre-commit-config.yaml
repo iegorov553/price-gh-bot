@@ -20,7 +20,7 @@ repos:
     hooks:
       - id: pytest-unit
         name: Run unit tests
-        entry: bash -c "cd /home/iegorov553/projects/price-gh-bot && source venv/bin/activate && BOT_TOKEN=<BOT_TOKEN> pytest tests_new/unit/ -x"
+        entry: bash -c "cd /home/iegorov553/projects/price-gh-bot && poetry run pytest tests_new/unit/ -x"
         language: system
         files: ^(app|tests_new)/.*\.py$
         pass_filenames: false

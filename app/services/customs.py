@@ -20,7 +20,10 @@ DUTY_THRESHOLD_EUR = Decimal("200")  # 200 EUR threshold
 
 
 class CustomsService:
+    """Calculate Russian customs duty based on configurable currency service."""
+
     def __init__(self, currency_service: OptimizedCurrencyService):
+        """Store currency service used for exchange-rate lookups."""
         self.currency_service = currency_service
 
     async def calculate_rf_customs_duty(

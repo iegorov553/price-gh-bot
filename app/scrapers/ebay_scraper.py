@@ -59,7 +59,7 @@ class EbayScraper(BaseScraper):
             return None
 
     async def scrape_seller(self, url: str, session: aiohttp.ClientSession) -> SellerData | None:
-        """eBay does not support seller analysis.
+        """Ebay does not support seller analysis.
 
         Args:
             url: Seller profile URL (ignored).

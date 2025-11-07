@@ -1,5 +1,4 @@
-"""
-Оптимизированный сервис валютных курсов с Redis кэшированием и batch обработкой.
+"""Оптимизированный сервис валютных курсов с Redis кэшированием и batch обработкой.
 
 Улучшения по сравнению с оригинальным currency.py:
 - TTL увеличен с 1 часа до 12 часов
@@ -27,8 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class OptimizedCurrencyService:
-    """
-    Оптимизированный сервис валютных курсов с длительным кэшированием.
+    """Оптимизированный сервис валютных курсов с длительным кэшированием.
 
     Ожидаемое ускорение: 2-3с → мгновенно для кэша (95%)
     """
@@ -51,8 +49,7 @@ class OptimizedCurrencyService:
     async def get_usd_to_rub_rate_optimized(
         self, session: aiohttp.ClientSession
     ) -> CurrencyRate | None:
-        """
-        Получает курс USD/RUB с оптимизированным кэшированием (12 часов).
+        """Получает курс USD/RUB с оптимизированным кэшированием (12 часов).
 
         Args:
             session: HTTP сессия для запросов
@@ -86,8 +83,7 @@ class OptimizedCurrencyService:
     async def get_eur_to_usd_rate_optimized(
         self, session: aiohttp.ClientSession
     ) -> CurrencyRate | None:
-        """
-        Получает курс EUR/USD с оптимизированным кэшированием.
+        """Получает курс EUR/USD с оптимизированным кэшированием.
 
         Args:
             session: HTTP сессия для запросов
@@ -182,8 +178,7 @@ class OptimizedCurrencyService:
         session: aiohttp.ClientSession,
         fetch_func: Callable[[aiohttp.ClientSession], Coroutine[Any, Any, CurrencyRate | None]],
     ) -> CurrencyRate | None:
-        """
-        Получает курс с группировкой одновременных запросов.
+        """Получает курс с группировкой одновременных запросов.
 
         Если несколько пользователей запрашивают курс одновременно,
         выполняется только один API запрос.
@@ -388,8 +383,7 @@ class OptimizedCurrencyService:
     async def get_rate_optimized(
         self, from_currency: str, to_currency: str, session: aiohttp.ClientSession
     ) -> CurrencyRate | None:
-        """
-        Универсальный метод получения курса валют с оптимизацией.
+        """Универсальный метод получения курса валют с оптимизацией.
 
         Args:
             from_currency: Исходная валюта

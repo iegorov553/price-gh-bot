@@ -58,6 +58,7 @@ class HeadlessBrowser:
     """Headless browser manager for dynamic content extraction."""
 
     def __init__(self) -> None:
+        """Initialize headless browser placeholders."""
         self.browser: Browser | None = None
         self.context: BrowserContext | None = None
         self.playwright: Playwright | None = None

@@ -65,8 +65,7 @@ class ScrapingOrchestrator:
     async def scrape_item_listing_with_cache(
         self, url: str, session: aiohttp.ClientSession
     ) -> ItemScrapeResult:
-        """
-        Scrape item listing with Redis caching for instant repeated requests.
+        """Scrape item listing with Redis caching for instant repeated requests.
 
         Ожидаемое ускорение: повторные запросы 8-10с → <1с (95%)
 
