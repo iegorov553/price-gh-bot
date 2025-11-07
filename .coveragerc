@@ -8,7 +8,7 @@ concurrency = thread,multiprocessing
 
 # Files to include/exclude
 include = app/*
-omit = 
+omit =
     app/__init__.py
     app/config.py
     venv/*

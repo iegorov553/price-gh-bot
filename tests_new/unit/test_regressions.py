@@ -10,17 +10,17 @@ from typing import Any
 
 import pytest
 
-pytest.importorskip("pydantic_settings")
-
+from app.bot import utils
 from app.bot.analytics_tracker import AnalyticsTracker
+from app.bot.messages import SELLER_OK_MESSAGE, SELLER_WARNING_LOW_RATING
 from app.bot.response_formatter import response_formatter
 from app.bot.scraping_orchestrator import ScrapingOrchestrator
-from app.bot import utils
-from app.bot.messages import SELLER_OK_MESSAGE, SELLER_WARNING_LOW_RATING
 from app.models import ItemData, PriceCalculation, SellerAdvisory, SellerData
 from app.scrapers.grailed_scraper import GrailedScraper
 from app.services.analytics import AnalyticsService
 from app.services.cache_service import CacheConfig, CacheService
+
+pytest.importorskip("pydantic_settings")
 
 
 class _DummySession:
@@ -121,7 +121,7 @@ class _FakeResponse:
         self.headers = headers
         self._body = body
 
-    async def __aenter__(self) -> "_FakeResponse":
+    async def __aenter__(self) -> _FakeResponse:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:  # noqa: D401
@@ -225,9 +225,7 @@ async def test_orchestrator_log_analytics_uses_new_schema(monkeypatch: pytest.Mo
             title="Rare Hoodie",
             image_url=None,
         ),
-        "seller_advisory": SellerAdvisory(
-            reason="low_rating", message=SELLER_WARNING_LOW_RATING
-        ),
+        "seller_advisory": SellerAdvisory(reason="low_rating", message=SELLER_WARNING_LOW_RATING),
     }
 
     await orchestrator._log_analytics(result, user_id=10, username="tester")

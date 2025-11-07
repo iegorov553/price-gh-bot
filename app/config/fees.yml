@@ -6,7 +6,7 @@ commission:
     amount: 15.0
     threshold: 150.0
     currency: "USD"
-  
+
   # Percentage commission for items above threshold
   percentage:
     rate: 0.10  # 10%
@@ -19,7 +19,7 @@ shopfans:
   # Tiered per-kg rates based on total order value (item + US shipping)
   per_kg_rates:
     europe: 30.86    # < $200 - via Europe
-    turkey: 35.27    # >= $200 - via Turkey  
+    turkey: 35.27    # >= $200 - via Turkey
     kazakhstan: 41.89 # >= $1000 - via Kazakhstan
   # Rate thresholds based on item + US shipping cost
   rate_thresholds:

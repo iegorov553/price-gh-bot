@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,12 +11,12 @@ from app.bot.handlers import handle_link
 from app.bot.response_formatter import response_formatter
 from app.bot.scraping_orchestrator import scraping_orchestrator
 from app.bot.types import ItemScrapeResult, SellerScrapeResult
-from app.models import ItemData, SellerData
+from app.models import ItemData
 
 
 class TestBotHandlerIntegration:
     """Test bot handlers with component integration."""
-    
+
     @pytest.mark.asyncio
     async def test_handle_listing_full_flow(
         self, mock_config, mock_http_session, sample_item_data, sample_exchange_rate
@@ -62,11 +61,15 @@ class TestBotHandlerIntegration:
 
         # Последний ответ пользователю содержит рассчитанные данные
         final_call = update.message.reply_text.await_args_list[-1]
-        final_text = final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        final_text = (
+            final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        )
         assert expected_response in final_text
-    
+
     @pytest.mark.asyncio
-    async def test_handle_grailed_listing_with_seller_analysis(self, mock_config, mock_http_session, sample_item_data, sample_seller_data):
+    async def test_handle_grailed_listing_with_seller_analysis(
+        self, mock_config, mock_http_session, sample_item_data, sample_seller_data
+    ):
         """Test Grailed listing handling with seller reliability analysis."""
         url = "https://www.grailed.com/listings/123456-supreme-hoodie"
         update = AsyncMock()
@@ -104,9 +107,11 @@ class TestBotHandlerIntegration:
             await handle_link(update, context)
 
         final_call = update.message.reply_text.await_args_list[-1]
-        final_text = final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        final_text = (
+            final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        )
         assert "💎 Diamond" in final_text
-    
+
     @pytest.mark.asyncio
     async def test_handle_multiple_urls(self, mock_config, mock_http_session, sample_item_data):
         """Test handling message with multiple URLs."""
@@ -165,9 +170,11 @@ class TestBotHandlerIntegration:
                 sent_texts.append(call.args[0])
         assert any("Ответ по eBay" in text for text in sent_texts)
         assert any("Ответ по Grailed" in text for text in sent_texts)
-    
+
     @pytest.mark.asyncio
-    async def test_handle_seller_profile_analysis(self, mock_config, mock_http_session, sample_seller_data):
+    async def test_handle_seller_profile_analysis(
+        self, mock_config, mock_http_session, sample_seller_data
+    ):
         """Test seller profile analysis flow."""
         update = AsyncMock()
         update.message.text = "https://grailed.com/username"
@@ -206,9 +213,11 @@ class TestBotHandlerIntegration:
 
         loading_message.edit_text.assert_awaited()
         edit_call = loading_message.edit_text.await_args_list[-1]
-        edit_text = edit_call.kwargs.get("text") if "text" in edit_call.kwargs else edit_call.args[0]
+        edit_text = (
+            edit_call.kwargs.get("text") if "text" in edit_call.kwargs else edit_call.args[0]
+        )
         assert "Анализ продавца Grailed" in edit_text
-    
+
     @pytest.mark.asyncio
     async def test_handle_offer_only_item(self, mock_config, mock_http_session):
         """Test handling of offer-only items (not buyable)."""
@@ -220,7 +229,7 @@ class TestBotHandlerIntegration:
         context = AsyncMock()
         context.application = MagicMock()
         context.application.bot = MagicMock()
-        
+
         offer_only_item = ItemData(
             price=Decimal("150.00"),
             shipping_us=Decimal("20.00"),
@@ -251,10 +260,12 @@ class TestBotHandlerIntegration:
             await handle_link(update, context)
 
         final_call = update.message.reply_text.await_args_list[-1]
-        final_text = final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        final_text = (
+            final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        )
         assert expected_text in final_text.lower()
         assert "$150.00" in final_text
-    
+
     @pytest.mark.asyncio
     async def test_handle_scraping_failure(self, mock_config, mock_http_session):
         """Test handling when scraping fails."""
@@ -288,6 +299,7 @@ class TestBotHandlerIntegration:
             await handle_link(update, context)
 
         final_call = update.message.reply_text.await_args_list[-1]
-        final_text = final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        final_text = (
+            final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        )
         assert failure_text in final_text
-    

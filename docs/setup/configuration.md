@@ -29,24 +29,24 @@ Provide these variables through `.env`, your container orchestrator, or a secret
 | `shipping_table.yml` | Maps regex patterns (e.g., footwear, outerwear) to default package weights used when item weight is unknown. |
 
 The `Config` class (`app/config.py`) reads the YAML files at startup. If files are missing, sane defaults are applied:
-- Commission: flat 15 USD below 150 USD, 10 percent otherwise.  
-- Shipping: 13.99 USD minimum, per-kilogram rates of 30.86 (Europe), 35.27 (Turkey), 41.89 (Kazakhstan).  
-- Shipping weight: 0.60 kg fallback.  
+- Commission: flat 15 USD below 150 USD, 10 percent otherwise.
+- Shipping: 13.99 USD minimum, per-kilogram rates of 30.86 (Europe), 35.27 (Turkey), 41.89 (Kazakhstan).
+- Shipping weight: 0.60 kg fallback.
 - Currency markup: 5 percent.
 
 ## Analytics Storage
-- Default path: `data/analytics.db`. Ensure the directory is writable by the bot process.  
-- To relocate the database, set `ANALYTICS_DB_PATH` and mount the target directory in Docker.  
+- Default path: `data/analytics.db`. Ensure the directory is writable by the bot process.
+- To relocate the database, set `ANALYTICS_DB_PATH` and mount the target directory in Docker.
 - Use `/analytics_download_db` to retrieve the file for investigation or backup.
 - In hosted environments (Railway, Render, etc.), attach a persistent volume to `/app/data` to avoid losing analytics across deployments.
 
 ## Webhook vs Polling
-- If `RAILWAY_PUBLIC_DOMAIN` or `RAILWAY_URL` is populated, the bot runs in webhook mode and binds to `BOT_LISTEN_HOST:<PORT>` (defaults to `127.0.0.1`). Use `BOT_LISTEN_HOST=0.0.0.0` when running inside containers that require public binding.  
+- If `RAILWAY_PUBLIC_DOMAIN` or `RAILWAY_URL` is populated, the bot runs in webhook mode and binds to `BOT_LISTEN_HOST:<PORT>` (defaults to `127.0.0.1`). Use `BOT_LISTEN_HOST=0.0.0.0` when running inside containers that require public binding.
 - Without a public domain, the bot falls back to long polling. Ensure outbound connectivity to Telegram endpoints.
 
 ## Secret Management Tips
-- Use `.env` only for local development; production deployments should load secrets from a vault or runtime environment.  
-- Rotate `BOT_TOKEN` regularly and immediately after any suspected leak.  
+- Use `.env` only for local development; production deployments should load secrets from a vault or runtime environment.
+- Rotate `BOT_TOKEN` regularly and immediately after any suspected leak.
 - Keep `ADMIN_CHAT_ID` up to date when onboarding or offboarding operators.
 
 Revisit this page whenever you introduce new features that depend on additional configuration.

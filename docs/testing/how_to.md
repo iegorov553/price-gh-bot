@@ -30,25 +30,25 @@ docker run --rm -it --env-file .env.pricebot price-gh-bot-test
 Adjust the env file or environment variables to provide required tokens for integration tests. Use a dedicated test token; never reuse production credentials.
 
 ## Playwright Requirements
-- Install Chromium before running tests that rely on Playwright:  
+- Install Chromium before running tests that rely on Playwright:
   ```bash
   poetry run playwright install chromium
-  ```  
+  ```
 - For Docker containers, add `--shm-size=1g` to avoid shared memory exhaustion.
 
 ## Markers and Shortcuts
-- Use `pytest -m "not e2e"` to skip long-running end-to-end tests during development.  
-- Use `pytest -k keyword` to run targeted subsets.  
+- Use `pytest -m "not e2e"` to skip long-running end-to-end tests during development.
+- Use `pytest -k keyword` to run targeted subsets.
 - Add custom markers in `pytest.ini` if new categories of tests are introduced.
 
 ## Reporting
-- Generate coverage: `poetry run pytest --cov=app --cov-report=term-missing`.  
-- Generate JUnit XML for CI: `poetry run pytest --junitxml=reports/junit.xml`.  
+- Generate coverage: `poetry run pytest --cov=app --cov-report=term-missing`.
+- Generate JUnit XML for CI: `poetry run pytest --junitxml=reports/junit.xml`.
 - Publish HTML coverage by adding `--cov-report=html` and reviewing the `htmlcov/` directory.
 
 ## Failing Tests
-- Investigate failures with increased verbosity: `pytest -vv`.  
-- Reproduce flaky tests multiple times: `pytest <path>::<test_name> --maxfail=1 --count=10`.  
+- Investigate failures with increased verbosity: `pytest -vv`.
+- Reproduce flaky tests multiple times: `pytest <path>::<test_name> --maxfail=1 --count=10`.
 - File an issue if a test consistently fails due to missing mocks or outdated fixtures.
 
 Always run the full suite (tests + lint + typing + security) before committing or deploying changes.
