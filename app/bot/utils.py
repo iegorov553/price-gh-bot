@@ -27,7 +27,6 @@ from .messages import (
     FINAL_TOTAL_HEADER,
     FINAL_TOTAL_LINE_NO_RUB,
     ITEM_PRICE_LINE,
-    NEGOTIATION_NOTE_LINE,
     RUSSIA_COSTS_LINE,
     RUSSIA_IMPORT_HEADER,
     SHIPPING_ONLY_RU_LINE,
@@ -308,9 +307,6 @@ def format_price_response(
         response_lines.append(
             FINAL_TOTAL_LINE_NO_RUB.format(final_price=calculation.final_price_usd)
         )
-
-    response_lines.append("")
-    response_lines.append(NEGOTIATION_NOTE_LINE)
 
     response = "\n".join(response_lines)
 

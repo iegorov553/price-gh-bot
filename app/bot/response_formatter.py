@@ -5,17 +5,22 @@ and other user-facing content with proper localization and structure.
 """
 
 import logging
+from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 from ..services.currency import get_optimized_currency_service
 from ..services.seller_assessment import evaluate_seller_advisory
 from .messages import (
+    CALCULATION_TIMESTAMP_FORMAT,
+    CALCULATION_TIMESTAMP_LINE,
     ERROR_PRICE_NOT_FOUND,
     ERROR_SELLER_ANALYSIS,
     ERROR_SELLER_DATA_NOT_FOUND,
     GRAILED_LISTING_ISSUE,
     GRAILED_SITE_DOWN,
     GRAILED_SITE_SLOW,
+    NEGOTIATION_NOTE_LINE,
     SELLER_OK_MESSAGE,
 )
 from .types import BaseScrapeResult
@@ -30,9 +35,9 @@ logger = logging.getLogger(__name__)
 class ResponseFormatter:
     """Formats bot responses for pricing, seller advisories, and errors."""
 
-    def __init__(self) -> None:
-        """Initialize response formatter."""
-        pass
+    def __init__(self, clock: Callable[[], datetime] | None = None) -> None:
+        """Initialize response formatter with optional clock provider."""
+        self._clock = clock or (lambda: datetime.now().astimezone())
 
     async def format_item_response(self, scraping_result: BaseScrapeResult) -> str:
         """Format response for item listing analysis.
@@ -82,7 +87,17 @@ class ResponseFormatter:
             )
 
             if warning_message:
-                response = f"{response}\n\n{warning_message}"
+                response = "\n".join([response, "", warning_message])
+
+            response = "\n".join(
+                [
+                    response,
+                    "",
+                    NEGOTIATION_NOTE_LINE,
+                    "",
+                    self._format_calculation_timestamp_line(),
+                ]
+            )
 
             return response
 
@@ -237,6 +252,23 @@ class ResponseFormatter:
             message += "**Платформы:** нет данных\n"
 
         return message
+
+    def _format_calculation_timestamp_line(self) -> str:
+        """Создать строку со штампом времени расчёта и часовым поясом."""
+        current_time = self._clock()
+        offset = current_time.utcoffset()
+
+        if offset is None:
+            offset_str = "+00:00"
+        else:
+            total_minutes = int(offset.total_seconds() // 60)
+            sign = "+" if total_minutes >= 0 else "-"
+            total_minutes = abs(total_minutes)
+            hours, minutes = divmod(total_minutes, 60)
+            offset_str = f"{sign}{hours:02d}:{minutes:02d}"
+
+        formatted_timestamp = current_time.strftime(CALCULATION_TIMESTAMP_FORMAT)
+        return CALCULATION_TIMESTAMP_LINE.format(datetime=formatted_timestamp, offset=offset_str)
 
 
 # Global response formatter instance

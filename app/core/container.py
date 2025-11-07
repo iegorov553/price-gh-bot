@@ -5,7 +5,7 @@ the application's components. This approach to DI helps to decouple the
 application's components and makes them easier to test and maintain.
 """
 
-from dependency_injector import containers, providers  # type: ignore[import-not-found]
+from dependency_injector import containers, providers
 
 from app.bot.analytics_tracker import AnalyticsTracker
 from app.bot.response_formatter import ResponseFormatter
