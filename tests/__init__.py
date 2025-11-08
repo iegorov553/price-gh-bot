@@ -1,5 +1,4 @@
-"""Test suite for the price bot application.
+"""Legacy test package retained to block pytest from loading removed suites."""
 
-Contains unit tests for all core functionality including scrapers, services,
-currency conversion, and business logic validation.
-"""
+# Legacy tests have been removed. This placeholder prevents pytest from
+# discovering outdated modules.

@@ -5,10 +5,10 @@ services:
   test-unit:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile
       target: test
     environment:
-      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - BOT_TOKEN=<BOT_TOKEN>
       - ENABLE_HEADLESS_BROWSER=false
       - LOG_LEVEL=WARNING
     command: ["pytest", "tests_new/unit/", "-v", "--tb=short", "-x"]
@@ -16,15 +16,15 @@ services:
       - .:/app:ro
     networks:
       - test-network
-  
+
   # Integration tests - component interaction tests with mocks
   test-integration:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile
       target: test
     environment:
-      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - BOT_TOKEN=<BOT_TOKEN>
       - ENABLE_HEADLESS_BROWSER=false
       - LOG_LEVEL=INFO
     command: ["pytest", "tests_new/integration/", "-v", "--tb=short", "-x"]
@@ -34,15 +34,15 @@ services:
       - test-network
     depends_on:
       - test-unit
-  
+
   # E2E tests - full workflow with real external services
   test-e2e:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile
       target: test
     environment:
-      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - BOT_TOKEN=<BOT_TOKEN>
       - ENABLE_HEADLESS_BROWSER=true
       - LOG_LEVEL=INFO
     command: ["pytest", "tests_new/e2e/", "-v", "--tb=short", "-x", "--timeout=60"]
@@ -52,19 +52,19 @@ services:
       - test-network
     depends_on:
       - test-integration
-  
+
   # All tests in sequence
   test-all:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile
       target: test
     environment:
-      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - BOT_TOKEN=<BOT_TOKEN>
       - ENABLE_HEADLESS_BROWSER=true
       - LOG_LEVEL=INFO
     command: [
-      "bash", "-c", 
+      "bash", "-c",
       "echo '🧪 Running comprehensive test suite...' && \
        pytest tests_new/unit/ -v --tb=short -x && \
        echo '✅ Unit tests passed' && \
@@ -77,15 +77,15 @@ services:
       - .:/app:ro
     networks:
       - test-network
-  
+
   # Development environment for interactive testing
   test-dev:
     build:
       context: .
-      dockerfile: Dockerfile.test
-      target: test-dev
+      dockerfile: Dockerfile
+      target: test
     environment:
-      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - BOT_TOKEN=<BOT_TOKEN>
       - ENABLE_HEADLESS_BROWSER=true
       - LOG_LEVEL=DEBUG
     volumes:
@@ -99,19 +99,19 @@ services:
       - test-network
     stdin_open: true
     tty: true
-  
+
   # Test with coverage reporting
   test-coverage:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile
       target: test
     environment:
-      - BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+      - BOT_TOKEN=<BOT_TOKEN>
       - ENABLE_HEADLESS_BROWSER=true
       - LOG_LEVEL=WARNING
     command: [
-      "pytest", "tests_new/", 
+      "pytest", "tests_new/",
       "-v", "--tb=short",
       "--cov=app", "--cov-report=html", "--cov-report=term",
       "--cov-fail-under=80"

@@ -42,11 +42,11 @@ pre-commit install
 # Run all unit tests (fastest)
 pytest tests_new/unit/ -v
 
-# Run integration tests  
+# Run integration tests
 pytest tests_new/integration/ -v
 
 # Run E2E tests (slowest, requires network)
-BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU pytest tests_new/e2e/ -v
+BOT_TOKEN=<BOT_TOKEN> pytest tests_new/e2e/ -v
 
 # Run all tests with coverage
 pytest tests_new/ --cov=app --cov-report=html
@@ -58,7 +58,7 @@ pytest tests_new/ --cov=app --cov-report=html
 ln -s Makefile.test Makefile
 
 make test-unit           # Fast unit tests
-make test-integration    # Integration tests  
+make test-integration    # Integration tests
 make test-e2e           # End-to-end tests
 make test-all           # Complete test suite
 make test-coverage      # Tests with coverage report
@@ -119,7 +119,7 @@ docker exec -it <container> bash
 ### Environment Variables
 ```bash
 # Required for all tests
-BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+BOT_TOKEN=<BOT_TOKEN>
 
 # Optional configuration
 ENABLE_HEADLESS_BROWSER=true   # For E2E seller analysis tests
@@ -138,7 +138,7 @@ The test suite uses comprehensive pytest configuration:
 ### Test Markers
 ```python
 @pytest.mark.unit          # Fast unit tests
-@pytest.mark.integration   # Integration tests  
+@pytest.mark.integration   # Integration tests
 @pytest.mark.e2e          # End-to-end tests
 @pytest.mark.slow         # Slow tests (> 5s)
 @pytest.mark.network      # Requires network access
@@ -182,7 +182,7 @@ The test suite integrates with GitHub Actions for automated testing:
 # .github/workflows/test-and-deploy.yml provides:
 - Lint and type checking
 - Unit tests with coverage
-- Integration tests  
+- Integration tests
 - E2E tests (on main branch)
 - Security scanning
 - Docker build verification
@@ -232,7 +232,7 @@ pytest tests_new/ --cov=app --cov-fail-under=70
 #### Environment Setup
 ```bash
 # Missing bot token
-export BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU
+export BOT_TOKEN=<BOT_TOKEN>
 
 # Missing dependencies
 pip install -r requirements-dev.txt
@@ -310,7 +310,7 @@ def test_commission_logic(commission_test_cases, mock_config):
 
 ### Performance Guidelines
 - **Unit tests**: < 1 second each
-- **Integration tests**: < 5 seconds each  
+- **Integration tests**: < 5 seconds each
 - **E2E tests**: < 60 seconds each
 - **Total suite**: < 10 minutes
 
@@ -318,12 +318,12 @@ def test_commission_logic(commission_test_cases, mock_config):
 
 The testing system achieves:
 
-✅ **Reliability**: Catch regressions before deployment  
-✅ **Confidence**: Deploy with certainty  
-✅ **Speed**: Fast feedback during development  
-✅ **Coverage**: Comprehensive scenario testing  
-✅ **Maintainability**: Self-updating test data  
-✅ **Documentation**: Tests as living documentation  
+✅ **Reliability**: Catch regressions before deployment
+✅ **Confidence**: Deploy with certainty
+✅ **Speed**: Fast feedback during development
+✅ **Coverage**: Comprehensive scenario testing
+✅ **Maintainability**: Self-updating test data
+✅ **Documentation**: Tests as living documentation
 
 ---
 

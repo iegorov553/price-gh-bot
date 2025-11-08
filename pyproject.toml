@@ -1,3 +1,50 @@
+[tool.poetry]
+name = "price-gh-bot"
+version = "0.1.0"
+description = "Telegram bot that calculates full purchase cost for eBay and Grailed listings."
+authors = ["price-gh-bot Developers <engineering@price-gh-bot.local>"]
+readme = "README.md"
+packages = [{ include = "app" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+python-telegram-bot = {version = "^21.6", extras = ["webhooks"]}
+aiohttp = "^3.13.2"
+beautifulsoup4 = "4.12.2"
+lxml = "5.1.0"
+pydantic = { version = "2.5.3", extras = ["dotenv"] }
+pydantic-settings = "2.1.0"
+pyyaml = "6.0.1"
+defusedxml = "0.7.1"
+requests = "^2.32.3"
+pandas = "2.1.4"
+redis = { version = "5.0.1", extras = ["hiredis"] }
+dependency-injector = "4.45.0"
+playwright = "1.40.0"
+tornado = "^6.4.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "7.4.4"
+pytest-asyncio = "0.21.1"
+pytest-mock = "3.12.0"
+pytest-cov = "4.1.0"
+pytest-xdist = "3.3.1"
+ruff = "0.1.9"
+mypy = "1.18.2"
+bandit = "1.7.5"
+pip-audit = "2.7.3"
+pre-commit = "3.5.0"
+pydocstyle = "6.3.0"
+types-requests = "2.31.0.20240125"
+types-aiofiles = "23.2.0.20240106"
+mkdocs = "1.5.3"
+mkdocs-material = "9.5.3"
+mkdocstrings = { version = "0.24.1", extras = ["python"] }
+aioresponses = "0.7.4"
+pbr = "5.11.1"
+types-PyYAML = "6.0.12.12"
+pandas-stubs = "2.1.4.231227"
+
 [tool.pydocstyle]
 convention = "google"
 add-ignore = ["D100", "D104"]  # Allow missing docstrings for __init__.py files
@@ -25,6 +72,7 @@ ignore = [
 
 [tool.mypy]
 python_version = "3.11"
+mypy_path = "typings"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -41,6 +89,30 @@ strict_equality = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "yaml",
+    "yaml.*",
+    "pandas",
+    "pandas.*",
+    "bs4",
+    "bs4.*",
+    "playwright",
+    "playwright.*",
+    "redis",
+    "redis.*",
+    "defusedxml",
+    "defusedxml.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "app.scrapers.grailed",
+    "app.scrapers.grailed_scraper",
+]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

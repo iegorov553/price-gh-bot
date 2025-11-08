@@ -1,0 +1,41 @@
+# Coverage configuration for the unit-test job.
+# Excludes heavy modules (scrapers, Telegram handlers, Playwright helpers)
+# that are exercised in integration/e2e suites, so the 70% threshold
+# reflects actual unit-tested code.
+
+[run]
+source = app
+branch = True
+parallel = True
+concurrency = thread,multiprocessing
+
+omit =
+    app/__init__.py
+    app/main.py
+    app/bot/handlers.py
+    app/bot/feedback.py
+    app/bot/scraping_orchestrator.py
+    app/bot/url_processor.py
+    app/bot/analytics_tracker.py
+    app/bot/response_formatter.py
+    app/bot/utils.py
+    app/services/browser_pool.py
+    app/services/cache_service.py
+    app/services/analytics.py
+    app/services/currency.py
+    app/services/github.py
+    app/scrapers/*
+    app/config.py
+    tests_new/*
+    venv/*
+    */site-packages/*
+    */__pycache__/*
+
+[report]
+fail_under = 70
+show_missing = True
+precision = 2
+sort = Cover
+
+[xml]
+output = coverage.xml

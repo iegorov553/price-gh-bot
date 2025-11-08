@@ -30,6 +30,10 @@ theme:
 
 plugins:
   - search
+  - autorefs:
+      resolve_closest: true
+      link_titles: auto
+      strip_title_tags: auto
   - mkdocstrings:
       handlers:
         python:
@@ -42,14 +46,29 @@ plugins:
 
 nav:
   - Home: index.md
-  - Testing Guide: TESTING.md
-  - API Reference:
-    - Main Application: api/main.md
-    - Models: api/models.md
-    - Configuration: api/config.md
-    - Bot Handlers: api/bot.md
-    - Scrapers: api/scrapers.md
-    - Services: api/services.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Components: architecture/components.md
+      - Data Flow: architecture/data_flow.md
+      - Business Logic: architecture/business_logic.md
+  - Setup:
+      - Environment: setup/environment.md
+      - Configuration: setup/configuration.md
+  - Development:
+      - Workflow: development/workflow.md
+      - Coding Guidelines: development/coding_guidelines.md
+      - Dependency Management: development/dependency_management.md
+  - Testing:
+      - Strategy: testing/strategy.md
+      - How To Run Tests: testing/how_to.md
+  - Operations:
+      - Monitoring: operations/monitoring.md
+      - Troubleshooting: operations/troubleshooting.md
+  - Security:
+      - Practices: security/practices.md
+      - Auditing: security/auditing.md
+  - Roadmap: roadmap.md
+  - Contributing: CONTRIBUTING.md
 
 markdown_extensions:
   - pymdownx.highlight:

@@ -7,7 +7,7 @@ rating evaluation, review count tracking, trusted badge detection, and activity 
 Key features:
 - Item price and shipping cost extraction with multiple fallback strategies
 - Buyability detection for buy-now vs offer-only listings
-- Comprehensive seller reliability analysis and scoring
+- Seller advisory data extraction for rating/reviews
 - Robust JSON and HTML parsing with error handling
 - Profile URL extraction and seller activity tracking
 """
@@ -23,6 +23,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 
 from ..models import ItemData, SellerData
+from .grailed_url_resolver import normalize_grailed_url
 
 PRICE_RE = re.compile(r"^\d[\d,.]*$")
 
@@ -33,14 +34,14 @@ def _clean_price(raw: str) -> Decimal | None:
     if not PRICE_RE.match(raw):
         return None
     try:
-        return Decimal(raw.replace(',', ''))
+        return Decimal(raw.replace(",", ""))
     except Exception:
         return None
 
 
 def _parse_json_ld(soup: BeautifulSoup) -> Decimal | None:
     """Parse JSON-LD structured data for price."""
-    for script in soup.find_all('script', type='application/ld+json'):
+    for script in soup.find_all("script", type="application/ld+json"):
         text = script.string
         if not text:
             continue
@@ -49,15 +50,15 @@ def _parse_json_ld(soup: BeautifulSoup) -> Decimal | None:
         except json.JSONDecodeError:
             continue
 
-        offers = data.get('offers') or data.get('@graph', [])
+        offers = data.get("offers") or data.get("@graph", [])
         price_val = None
 
         if isinstance(offers, dict):
-            price_val = offers.get('price')
+            price_val = offers.get("price")
         elif isinstance(offers, list):
             for item in offers:
-                if isinstance(item, dict) and item.get('price'):
-                    price_val = item['price']
+                if isinstance(item, dict) and item.get("price"):
+                    price_val = item["price"]
                     break
 
         if price_val is not None:
@@ -69,31 +70,31 @@ def _parse_json_ld(soup: BeautifulSoup) -> Decimal | None:
 
 def _parse_next_data(soup: BeautifulSoup) -> dict[str, Any] | None:
     """Parse Next.js __NEXT_DATA__ for modern Grailed listings.
-    
+
     Grailed now uses Next.js architecture where listing data is embedded
     in a <script id="__NEXT_DATA__"> tag as JSON.
-    
+
     Returns:
         Dictionary containing listing data or None if not found/invalid.
     """
     try:
-        script = soup.find('script', id='__NEXT_DATA__')
+        script = soup.find("script", id="__NEXT_DATA__")
         if not script or not script.string:
             return None
-            
+
         data = json.loads(script.string)
-        
+
         # Navigate to listing data: props.pageProps.listing
-        props = data.get('props', {})
-        page_props = props.get('pageProps', {})
-        listing = page_props.get('listing', {})
-        
-        if listing:
+        props = data.get("props", {})
+        page_props = props.get("pageProps", {})
+        listing = page_props.get("listing")
+
+        if isinstance(listing, dict):
             return listing
-            
+
     except (json.JSONDecodeError, KeyError, AttributeError):
         pass
-        
+
     return None
 
 
@@ -102,45 +103,45 @@ def _scrape_shipping_grailed(soup: BeautifulSoup) -> Decimal | None:
     # First try Next.js data (modern Grailed listings)
     next_data = _parse_next_data(soup)
     if next_data:
-        shipping_data = next_data.get('shipping', {})
+        shipping_data = next_data.get("shipping", {})
         if isinstance(shipping_data, dict):
-            us_shipping = shipping_data.get('us', {})
+            us_shipping = shipping_data.get("us", {})
             if isinstance(us_shipping, dict):
-                amount = us_shipping.get('amount')
+                amount = us_shipping.get("amount")
                 if amount:
                     # Remove $ and clean price
-                    clean_amount = str(amount).replace('$', '').strip()
+                    clean_amount = str(amount).replace("$", "").strip()
                     shipping_price = _clean_price(clean_amount)
                     if shipping_price is not None:
                         return shipping_price
-    
+
     # Fallback to legacy methods
     # Look for shipping text
-    shipping_text = soup.find(string=re.compile(r'shipping', re.I))
+    shipping_text = soup.find(string=re.compile(r"shipping", re.I))
     if shipping_text:
         parent = shipping_text.parent
         if parent:
             text = parent.get_text()
-            if 'free' in text.lower():
-                return Decimal('0')
-            shipping_match = re.search(r'\$(\d+(?:\.\d{2})?)', text)
+            if "free" in text.lower():
+                return Decimal("0")
+            shipping_match = re.search(r"\$(\d+(?:\.\d{2})?)", text)
             if shipping_match:
                 return Decimal(shipping_match.group(1))
 
     # Look for shipping div
-    shipping_elem = soup.find('div', string=re.compile(r'shipping', re.I))
+    shipping_elem = soup.find("div", string=re.compile(r"shipping", re.I))
     if shipping_elem:
         next_elem = shipping_elem.find_next_sibling()
         if next_elem:
             text = next_elem.get_text(strip=True)
-            if 'free' in text.lower():
-                return Decimal('0')
-            shipping_match = re.search(r'\$(\d+(?:\.\d{2})?)', text)
+            if "free" in text.lower():
+                return Decimal("0")
+            shipping_match = re.search(r"\$(\d+(?:\.\d{2})?)", text)
             if shipping_match:
                 return Decimal(shipping_match.group(1))
 
     # Default Grailed shipping
-    return Decimal('15')
+    return Decimal("15")
 
 
 def _extract_title(soup: BeautifulSoup) -> str | None:
@@ -148,14 +149,16 @@ def _extract_title(soup: BeautifulSoup) -> str | None:
     # First try Next.js data (modern Grailed listings)
     next_data = _parse_next_data(soup)
     if next_data:
-        title = next_data.get('title')
+        title = next_data.get("title")
         if title:
             return str(title).strip()
-    
+
     # Fallback to legacy methods
     og = soup.find("meta", property="og:title")
-    if og and og.get("content"):
-        return og["content"]
+    if og:
+        content = og.get("content")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
     h1 = soup.find("h1")
     if h1:
         return h1.get_text(strip=True)
@@ -164,10 +167,10 @@ def _extract_title(soup: BeautifulSoup) -> str | None:
 
 def _extract_image_url(soup: BeautifulSoup) -> str | None:
     """Extract primary product image URL.
-    
+
     Extracts the main product image URL from Grailed listing for display
     in bot messages. Prioritizes Next.js data over meta tags.
-    
+
     Returns:
         str: Image URL or None if not found.
     """
@@ -175,38 +178,43 @@ def _extract_image_url(soup: BeautifulSoup) -> str | None:
     next_data = _parse_next_data(soup)
     if next_data:
         # Check various possible image field names
-        image_fields = ['images', 'photos', 'image', 'photo', 'mainImage']
+        image_fields = ["images", "photos", "image", "photo", "mainImage"]
         for field in image_fields:
             images = next_data.get(field, [])
-            if images:
-                if isinstance(images, list) and len(images) > 0:
-                    # Return first image from list
-                    first_image = images[0]
-                    if isinstance(first_image, dict):
-                        # Handle image object with URL field
-                        return first_image.get('url') or first_image.get('src')
-                    elif isinstance(first_image, str):
-                        # Direct URL string
-                        return first_image
-                elif isinstance(images, str):
-                    # Single image URL
-                    return images
-    
+            if isinstance(images, list) and images:
+                first_image = images[0]
+                if isinstance(first_image, dict):
+                    for key in ("url", "src"):
+                        value = first_image.get(key)
+                        if isinstance(value, str) and value.strip():
+                            return value.strip()
+                elif isinstance(first_image, str) and first_image.strip():
+                    return first_image.strip()
+            elif isinstance(images, str) and images.strip():
+                return images.strip()
+
     # Fallback to meta tags
     og_image = soup.find("meta", property="og:image")
-    if og_image and og_image.get("content"):
-        return og_image["content"]
-    
+    if og_image:
+        content = og_image.get("content")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+
     # Try Twitter card image
     twitter_image = soup.find("meta", attrs={"name": "twitter:image"})
-    if twitter_image and twitter_image.get("content"):
-        return twitter_image["content"]
-    
+    if twitter_image:
+        content = twitter_image.get("content")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+
     # Try first img tag with data-src or src
     img_tag = soup.find("img", attrs={"data-src": True}) or soup.find("img", src=True)
     if img_tag:
-        return img_tag.get("data-src") or img_tag.get("src")
-    
+        for attr in ("data-src", "src"):
+            value = img_tag.get(attr)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
     return None
 
 
@@ -215,43 +223,43 @@ def _extract_price_and_buyability(url: str, soup: BeautifulSoup) -> tuple[Decima
     # First try Next.js data (modern Grailed listings)
     price = None
     is_buyable = False
-    
+
     next_data = _parse_next_data(soup)
     if next_data:
         # Extract price from Next.js data
-        price_str = next_data.get('price')
+        price_str = next_data.get("price")
         if price_str:
             # Remove $ and clean price
-            clean_price_str = str(price_str).replace('$', '').strip()
+            clean_price_str = str(price_str).replace("$", "").strip()
             price = _clean_price(clean_price_str)
-        
+
         # For Next.js listings, assume buyable unless specifically marked as offer-only
         # Most listings are buyable by default
         is_buyable = True
-        
+
         # Check if it's offer-only (no fixed price)
-        if 'offer' in next_data.get('status', '').lower():
+        if "offer" in next_data.get("status", "").lower():
             is_buyable = False
-    
+
     # Fallback to legacy methods if Next.js data not found
     if price is None:
-        span = soup.find('span', attrs={'class': lambda c: c and 'price' in c.lower()})
+        span = soup.find("span", attrs={"class": lambda c: c and "price" in c.lower()})
         if span:
             price = _clean_price(span.get_text(strip=True))
         if not price:
-            meta = soup.find('meta', property='product:price:amount')
-            if meta and meta.get('content'):
-                price = _clean_price(meta['content'])
+            meta = soup.find("meta", property="product:price:amount")
+            if meta and meta.get("content"):
+                price = _clean_price(meta["content"])
         if not price:
             price = _parse_json_ld(soup)
 
         # Legacy buyability check
         try:
-            for script in soup.find_all('script'):
-                if script.string and 'buyNow' in script.string:
+            for script in soup.find_all("script"):
+                if script.string and "buyNow" in script.string:
                     buy_now_match = re.search(r'"buyNow"\s*:\s*(true|false)', script.string)
                     if buy_now_match:
-                        is_buyable = buy_now_match.group(1) == 'true'
+                        is_buyable = buy_now_match.group(1) == "true"
                         break
         except Exception:
             # Fallback: assume buyable if price is found
@@ -263,17 +271,20 @@ def _extract_price_and_buyability(url: str, soup: BeautifulSoup) -> tuple[Decima
 def _extract_seller_profile_url(soup: BeautifulSoup) -> str | None:
     """Extract seller profile URL from listing page."""
     import logging
+
     logger = logging.getLogger(__name__)
 
     try:
         # Try JSON data first - expanded patterns
-        for script in soup.find_all('script'):
+        for script in soup.find_all("script"):
             if not script.string:
                 continue
 
             script_content = script.string
-            if any(keyword in script_content.lower() for keyword in ['seller', 'user', 'owner', 'profile']):
-
+            if any(
+                keyword in script_content.lower()
+                for keyword in ["seller", "user", "owner", "profile"]
+            ):
                 # Extended username patterns with more comprehensive coverage
                 username_patterns = [
                     # Direct seller/user object patterns
@@ -281,17 +292,14 @@ def _extract_seller_profile_url(soup: BeautifulSoup) -> str | None:
                     r'"username"\s*:\s*"([^"]+)"[^}]*"(?:seller|user|owner)"',
                     r'"(?:sellerName|userName|ownerName|sellerUsername)"\s*:\s*"([^"]+)"',
                     r'"name"\s*:\s*"([^"]+)"[^}]*"(?:seller|user)"',
-
                     # Nested object patterns
                     r'seller["\s]*:[^{]*{[^}]*username["\s]*:["\s]*([^"]+)',
                     r'user["\s]*:[^{]*{[^}]*username["\s]*:["\s]*([^"]+)',
                     r'owner["\s]*:[^{]*{[^}]*username["\s]*:["\s]*([^"]+)',
-
                     # Alternative structures
                     r'"seller"\s*:\s*"([^"]+)"',  # Direct seller string
                     r'"sellerSlug"\s*:\s*"([^"]+)"',
                     r'"userSlug"\s*:\s*"([^"]+)"',
-
                     # Profile path patterns in JSON
                     r'"(?:profilePath|userPath|sellerPath)"\s*:\s*"/?([^"]+)"',
                     r'"/([^/"]+)"\s*.*"(?:seller|user|profile)"',
@@ -317,64 +325,89 @@ def _extract_seller_profile_url(soup: BeautifulSoup) -> str | None:
                     if profile_match:
                         url = profile_match.group(1).strip()
                         if url:
-                            if url.startswith('/'):
+                            if url.startswith("/"):
                                 return f"https://www.grailed.com{url}"
-                            elif 'grailed.com' in url:
+                            elif "grailed.com" in url:
                                 return url
 
         # HTML link fallbacks - comprehensive search
-        for link in soup.find_all('a', href=True):
-            href = link.get('href', '').strip()
+        for link in soup.find_all("a", href=True):
+            href = link.get("href", "").strip()
             text = link.get_text(strip=True).lower()
-            classes = ' '.join(link.get('class', [])).lower()
+            classes = " ".join(link.get("class", [])).lower()
 
             # Direct profile URL patterns
-            if any(pattern in href for pattern in ['/users/', '/sellers/', '/user/', '/seller/']):
-                if href.startswith('/'):
+            if any(pattern in href for pattern in ["/users/", "/sellers/", "/user/", "/seller/"]):
+                if href.startswith("/"):
                     return f"https://www.grailed.com{href}"
-                elif href.startswith('https://www.grailed.com/'):
+                elif href.startswith("https://www.grailed.com/"):
                     return href
 
             # Username-only URLs (most common pattern)
-            if href.startswith('/') and href.count('/') == 1:
-                username = href.strip('/')
+            if href.startswith("/") and href.count("/") == 1:
+                username = href.strip("/")
                 excluded_paths = {
-                    'listings', 'search', 'sell', 'buy', 'help', 'about', 'terms',
-                    'privacy', 'brands', 'designers', 'categories', 'login', 'signup',
-                    'settings', 'notifications', 'feed', 'api', 'static', 'assets'
+                    "listings",
+                    "search",
+                    "sell",
+                    "buy",
+                    "help",
+                    "about",
+                    "terms",
+                    "privacy",
+                    "brands",
+                    "designers",
+                    "categories",
+                    "login",
+                    "signup",
+                    "settings",
+                    "notifications",
+                    "feed",
+                    "api",
+                    "static",
+                    "assets",
                 }
                 if username and username not in excluded_paths and len(username) > 1:
                     # Additional validation - check if this looks like a username
-                    if re.match(r'^[a-zA-Z0-9_.-]+$', username):
+                    if re.match(r"^[a-zA-Z0-9_.-]+$", username):
                         return f"https://www.grailed.com{href}"
 
             # Check for seller indicators in link text or classes
-            seller_indicators = ['seller', 'user', 'profile', 'shop', 'by ', 'from ']
+            seller_indicators = ["seller", "user", "profile", "shop", "by ", "from "]
             if any(indicator in text or indicator in classes for indicator in seller_indicators):
-                if href.startswith('/') and href.count('/') <= 2:
-                    parts = href.strip('/').split('/')
+                if href.startswith("/") and href.count("/") <= 2:
+                    parts = href.strip("/").split("/")
                     if len(parts) >= 1 and parts[0] not in excluded_paths:
                         return f"https://www.grailed.com{href}"
 
         # Look for profile links in specific HTML structures
         profile_selectors = [
-            'a[href*="/user"]', 'a[href*="/seller"]', 'a[href*="profile"]',
-            '.seller-link', '.user-link', '.profile-link',
-            'a.seller', 'a.user', '[data-seller]', '[data-user]'
+            'a[href*="/user"]',
+            'a[href*="/seller"]',
+            'a[href*="profile"]',
+            ".seller-link",
+            ".user-link",
+            ".profile-link",
+            "a.seller",
+            "a.user",
+            "[data-seller]",
+            "[data-user]",
         ]
 
         for selector in profile_selectors:
             try:
                 elements = soup.select(selector)
                 for element in elements:
-                    href = element.get('href', '').strip()
+                    href = element.get("href", "").strip()
                     if href:
-                        if href.startswith('/'):
+                        if href.startswith("/"):
                             return f"https://www.grailed.com{href}"
-                        elif 'grailed.com' in href:
+                        elif "grailed.com" in href:
                             return href
-            except Exception:
-                continue
+            except Exception as selector_error:
+                logger.debug(
+                    "Failed to parse profile selector %s due to %s", selector, selector_error
+                )
 
         logger.debug("No seller profile URL found")
         return None
@@ -384,23 +417,29 @@ def _extract_seller_profile_url(soup: BeautifulSoup) -> str | None:
         return None
 
 
-async def _fetch_seller_last_update(profile_url: str, session: aiohttp.ClientSession) -> datetime | None:
+async def _fetch_seller_last_update(
+    profile_url: str, session: aiohttp.ClientSession
+) -> datetime | None:
     """Fetch seller's last update date from profile."""
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     try:
         async with session.get(profile_url) as response:
             response.raise_for_status()
             html = await response.text()
 
-        soup = BeautifulSoup(html, 'lxml')
+        soup = BeautifulSoup(html, "lxml")
         latest_date = None
 
         # Look for dates in JSON scripts
-        for script in soup.find_all('script'):
+        for script in soup.find_all("script"):
             if not script.string:
                 continue
 
             script_content = script.string
-            if any(keyword in script_content for keyword in ['date', 'time', 'created', 'updated']):
+            if any(keyword in script_content for keyword in ["date", "time", "created", "updated"]):
                 date_patterns = [
                     r'"(?:updatedAt|lastUpdated|dateUpdated)"\s*:\s*"([^"]+)"',
                     r'"(?:createdAt|dateCreated|created)"\s*:\s*"([^"]+)"',
@@ -417,8 +456,8 @@ async def _fetch_seller_last_update(profile_url: str, session: aiohttp.ClientSes
                                 if timestamp > 1000000000000:
                                     timestamp = timestamp / 1000
                                 date_obj = datetime.fromtimestamp(timestamp, tz=UTC)
-                            elif 'T' in date_str:
-                                date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                            elif "T" in date_str:
+                                date_obj = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
                             else:
                                 date_obj = datetime.fromisoformat(date_str)
                                 if date_obj.tzinfo is None:
@@ -426,21 +465,30 @@ async def _fetch_seller_last_update(profile_url: str, session: aiohttp.ClientSes
 
                             if latest_date is None or date_obj > latest_date:
                                 latest_date = date_obj
-                        except Exception:
-                            continue
+                        except Exception as date_parse_error:
+                            logger.debug(
+                                "Failed to parse date %s from pattern %s: %s",
+                                date_str,
+                                pattern,
+                                date_parse_error,
+                            )
 
         return latest_date
-    except Exception:
+    except Exception as fetch_error:
+        logger.error("Failed to fetch seller last update for %s: %s", profile_url, fetch_error)
         return None
 
 
-async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSession) -> SellerData | None:
+async def _extract_seller_data(
+    soup: BeautifulSoup, session: aiohttp.ClientSession
+) -> SellerData | None:
     """Extract seller data using headless browser only.
 
     Static HTML parsing from Grailed profile pages doesn't work due to React SPA architecture.
     Only headless browser can execute JavaScript to access dynamically loaded seller data.
     """
     import logging
+
     logger = logging.getLogger(__name__)
 
     try:
@@ -454,10 +502,12 @@ async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSessi
 
         # Use headless browser to extract seller data
         from ..config import config
+
         if config.bot.enable_headless_browser:
             logger.info("Using headless browser to extract seller data")
             try:
                 from .headless import get_grailed_seller_data_headless
+
                 headless_data = await get_grailed_seller_data_headless(profile_url)
                 if headless_data:
                     # Try to get more accurate last update time using profile analysis
@@ -469,13 +519,19 @@ async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSessi
                                 num_reviews=headless_data.num_reviews,
                                 avg_rating=headless_data.avg_rating,
                                 trusted_badge=headless_data.trusted_badge,
-                                last_updated=profile_last_update
+                                last_updated=profile_last_update,
                             )
-                            logger.debug(f"Updated headless data with profile timestamp: {profile_last_update}")
+                            logger.debug(
+                                f"Updated headless data with profile timestamp: {profile_last_update}"
+                            )
                     except Exception as e:
-                        logger.debug(f"Failed to get profile timestamp, using headless timestamp: {e}")
+                        logger.debug(
+                            f"Failed to get profile timestamp, using headless timestamp: {e}"
+                        )
 
-                    logger.info(f"Successfully extracted seller data with headless browser: {headless_data}")
+                    logger.info(
+                        f"Successfully extracted seller data with headless browser: {headless_data}"
+                    )
                     return headless_data
                 else:
                     logger.warning("Headless browser failed to find seller data")
@@ -492,10 +548,13 @@ async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSessi
             num_reviews=0,
             avg_rating=0.0,
             trusted_badge=False,
-            last_updated=datetime.now(UTC)
+            last_updated=datetime.now(UTC),
+            technical_issue=True,
         )
 
-        logger.warning("No seller metrics available - Grailed uses React SPA with client-side data loading")
+        logger.warning(
+            "No seller metrics available - Grailed uses React SPA with client-side data loading"
+        )
         return seller_data
 
     except Exception as e:
@@ -503,7 +562,9 @@ async def _extract_seller_data(soup: BeautifulSoup, session: aiohttp.ClientSessi
         return None
 
 
-async def get_item_data(url: str, session: aiohttp.ClientSession) -> tuple[ItemData, SellerData | None]:
+async def get_item_data(
+    url: str, session: aiohttp.ClientSession
+) -> tuple[ItemData, SellerData | None]:
     """Scrape Grailed item data and seller information.
 
     Extracts comprehensive item data including price, shipping costs, buyability status,
@@ -519,27 +580,29 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> tuple[ItemD
         ItemData includes price, shipping, buyability, and title.
         SellerData includes rating, reviews, badge status, and last update.
     """
+    url = normalize_grailed_url(url)
+
     try:
         async with session.get(url) as response:
             response.raise_for_status()
-            
+
             # Check Content-Type to avoid parsing JSON as HTML
-            content_type = response.headers.get('content-type', '').lower()
-            if 'application/json' in content_type:
+            content_type = response.headers.get("content-type", "").lower()
+            if "application/json" in content_type:
                 # Server returned JSON instead of HTML - listing may be unavailable
                 return ItemData(), None
-            
+
             html = await response.text()
-            
+
             # Additional validation: check if response looks like a listing page
             if not html or len(html) < 1000:
                 # Response too short to be a valid listing page
                 return ItemData(), None
-                
+
     except Exception:
         return ItemData(), None
 
-    soup = BeautifulSoup(html, 'lxml')
+    soup = BeautifulSoup(html, "lxml")
 
     # Extract price and buyability
     price, is_buyable = _extract_price_and_buyability(url, soup)
@@ -557,11 +620,7 @@ async def get_item_data(url: str, session: aiohttp.ClientSession) -> tuple[ItemD
     seller_data = await _extract_seller_data(soup, session)
 
     item_data = ItemData(
-        price=price,
-        shipping_us=shipping,
-        is_buyable=is_buyable,
-        title=title,
-        image_url=image_url
+        price=price, shipping_us=shipping, is_buyable=is_buyable, title=title, image_url=image_url
     )
 
     return item_data, seller_data
@@ -581,8 +640,8 @@ def is_grailed_url(url: str) -> bool:
     """
     try:
         parsed = urlparse(url)
-        domain = parsed.netloc.lower().split(':')[0]
-        return 'grailed' in domain.split('.')
+        domain = parsed.netloc.lower().split(":")[0]
+        return "grailed" in domain.split(".")
     except Exception:
         return False
 
@@ -602,23 +661,35 @@ def is_grailed_seller_profile(url: str) -> bool:
     """
     try:
         parsed = urlparse(url)
-        if 'grailed.com' not in parsed.netloc.lower():
+        if "grailed.com" not in parsed.netloc.lower():
             return False
 
-        path = parsed.path.lower().strip('/')
+        path = parsed.path.lower().strip("/")
 
         # Direct username pattern
-        if path and '/' not in path and not path.startswith('listings'):
+        if path and "/" not in path and not path.startswith("listings"):
             excluded_pages = {
-                'sell', 'buy', 'search', 'help', 'about', 'terms',
-                'privacy', 'brands', 'designers', 'categories', 'login',
-                'signup', 'settings', 'notifications', 'feed'
+                "sell",
+                "buy",
+                "search",
+                "help",
+                "about",
+                "terms",
+                "privacy",
+                "brands",
+                "designers",
+                "categories",
+                "login",
+                "signup",
+                "settings",
+                "notifications",
+                "feed",
             }
             if path not in excluded_pages:
                 return True
 
         # Legacy patterns
-        if path.startswith('users/') or path.startswith('sellers/') or path.startswith('user/'):
+        if path.startswith("users/") or path.startswith("sellers/") or path.startswith("user/"):
             return True
 
         return False
@@ -626,7 +697,9 @@ def is_grailed_seller_profile(url: str) -> bool:
         return False
 
 
-async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSession) -> dict[str, Any] | None:
+async def analyze_seller_profile(
+    profile_url: str, session: aiohttp.ClientSession
+) -> dict[str, Any] | None:
     """Analyze Grailed seller profile for reliability metrics.
 
     Uses headless browser to extract seller data that is loaded dynamically
@@ -645,29 +718,45 @@ async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSessio
         Returns minimal data if extraction fails.
     """
     import logging
+
     logger = logging.getLogger(__name__)
+
+    normalized_profile_url = normalize_grailed_url(profile_url)
+    if normalized_profile_url != profile_url:
+        logger.debug(
+            "Normalized Grailed seller URL %s → %s",
+            profile_url,
+            normalized_profile_url,
+        )
+        profile_url = normalized_profile_url
 
     # Try headless browser extraction first if enabled
     from ..config import config
+
     if config.bot.enable_headless_browser:
         try:
             from .headless import get_grailed_seller_data_headless
+
             logger.debug(f"Analyzing profile with optimized headless browser: {profile_url}")
 
             headless_data = await get_grailed_seller_data_headless(profile_url)
             if headless_data:
-                logger.info(f"Successfully extracted profile data with headless browser: {headless_data}")
+                logger.info(
+                    f"Successfully extracted profile data with headless browser: {headless_data}"
+                )
                 return {
-                    'num_reviews': headless_data.num_reviews,
-                    'avg_rating': headless_data.avg_rating,
-                    'trusted_badge': headless_data.trusted_badge,
-                    'last_updated': headless_data.last_updated
+                    "num_reviews": headless_data.num_reviews,
+                    "avg_rating": headless_data.avg_rating,
+                    "trusted_badge": headless_data.trusted_badge,
+                    "last_updated": headless_data.last_updated,
                 }
             else:
                 logger.warning(f"Headless browser found no data for profile: {profile_url}")
 
         except ImportError:
-            logger.warning("Playwright not available for profile analysis - install with: pip install playwright")
+            logger.warning(
+                "Playwright not available for profile analysis - install with: pip install playwright"
+            )
         except Exception as e:
             logger.warning(f"Headless browser profile analysis failed: {e}")
     else:
@@ -676,10 +765,10 @@ async def analyze_seller_profile(profile_url: str, session: aiohttp.ClientSessio
     # Fallback to minimal data
     logger.debug(f"Returning minimal data for profile: {profile_url}")
     return {
-        'num_reviews': 0,
-        'avg_rating': 0.0,
-        'trusted_badge': False,
-        'last_updated': datetime.now(UTC)
+        "num_reviews": 0,
+        "avg_rating": 0.0,
+        "trusted_badge": False,
+        "last_updated": datetime.now(UTC),
     }
 
 
@@ -706,11 +795,11 @@ async def check_grailed_availability(session: aiohttp.ClientSession) -> dict[str
     logger = logging.getLogger(__name__)
 
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate',
-        'Connection': 'keep-alive',
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate",
+        "Connection": "keep-alive",
     }
 
     start_time = time.time()
@@ -719,55 +808,69 @@ async def check_grailed_availability(session: aiohttp.ClientSession) -> dict[str
         # Try main page first
         timeout = aiohttp.ClientTimeout(total=10)
         async with session.get(
-            'https://www.grailed.com',
-            headers=headers,
-            timeout=timeout
+            "https://www.grailed.com", headers=headers, timeout=timeout
         ) as response:
             response_time_ms = int((time.time() - start_time) * 1000)
 
             if response.status == 200:
-                logger.debug(f"Grailed main page accessible: {response.status} in {response_time_ms}ms")
+                logger.debug(
+                    f"Grailed main page accessible: {response.status} in {response_time_ms}ms"
+                )
                 return {
-                    'is_available': True,
-                    'status_code': response.status,
-                    'response_time_ms': response_time_ms,
-                    'error_message': None
+                    "is_available": True,
+                    "status_code": response.status,
+                    "response_time_ms": response_time_ms,
+                    "error_message": None,
                 }
             else:
                 logger.warning(f"Grailed main page returned non-200 status: {response.status}")
                 return {
-                    'is_available': False,
-                    'status_code': response.status,
-                    'response_time_ms': response_time_ms,
-                    'error_message': f"HTTP {response.status} error from main page"
+                    "is_available": False,
+                    "status_code": response.status,
+                    "response_time_ms": response_time_ms,
+                    "error_message": f"HTTP {response.status} error from main page",
                 }
 
     except TimeoutError:
         response_time_ms = int((time.time() - start_time) * 1000)
         logger.warning(f"Grailed availability check timed out after {response_time_ms}ms")
         return {
-            'is_available': False,
-            'status_code': None,
-            'response_time_ms': response_time_ms,
-            'error_message': "Connection timeout - site may be slow or unavailable"
+            "is_available": False,
+            "status_code": None,
+            "response_time_ms": response_time_ms,
+            "error_message": "Connection timeout - site may be slow or unavailable",
         }
 
     except aiohttp.ClientError as e:
         response_time_ms = int((time.time() - start_time) * 1000)
         logger.error(f"Network error checking Grailed availability: {e}")
         return {
-            'is_available': False,
-            'status_code': None,
-            'response_time_ms': response_time_ms,
-            'error_message': f"Network error: {str(e)}"
+            "is_available": False,
+            "status_code": None,
+            "response_time_ms": response_time_ms,
+            "error_message": f"Network error: {str(e)}",
         }
 
     except Exception as e:
         response_time_ms = int((time.time() - start_time) * 1000)
         logger.error(f"Unexpected error checking Grailed availability: {e}")
         return {
-            'is_available': False,
-            'status_code': None,
-            'response_time_ms': response_time_ms,
-            'error_message': f"Unexpected error: {str(e)}"
+            "is_available": False,
+            "status_code": None,
+            "response_time_ms": response_time_ms,
+            "error_message": f"Unexpected error: {str(e)}",
         }
+
+
+async def scrape_grailed_item(url: str, session: aiohttp.ClientSession) -> ItemData | None:
+    """Backward compatibility wrapper that returns only item data."""
+    item_data, _ = await get_item_data(url, session)
+    return item_data
+
+
+async def scrape_grailed_seller(url: str, session: aiohttp.ClientSession) -> SellerData | None:
+    """Backward compatibility wrapper for seller profile scraping."""
+    data = await analyze_seller_profile(url, session)
+    if data:
+        return data.get("seller_data")
+    return None

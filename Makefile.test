@@ -42,7 +42,7 @@ VENV_PATH = venv
 PYTHON = $(VENV_PATH)/bin/python3
 PIP = $(VENV_PATH)/bin/pip
 PYTEST = $(VENV_PATH)/bin/pytest
-TEST_ENV = BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU ENABLE_HEADLESS_BROWSER=false
+TEST_ENV = BOT_TOKEN=<BOT_TOKEN> ENABLE_HEADLESS_BROWSER=false
 
 # Basic test commands
 test: test-unit
@@ -58,12 +58,12 @@ test-integration:
 
 test-e2e:
 	@echo "🌐 Running end-to-end tests..."
-	@BOT_TOKEN=8026508902:AAGWJKei_EyPkpc4x-lt-qFQo53829gQIrU ENABLE_HEADLESS_BROWSER=true $(PYTEST) tests_new/e2e/ -v --tb=short --maxfail=1 --timeout=120
+	@BOT_TOKEN=<BOT_TOKEN> ENABLE_HEADLESS_BROWSER=true $(PYTEST) tests_new/e2e/ -v --tb=short --maxfail=1 --timeout=120
 
 test-all:
 	@echo "🚀 Running comprehensive test suite..."
 	@$(MAKE) test-unit
-	@$(MAKE) test-integration  
+	@$(MAKE) test-integration
 	@$(MAKE) test-e2e
 	@echo "🎉 All tests completed successfully!"
 

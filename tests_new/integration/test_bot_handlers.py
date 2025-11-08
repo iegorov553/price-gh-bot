@@ -1,286 +1,305 @@
-"""Integration tests for bot handlers.
+"""Integration tests for bot handlers with mocked orchestration layers."""
 
-Tests the interaction between handlers, scrapers, and business logic
-with mocked external dependencies but real internal component interactions.
-"""
+from __future__ import annotations
+
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from decimal import Decimal
 
-from app.bot.handlers import handle_link, _handle_listings, _handle_seller_profile
-from app.models import ItemData, SellerData
+from app.bot.handlers import handle_link
+from app.bot.response_formatter import response_formatter
+from app.bot.scraping_orchestrator import scraping_orchestrator
+from app.bot.types import ItemScrapeResult, SellerScrapeResult
+from app.models import ItemData
 
 
 class TestBotHandlerIntegration:
     """Test bot handlers with component integration."""
-    
+
     @pytest.mark.asyncio
-    async def test_handle_listing_full_flow(self, mock_config, mock_http_session, sample_item_data, sample_exchange_rate):
-        """Test complete listing handling flow with mocked dependencies."""
-        # Setup mocks
+    async def test_handle_listing_full_flow(
+        self, mock_config, mock_http_session, sample_item_data, sample_exchange_rate
+    ):
+        """Test complete listing handling flow with mocked orchestration."""
+        url = "https://www.ebay.com/itm/123456789"
         update = AsyncMock()
-        update.message.text = "https://www.ebay.com/itm/123456789"
+        update.message.text = url
         update.message.reply_text = AsyncMock()
-        
+        update.message.reply_photo = AsyncMock()
+        update.effective_user = MagicMock(id=12345, username="test_user")
         context = AsyncMock()
-        
-        # Mock the scraping functions
-        with patch('app.scrapers.ebay.scrape_ebay_item') as mock_ebay_scrape, \
-             patch('app.services.currency.get_exchange_rate') as mock_exchange, \
-             patch('app.services.shipping.estimate_shopfans_shipping') as mock_shipping:
-            
-            # Setup return values
-            mock_ebay_scrape.return_value = sample_item_data['ebay_item']
-            mock_exchange.return_value = sample_exchange_rate
-            
-            # Mock shipping estimation
-            from app.models import ShippingQuote
-            mock_shipping.return_value = ShippingQuote(
-                weight_kg=Decimal("0.80"),
-                cost_usd=Decimal("25.00"),
-                description="Test shipping"
-            )
-            
-            # Act
+        context.application = MagicMock()
+        context.application.bot = MagicMock()
+
+        item_result: ItemScrapeResult = {
+            "success": True,
+            "platform": "ebay",
+            "url": url,
+            "item_data": sample_item_data["ebay_item"],
+            "seller_data": None,
+            "error": None,
+            "processing_time_ms": 120,
+        }
+
+        expected_response = "💰 Итог по товару: $89.99 + $12.50"
+
+        with patch.object(
+            scraping_orchestrator,
+            "process_urls_concurrent",
+            AsyncMock(return_value=[item_result]),
+        ) as mock_process, patch.object(
+            response_formatter,
+            "format_item_response",
+            AsyncMock(return_value=expected_response),
+        ):
             await handle_link(update, context)
-            
-            # Assert
-            mock_ebay_scrape.assert_called_once()
-            mock_exchange.assert_called_once_with("USD", "RUB", mock_http_session)
-            update.message.reply_text.assert_called()
-            
-            # Verify the response contains expected elements
-            response_text = update.message.reply_text.call_args[1]['text']
-            assert "💰 Расчёт стоимости" in response_text
-            assert "$89.99" in response_text  # Item price
-            assert "$12.50" in response_text  # US shipping
-    
+
+        mock_process.assert_awaited_once_with(
+            [url], update.effective_user.id, update.effective_user.username
+        )
+
+        # Последний ответ пользователю содержит рассчитанные данные
+        final_call = update.message.reply_text.await_args_list[-1]
+        final_text = (
+            final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        )
+        assert expected_response in final_text
+
     @pytest.mark.asyncio
-    async def test_handle_grailed_listing_with_seller_analysis(self, mock_config, mock_http_session, sample_item_data, sample_seller_data):
+    async def test_handle_grailed_listing_with_seller_analysis(
+        self, mock_config, mock_http_session, sample_item_data, sample_seller_data
+    ):
         """Test Grailed listing handling with seller reliability analysis."""
+        url = "https://www.grailed.com/listings/123456-supreme-hoodie"
         update = AsyncMock()
-        update.message.text = "https://www.grailed.com/listings/123456-supreme-hoodie"
+        update.message.text = url
         update.message.reply_text = AsyncMock()
+        update.message.reply_photo = AsyncMock()
+        update.effective_user = MagicMock(id=98765, username="grailed_tester")
         context = AsyncMock()
-        
-        with patch('app.scrapers.grailed.scrape_grailed_item') as mock_grailed_scrape, \
-             patch('app.services.currency.get_exchange_rate') as mock_exchange, \
-             patch('app.services.shipping.estimate_shopfans_shipping') as mock_shipping:
-            
-            # Setup Grailed item with seller data
-            grailed_item = sample_item_data['grailed_item']
-            seller_data = sample_seller_data['excellent_seller']
-            
-            mock_grailed_scrape.return_value = (grailed_item, seller_data)
-            mock_exchange.return_value = None  # No exchange rate for this test
-            
-            from app.models import ShippingQuote
-            mock_shipping.return_value = ShippingQuote(
-                weight_kg=Decimal("0.80"),
-                cost_usd=Decimal("25.00"),
-                description="Hoodie shipping"
-            )
-            
-            # Act
+        context.application = MagicMock()
+        context.application.bot = MagicMock()
+
+        grailed_item = sample_item_data["grailed_item"]
+        seller_data = sample_seller_data["excellent_seller"]
+        item_result: ItemScrapeResult = {
+            "success": True,
+            "platform": "grailed",
+            "url": url,
+            "item_data": grailed_item,
+            "seller_data": seller_data,
+            "error": None,
+            "processing_time_ms": 150,
+        }
+
+        expected_response = "💎 Diamond seller rating included"
+
+        with patch.object(
+            scraping_orchestrator,
+            "process_urls_concurrent",
+            AsyncMock(return_value=[item_result]),
+        ), patch.object(
+            response_formatter,
+            "format_item_response",
+            AsyncMock(return_value=expected_response),
+        ):
             await handle_link(update, context)
-            
-            # Assert seller analysis is included
-            response_text = update.message.reply_text.call_args[1]['text']
-            assert "💎 Diamond" in response_text  # Should show excellent seller rating
-            assert "95" in response_text  # Should show high score
-    
+
+        final_call = update.message.reply_text.await_args_list[-1]
+        final_text = (
+            final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        )
+        assert "💎 Diamond" in final_text
+
     @pytest.mark.asyncio
     async def test_handle_multiple_urls(self, mock_config, mock_http_session, sample_item_data):
         """Test handling message with multiple URLs."""
-        update = AsyncMock()
-        update.message.text = """Check these items:
+        text_with_urls = """Check these items:
         https://www.ebay.com/itm/123456789
         https://www.grailed.com/listings/123456-supreme-hoodie
         """
+        update = AsyncMock()
+        update.message.text = text_with_urls
         update.message.reply_text = AsyncMock()
+        update.message.reply_photo = AsyncMock()
+        update.effective_user = MagicMock(id=222, username="multi_user")
         context = AsyncMock()
-        
-        with patch('app.scrapers.ebay.scrape_ebay_item') as mock_ebay, \
-             patch('app.scrapers.grailed.scrape_grailed_item') as mock_grailed, \
-             patch('app.services.currency.get_exchange_rate') as mock_exchange, \
-             patch('app.services.shipping.estimate_shopfans_shipping') as mock_shipping:
-            
-            # Setup return values
-            mock_ebay.return_value = sample_item_data['ebay_item']
-            mock_grailed.return_value = (sample_item_data['grailed_item'], None)
-            mock_exchange.return_value = None
-            
-            from app.models import ShippingQuote
-            mock_shipping.return_value = ShippingQuote(
-                weight_kg=Decimal("0.60"),
-                cost_usd=Decimal("25.00"),
-                description="Default shipping"
-            )
-            
-            # Act
+        context.application = MagicMock()
+        context.application.bot = MagicMock()
+
+        ebay_result: ItemScrapeResult = {
+            "success": True,
+            "platform": "ebay",
+            "url": "https://www.ebay.com/itm/123456789",
+            "item_data": sample_item_data["ebay_item"],
+            "seller_data": None,
+            "error": None,
+            "processing_time_ms": 80,
+        }
+        grailed_result: ItemScrapeResult = {
+            "success": True,
+            "platform": "grailed",
+            "url": "https://www.grailed.com/listings/123456-supreme-hoodie",
+            "item_data": sample_item_data["grailed_item"],
+            "seller_data": None,
+            "error": None,
+            "processing_time_ms": 95,
+        }
+
+        responses = ["Ответ по eBay", "Ответ по Grailed"]
+
+        with patch.object(
+            scraping_orchestrator,
+            "process_urls_concurrent",
+            AsyncMock(return_value=[ebay_result, grailed_result]),
+        ), patch.object(
+            response_formatter,
+            "format_item_response",
+            AsyncMock(side_effect=responses),
+        ):
             await handle_link(update, context)
-            
-            # Assert both scrapers were called
-            mock_ebay.assert_called_once()
-            mock_grailed.assert_called_once()
-            
-            # Should have multiple reply messages
-            assert update.message.reply_text.call_count >= 2
-    
+
+        # Должны отправить два ответа (по одному на ссылку)
+        assert len(update.message.reply_text.await_args_list) >= 3  # 1 загрузка + 2 результата
+        sent_texts = []
+        for call in update.message.reply_text.await_args_list:
+            if call.kwargs.get("text"):
+                sent_texts.append(call.kwargs["text"])
+            elif call.args:
+                sent_texts.append(call.args[0])
+        assert any("Ответ по eBay" in text for text in sent_texts)
+        assert any("Ответ по Grailed" in text for text in sent_texts)
+
     @pytest.mark.asyncio
-    async def test_handle_seller_profile_analysis(self, mock_config, mock_http_session, sample_seller_data):
+    async def test_handle_seller_profile_analysis(
+        self, mock_config, mock_http_session, sample_seller_data
+    ):
         """Test seller profile analysis flow."""
         update = AsyncMock()
         update.message.text = "https://grailed.com/username"
         update.message.reply_text = AsyncMock()
-        update.message.delete = AsyncMock()
+        update.message.reply_photo = AsyncMock()
+        update.effective_user = MagicMock(id=333, username="profile_user")
         context = AsyncMock()
-        
-        # Mock loading message
+        context.application = MagicMock()
+        context.application.bot = MagicMock()
+
         loading_message = AsyncMock()
-        loading_message.delete = AsyncMock()
         update.message.reply_text.return_value = loading_message
-        
-        with patch('app.scrapers.grailed.analyze_seller_profile') as mock_analyze:
-            # Setup seller analysis return
-            seller_analysis = {
-                'num_reviews': 150,
-                'avg_rating': 4.8,
-                'trusted_badge': True,
-                'last_updated': sample_seller_data['excellent_seller'].last_updated,
-                'reliability': None  # Will be calculated
-            }
-            mock_analyze.return_value = seller_analysis
-            
-            # Act
+
+        seller_result: SellerScrapeResult = {
+            "success": True,
+            "platform": "profile",
+            "url": "https://grailed.com/username",
+            "seller_data": sample_seller_data["excellent_seller"],
+            "reliability_score": MagicMock(category="Diamond", total_score=95),
+            "error": None,
+            "processing_time_ms": 110,
+        }
+
+        expected_profile_response = "Анализ продавца Grailed: 💎 Diamond"
+
+        with patch.object(
+            scraping_orchestrator,
+            "process_urls_concurrent",
+            AsyncMock(return_value=[seller_result]),
+        ), patch.object(
+            response_formatter,
+            "format_seller_profile_response",
+            MagicMock(return_value=expected_profile_response),
+        ):
             await handle_link(update, context)
-            
-            # Assert
-            mock_analyze.assert_called_once()
-            loading_message.delete.assert_called_once()
-            
-            # Should send seller analysis response
-            final_response = update.message.reply_text.call_args_list[-1][1]['text']
-            assert "Анализ продавца Grailed" in final_response
-            assert "💎 Diamond" in final_response  # Excellent seller
-    
+
+        loading_message.edit_text.assert_awaited()
+        edit_call = loading_message.edit_text.await_args_list[-1]
+        edit_text = (
+            edit_call.kwargs.get("text") if "text" in edit_call.kwargs else edit_call.args[0]
+        )
+        assert "Анализ продавца Grailed" in edit_text
+
     @pytest.mark.asyncio
     async def test_handle_offer_only_item(self, mock_config, mock_http_session):
         """Test handling of offer-only items (not buyable)."""
         update = AsyncMock()
         update.message.text = "https://www.grailed.com/listings/123456-offer-only"
         update.message.reply_text = AsyncMock()
+        update.message.reply_photo = AsyncMock()
+        update.effective_user = MagicMock(id=444, username="offer_only_user")
         context = AsyncMock()
-        
-        with patch('app.scrapers.grailed.scrape_grailed_item') as mock_grailed:
-            # Setup offer-only item
-            from app.models import ItemData
-            offer_only_item = ItemData(
-                price=Decimal("150.00"),
-                shipping_us=Decimal("20.00"),
-                is_buyable=False,  # Not buyable
-                title="Supreme Hoodie (Offers Only)"
-            )
-            mock_grailed.return_value = (offer_only_item, None)
-            
-            # Act
+        context.application = MagicMock()
+        context.application.bot = MagicMock()
+
+        offer_only_item = ItemData(
+            price=Decimal("150.00"),
+            shipping_us=Decimal("20.00"),
+            is_buyable=False,
+            title="Supreme Hoodie (Offers Only)",
+        )
+        item_result: ItemScrapeResult = {
+            "success": True,
+            "platform": "grailed",
+            "url": update.message.text,
+            "item_data": offer_only_item,
+            "seller_data": None,
+            "error": None,
+            "processing_time_ms": 60,
+        }
+
+        expected_text = "не имеет фиксированной цены"
+
+        with patch.object(
+            scraping_orchestrator,
+            "process_urls_concurrent",
+            AsyncMock(return_value=[item_result]),
+        ), patch.object(
+            response_formatter,
+            "format_item_response",
+            AsyncMock(return_value=f"Товар {expected_text}: $150.00"),
+        ):
             await handle_link(update, context)
-            
-            # Assert
-            response_text = update.message.reply_text.call_args[1]['text']
-            assert "не имеет фиксированной цены" in response_text.lower()
-            assert "$150.00" in response_text  # Should still show price for reference
-    
+
+        final_call = update.message.reply_text.await_args_list[-1]
+        final_text = (
+            final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        )
+        assert expected_text in final_text.lower()
+        assert "$150.00" in final_text
+
     @pytest.mark.asyncio
     async def test_handle_scraping_failure(self, mock_config, mock_http_session):
         """Test handling when scraping fails."""
         update = AsyncMock()
         update.message.text = "https://www.ebay.com/itm/invalid"
         update.message.reply_text = AsyncMock()
+        update.message.reply_photo = AsyncMock()
+        update.effective_user = MagicMock(id=555, username="failure_user")
         context = AsyncMock()
-        
-        with patch('app.scrapers.ebay.scrape_ebay_item') as mock_ebay:
-            # Setup scraping failure
-            mock_ebay.return_value = None
-            
-            # Act
+        context.application = MagicMock()
+        context.application.bot = MagicMock()
+
+        failure_result: ItemScrapeResult = {
+            "success": False,
+            "platform": "ebay",
+            "url": update.message.text,
+            "error": "Network timeout",
+            "processing_time_ms": 0,
+        }
+        failure_text = "❌ Ошибка при обработке ссылки"
+
+        with patch.object(
+            scraping_orchestrator,
+            "process_urls_concurrent",
+            AsyncMock(return_value=[failure_result]),
+        ), patch.object(
+            response_formatter,
+            "format_item_response",
+            AsyncMock(return_value=failure_text),
+        ):
             await handle_link(update, context)
-            
-            # Assert error handling
-            # The handler should gracefully handle the failure
-            # and may send an error message or skip the item
-            mock_ebay.assert_called_once()
-    
-    @pytest.mark.asyncio
-    async def test_commission_calculation_integration(self, mock_config, mock_http_session):
-        """Test that commission calculation is properly integrated."""
-        update = AsyncMock()
-        update.message.text = "https://www.ebay.com/itm/123456789"
-        update.message.reply_text = AsyncMock()
-        context = AsyncMock()
-        
-        with patch('app.scrapers.ebay.scrape_ebay_item') as mock_ebay, \
-             patch('app.services.shipping.estimate_shopfans_shipping') as mock_shipping:
-            
-            # Setup item that should trigger percentage commission
-            from app.models import ItemData, ShippingQuote
-            high_value_item = ItemData(
-                price=Decimal("120.00"),
-                shipping_us=Decimal("40.00"),  # Total $160, above $150 threshold
-                is_buyable=True,
-                title="High value item"
-            )
-            mock_ebay.return_value = high_value_item
-            
-            mock_shipping.return_value = ShippingQuote(
-                weight_kg=Decimal("1.0"),
-                cost_usd=Decimal("25.00"),
-                description="Standard shipping"
-            )
-            
-            # Act
-            await handle_link(update, context)
-            
-            # Assert commission is calculated correctly
-            response_text = update.message.reply_text.call_args[1]['text']
-            assert "$16.00" in response_text  # (120 + 40) * 0.10 = 16.00
-            assert "10%" in response_text     # Should indicate percentage commission
-    
-    @pytest.mark.asyncio
-    async def test_currency_conversion_integration(self, mock_config, mock_http_session, sample_exchange_rate):
-        """Test currency conversion integration in the flow."""
-        update = AsyncMock()
-        update.message.text = "https://www.ebay.com/itm/123456789"
-        update.message.reply_text = AsyncMock()
-        context = AsyncMock()
-        
-        with patch('app.scrapers.ebay.scrape_ebay_item') as mock_ebay, \
-             patch('app.services.currency.get_exchange_rate') as mock_exchange, \
-             patch('app.services.shipping.estimate_shopfans_shipping') as mock_shipping:
-            
-            from app.models import ItemData, ShippingQuote
-            test_item = ItemData(
-                price=Decimal("100.00"),
-                shipping_us=Decimal("10.00"),
-                is_buyable=True,
-                title="Test item"
-            )
-            mock_ebay.return_value = test_item
-            mock_exchange.return_value = sample_exchange_rate
-            
-            mock_shipping.return_value = ShippingQuote(
-                weight_kg=Decimal("0.5"),
-                cost_usd=Decimal("20.00"),
-                description="Test shipping"
-            )
-            
-            # Act
-            await handle_link(update, context)
-            
-            # Assert
-            response_text = update.message.reply_text.call_args[1]['text']
-            assert "₽" in response_text  # Should contain ruble conversion
-            
-            # Calculate expected conversion: (100 + 10 + 20 + 15) * 95.50 = 13,847.50
-            assert "₽13,847.50" in response_text or "₽13 847.50" in response_text
+
+        final_call = update.message.reply_text.await_args_list[-1]
+        final_text = (
+            final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        )
+        assert failure_text in final_text

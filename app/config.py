@@ -27,6 +27,7 @@ class ShippingConfig(BaseSettings):
         light_handling_fee: Additional fee for items under threshold.
         heavy_handling_fee: Additional fee for items over threshold.
     """
+
     base_cost: float = 13.99
     per_kg_rate_europe: float = 30.86
     per_kg_rate_turkey: float = 35.27
@@ -46,6 +47,7 @@ class CommissionConfig(BaseSettings):
         fixed_threshold: Price threshold for switching to percentage.
         percentage_rate: Commission rate for expensive items (0.10 = 10%).
     """
+
     fixed_amount: float = 15.0
     fixed_threshold: float = 150.0
     percentage_rate: float = 0.10
@@ -59,6 +61,7 @@ class CurrencyConfig(BaseSettings):
         default_source: Primary exchange rate API source.
         fallback_enabled: Whether to use fallback rate sources.
     """
+
     markup_percentage: float = 5.0
     default_source: str = "cbr"
     fallback_enabled: bool = False
@@ -66,13 +69,14 @@ class CurrencyConfig(BaseSettings):
 
 class AnalyticsConfig(BaseSettings):
     """Analytics data collection configuration.
-    
+
     Attributes:
         enabled: Whether to collect analytics data.
         db_path: Path to SQLite analytics database.
         export_enabled: Whether CSV export is available.
         retention_days: Number of days to retain analytics data.
     """
+
     enabled: bool = Field(default=True, validation_alias="ANALYTICS_ENABLED")
     db_path: str = Field(default="data/analytics.db", validation_alias="ANALYTICS_DB_PATH")
     export_enabled: bool = Field(default=True, validation_alias="ANALYTICS_EXPORT_ENABLED")
@@ -86,6 +90,7 @@ class BotConfig(BaseSettings):
         bot_token: Telegram bot API token from environment.
         admin_chat_id: Telegram chat ID for admin notifications.
         port: Server port for webhook mode.
+        listen_host: Host interface for webhook binding.
         railway_domain: Railway public domain for webhooks.
         railway_url: Railway URL for webhooks (fallback).
         timeout: HTTP request timeout in seconds.
@@ -94,9 +99,11 @@ class BotConfig(BaseSettings):
         github_owner: GitHub repository owner.
         github_repo: GitHub repository name.
     """
-    bot_token: str = Field(..., validation_alias="BOT_TOKEN")
-    admin_chat_id: int = Field(..., validation_alias="ADMIN_CHAT_ID")
+
+    bot_token: str | None = Field(default=None, validation_alias="BOT_TOKEN")
+    admin_chat_id: int | None = Field(default=None, validation_alias="ADMIN_CHAT_ID")
     port: int = Field(default=8000, validation_alias="PORT")
+    listen_host: str = Field(default="127.0.0.1", validation_alias="BOT_LISTEN_HOST")
     railway_domain: str | None = Field(default=None, validation_alias="RAILWAY_PUBLIC_DOMAIN")
     railway_url: str | None = Field(default=None, validation_alias="RAILWAY_URL")
     timeout: int = 20
@@ -157,7 +164,7 @@ class Config:
             self.commission = CommissionConfig(
                 fixed_amount=commission_data.get("fixed", {}).get("amount", 15.0),
                 fixed_threshold=commission_data.get("fixed", {}).get("threshold", 150.0),
-                percentage_rate=commission_data.get("percentage", {}).get("rate", 0.10)
+                percentage_rate=commission_data.get("percentage", {}).get("rate", 0.10),
             )
 
             shopfans_data = fees_data.get("shopfans", {})
@@ -172,14 +179,14 @@ class Config:
                 kazakhstan_threshold=rate_thresholds.get("kazakhstan", 1000.0),
                 light_threshold=shopfans_data.get("light_threshold", 1.36),
                 light_handling_fee=shopfans_data.get("handling_fee", {}).get("light_items", 3.0),
-                heavy_handling_fee=shopfans_data.get("handling_fee", {}).get("heavy_items", 5.0)
+                heavy_handling_fee=shopfans_data.get("handling_fee", {}).get("heavy_items", 5.0),
             )
 
             currency_data = fees_data.get("currency", {})
             self.currency = CurrencyConfig(
                 markup_percentage=currency_data.get("markup_percentage", 5.0),
                 default_source=currency_data.get("default_source", "cbr"),
-                fallback_enabled=currency_data.get("fallback_enabled", False)
+                fallback_enabled=currency_data.get("fallback_enabled", False),
             )
         else:
             # Use defaults if config file not found
@@ -201,9 +208,21 @@ class Config:
             return []
 
         with open(shipping_path) as f:
-            data = yaml.safe_load(f)
+            raw_data = yaml.safe_load(f)
 
-        return data.get("patterns", [])
+        if not isinstance(raw_data, dict):
+            return []
+
+        patterns = raw_data.get("patterns", [])
+        if not isinstance(patterns, list):
+            return []
+
+        normalized: list[dict[str, Any]] = []
+        for entry in patterns:
+            if isinstance(entry, dict):
+                normalized.append(entry)
+
+        return normalized
 
     @property
     def default_shipping_weight(self) -> float:
@@ -217,9 +236,14 @@ class Config:
             return 0.60
 
         with open(shipping_path) as f:
-            data = yaml.safe_load(f)
+            raw_data = yaml.safe_load(f)
 
-        return data.get("default_weight", 0.60)
+        if isinstance(raw_data, dict):
+            default_weight = raw_data.get("default_weight")
+            if isinstance(default_weight, int | float):
+                return float(default_weight)
+
+        return 0.60
 
 
 # Global configuration instance
