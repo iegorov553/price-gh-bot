@@ -30,11 +30,12 @@ Ensure you clean up imports, configuration entries, and tests that relied on the
 - Pinning: avoid wildcard versions in `pyproject.toml`; use compatible release specifiers (`^`, `~`) to receive patch updates without breaking changes.
 
 ## Synchronising With Docker
-- Multi-stage `Dockerfile` installs both runtime and dev dependencies; the `test` target shares the same base layers. Regenerate `requirements*.txt` when dependencies change:
+- Multi-stage `Dockerfile` installs both runtime and dev dependencies; the `test` target shares the same base layers. Regenerate `requirements*.txt` from `poetry.lock` whenever dependencies change. Make sure the `poetry-plugin-export` plugin is installed (`poetry self add poetry-plugin-export`) and then run:
   ```bash
-  poetry export -f requirements.txt --output requirements.txt --without-hashes
-  poetry export -f requirements.txt --output requirements-dev.txt --without-hashes --with dev
+  poetry export --only main --format requirements.txt --without-hashes --output requirements.txt
+  poetry export --only dev --format requirements.txt --without-hashes --output requirements-dev.txt
   ```
+  `requirements.txt` now contains only runtime dependencies (used by Docker runtime images, Railway staging, and production), while `requirements-dev.txt` is consumed by CI jobs after the runtime install to pull in linting, testing, and documentation tooling.
 - Rebuild images after updates to confirm builds remain reproducible.
 
 ## Caching Playwright Binaries

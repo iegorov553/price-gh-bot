@@ -25,6 +25,13 @@ Follow these steps to prepare a development or production environment for Price 
    poetry run mypy --version
    poetry run pytest --version
    ```
+6. **Alternative (pip-based) installs**
+   - If a platform cannot run Poetry directly (e.g., minimal Docker images), install packages from the exported lock files:
+     ```bash
+     pip install -r requirements.txt
+     pip install -r requirements-dev.txt  # only for CI or other dev tooling
+     ```
+   - These files are generated from `poetry.lock`, so runtime, staging, and production environments remain version-aligned with local development.
 
 ## Docker Images
 - **Production**: `Dockerfile` builds a slim Python image with Playwright dependencies.
