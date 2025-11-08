@@ -30,6 +30,10 @@ theme:
 
 plugins:
   - search
+  - autorefs:
+      resolve_closest: true
+      link_titles: auto
+      strip_title_tags: auto
   - mkdocstrings:
       handlers:
         python:

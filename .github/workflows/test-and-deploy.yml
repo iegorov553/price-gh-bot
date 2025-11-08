@@ -78,6 +78,7 @@ jobs:
       env:
         ENABLE_HEADLESS_BROWSER: false
         LOG_LEVEL: WARNING
+        COVERAGE_RCFILE: .coveragerc.unit
       run: |
         pytest tests_new/unit/ -v --tb=short --maxfail=5 \
         --cov=app --cov-report=xml --cov-report=term
@@ -201,7 +202,7 @@ jobs:
       run: bandit -r app/ -f json -o bandit-report.json
 
     - name: Upload security scan results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: security-scan-results
