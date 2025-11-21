@@ -120,6 +120,7 @@ jobs:
       env:
         ENABLE_HEADLESS_BROWSER: false
         LOG_LEVEL: INFO
+        COVERAGE_RCFILE: .coveragerc.integration
       run: |
         pytest tests_new/integration/ -v --tb=short --maxfail=3 \
         --cov=app --cov-report=xml --cov-report=term

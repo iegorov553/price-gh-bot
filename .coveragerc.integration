@@ -1,0 +1,28 @@
+# Coverage configuration for the integration-test job.
+# Keeps coverage collection (for Codecov) but does not fail the job
+# because integration tests exercise a limited subset of the codebase.
+
+[run]
+source = app
+branch = True
+parallel = True
+concurrency = thread,multiprocessing
+
+omit =
+    app/__init__.py
+    app/main.py
+    app/scrapers/*
+    app/services/browser_pool.py
+    tests_new/*
+    venv/*
+    */site-packages/*
+    */__pycache__/*
+
+[report]
+fail_under = 0
+show_missing = True
+precision = 2
+sort = Cover
+
+[xml]
+output = coverage.xml
