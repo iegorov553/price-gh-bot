@@ -20,6 +20,7 @@ import shlex
 from datetime import UTC, datetime, timedelta
 from secrets import randbelow
 from typing import TYPE_CHECKING, Any, cast
+from urllib.parse import urlsplit, urlunsplit
 
 try:
     from playwright.async_api import async_playwright
@@ -35,6 +36,7 @@ else:
     Browser = BrowserContext = ElementHandle = Page = Route = Playwright = Any  # type: ignore
 
 from ..models import SellerData
+from .grailed_page import GrailedPageState, classify_grailed_html
 
 logger = logging.getLogger(__name__)
 
@@ -589,15 +591,56 @@ async def fetch_page_html_headless(url: str) -> str | None:
 
 
 async def _fetch_html(url: str, browser: HeadlessBrowser) -> str | None:
-    page = await browser.get_page()
+    """Fetch a Grailed listing only after its DOM reaches a known state."""
     try:
-        await page.goto(url, wait_until="domcontentloaded", timeout=25000)
-        await page.wait_for_timeout(1500)
-        return await page.content()
-    finally:
-        await page.close()
+        parsed_url = urlsplit(url)
+        hostname = parsed_url.hostname or ""
+        authority = f"[{hostname}]" if ":" in hostname else hostname
+        if parsed_url.port is not None:
+            authority = f"{authority}:{parsed_url.port}"
+        canonical_url = urlunsplit((parsed_url.scheme, authority, parsed_url.path, "", ""))
+    except ValueError:
+        canonical_url = "<invalid-url>"
 
+    for attempt in range(1, 3):
+        page: Page | None = None
+        try:
+            page = await browser.get_page()
+            await page.goto(url, wait_until="domcontentloaded", timeout=25_000)
+            await page.wait_for_function(
+                """() => {
+                    const html = document.documentElement.innerHTML.toLowerCase();
+                    return document.querySelector(
+                        '#__NEXT_DATA__, meta[property="product:price:amount"], '
+                        + 'script[type="application/ld+json"], #challenge-running, [class*="cf-chl-"]'
+                    ) !== null
+                        || html.includes('you are unable to access grailed.com')
+                        || html.includes('checking your browser')
+                        || html.includes('cf-chl-')
+                        || html.includes('challenge-running');
+                }""",
+                timeout=10_000,
+            )
+            html = await page.content()
+        except Exception as exc:
+            logger.warning(
+                "Grailed headless fetch failed (attempt=%s, exception=%s, url=%s)",
+                attempt,
+                type(exc).__name__,
+                canonical_url,
+            )
+            continue
+        finally:
+            if page is not None:
+                await page.close()
 
+        state = classify_grailed_html(html)
+        if state is GrailedPageState.LISTING:
+            return html
+        if state is GrailedPageState.BLOCKED:
+            return None
+
+    return None
 async def resolve_shortlink_headless(url: str) -> str | None:
     """Resolve a shortlink (e.g. grailed.app.link) by navigating with headless browser.
 

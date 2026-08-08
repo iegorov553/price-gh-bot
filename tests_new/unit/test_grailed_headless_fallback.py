@@ -5,7 +5,9 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from app.models import ItemData
+from app.scrapers import headless
 from app.scrapers.grailed_scraper import GrailedScraper
 from app.scrapers.grailed_url_resolver import async_normalize_grailed_url
 
@@ -62,3 +64,49 @@ async def test_grailed_scraper_headless_fallback_on_http_error() -> None:
         assert result.title == "Test Grailed Hoodie"
         assert result.price == 250
         assert result.shipping_us == 15
+
+
+@pytest.mark.asyncio
+async def test_fetch_retries_incomplete_page_once() -> None:
+    browser = MagicMock()
+    first = AsyncMock()
+    first.content.return_value = "<html><body>Grailed</body></html>"
+    second = AsyncMock()
+    second.content.return_value = '<html><script id="__NEXT_DATA__">{}</script></html>'
+    browser.get_page = AsyncMock(side_effect=[first, second])
+
+    result = await headless._fetch_html("https://www.grailed.com/listings/1", browser)
+
+    assert result is not None
+    assert "__NEXT_DATA__" in result
+    assert browser.get_page.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_fetch_does_not_retry_blocked_page() -> None:
+    browser = MagicMock()
+    page = AsyncMock()
+    page.content.return_value = "<html><body>You are unable to access grailed.com</body></html>"
+    browser.get_page = AsyncMock(return_value=page)
+
+    result = await headless._fetch_html("https://www.grailed.com/listings/1", browser)
+
+    assert result is None
+    assert browser.get_page.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_logs_navigation_failure_without_url_credentials(caplog: pytest.LogCaptureFixture) -> None:
+    browser = MagicMock()
+    page = AsyncMock()
+    page.goto.side_effect = RuntimeError("navigation failed")
+    browser.get_page = AsyncMock(return_value=page)
+
+    result = await headless._fetch_html(
+        "https://buyer:secret@grailed.com/listings/1?session=private", browser
+    )
+
+    assert result is None
+    assert "https://grailed.com/listings/1" in caplog.text
+    assert "buyer:secret" not in caplog.text
+    assert "session=private" not in caplog.text
