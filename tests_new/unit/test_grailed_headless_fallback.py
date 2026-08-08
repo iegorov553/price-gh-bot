@@ -8,8 +8,10 @@ import pytest
 
 from app.models import ItemData
 from app.scrapers import headless
+from app.scrapers.grailed_page import GrailedPageState
 from app.scrapers.grailed_scraper import GrailedScraper
 from app.scrapers.grailed_url_resolver import async_normalize_grailed_url
+from app.scrapers.headless import GrailedHeadlessFetchResult
 
 
 def _static_forbidden_session() -> MagicMock:
@@ -21,26 +23,26 @@ def _static_forbidden_session() -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_grailed_scraper_rejects_blocked_headless_page_before_seller_extraction() -> None:
+async def test_grailed_scraper_records_blocked_headless_outcome_before_seller_extraction(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     scraper = GrailedScraper()
     url = "https://www.grailed.com/listings/123456"
-    blocked_html = (
-        "<html><body>You are unable to access grailed.com"
-        + ("x" * 1_100)
-        + "</body></html>"
-    )
 
     with patch(
-        "app.scrapers.headless.fetch_page_html_headless", new_callable=AsyncMock
+        "app.scrapers.headless.fetch_grailed_page_headless", new_callable=AsyncMock
     ) as mock_headless, patch.object(
         scraper, "_extract_seller_data", new_callable=AsyncMock
     ) as mock_seller:
-        mock_headless.return_value = blocked_html
+        mock_headless.return_value = GrailedHeadlessFetchResult(
+            html=None, state=GrailedPageState.BLOCKED
+        )
 
         result = await scraper.scrape_item(url, _static_forbidden_session())
 
     assert result is None
     mock_seller.assert_not_awaited()
+    assert "Headless browser response was classified as blocked" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -62,13 +64,15 @@ async def test_grailed_scraper_extracts_seller_once_after_price_from_headless_li
         return None
 
     with patch(
-        "app.scrapers.headless.fetch_page_html_headless", new_callable=AsyncMock
+        "app.scrapers.headless.fetch_grailed_page_headless", new_callable=AsyncMock
     ) as mock_headless, patch(
         "app.scrapers.grailed_scraper._extract_price_and_buyability", side_effect=extract_price
     ), patch.object(
         scraper, "_extract_seller_data", side_effect=extract_seller
     ) as mock_seller:
-        mock_headless.return_value = listing_html
+        mock_headless.return_value = GrailedHeadlessFetchResult(
+            html=listing_html, state=GrailedPageState.LISTING
+        )
 
         result = await scraper.scrape_item(url, _static_forbidden_session())
 
@@ -118,9 +122,11 @@ async def test_grailed_scraper_headless_fallback_on_http_error() -> None:
   <body>{padding}</body>
 </html>"""
 
-    with patch("app.scrapers.headless.fetch_page_html_headless", new_callable=AsyncMock) as mock_headless, \
+    with patch("app.scrapers.headless.fetch_grailed_page_headless", new_callable=AsyncMock) as mock_headless, \
          patch("app.scrapers.headless.get_grailed_seller_data_headless", new_callable=AsyncMock) as mock_seller:
-        mock_headless.return_value = sample_html
+        mock_headless.return_value = GrailedHeadlessFetchResult(
+            html=sample_html, state=GrailedPageState.LISTING
+        )
         mock_seller.return_value = None
         result = await scraper.scrape_item(url, mock_session)
 
@@ -149,15 +155,18 @@ async def test_fetch_retries_incomplete_page_once() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fetch_does_not_retry_blocked_page() -> None:
+async def test_fetch_exposes_blocked_page_state() -> None:
     browser = MagicMock()
     page = AsyncMock()
     page.content.return_value = "<html><body>You are unable to access grailed.com</body></html>"
     browser.get_page = AsyncMock(return_value=page)
 
-    result = await headless._fetch_html("https://www.grailed.com/listings/1", browser)
+    result = await headless._fetch_grailed_page_html(
+        "https://www.grailed.com/listings/1", browser
+    )
 
-    assert result is None
+    assert result.html is None
+    assert result.state is GrailedPageState.BLOCKED
     assert browser.get_page.await_count == 1
 
 

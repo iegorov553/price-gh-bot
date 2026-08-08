@@ -17,6 +17,7 @@ import asyncio
 import logging
 import re
 import shlex
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from secrets import randbelow
 from typing import TYPE_CHECKING, Any, cast
@@ -39,6 +40,14 @@ from ..models import SellerData
 from .grailed_page import GrailedPageState, classify_grailed_html
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class GrailedHeadlessFetchResult:
+    """Classified result of a headless Grailed page acquisition."""
+
+    html: str | None
+    state: GrailedPageState
 
 
 def _random_delay(min_seconds: float, max_seconds: float) -> float:
@@ -569,28 +578,40 @@ async def get_grailed_seller_data_headless(url: str) -> SellerData | None:
 
 
 async def fetch_page_html_headless(url: str) -> str | None:
-    """Fetch HTML of a web page using headless browser with JS execution.
+    """Fetch classified Grailed listing HTML through the compatibility API.
 
     Args:
         url: Page URL to fetch.
 
     Returns:
-        HTML text content or None if fetch fails.
+        Listing HTML text or None if the page is blocked, incomplete, or fails.
     """
+    return (await fetch_grailed_page_headless(url)).html
+
+
+async def fetch_grailed_page_headless(url: str) -> GrailedHeadlessFetchResult:
+    """Acquire a Grailed page while retaining its classified terminal state."""
     try:
         browser = await get_global_browser()
-        return await _fetch_html(url, browser)
+        return await _fetch_grailed_page_html(url, browser)
     except Exception as e:
         logger.error(f"Global browser HTML fetch failed for {url}: {e}")
         try:
             async with HeadlessBrowser() as browser:
-                return await _fetch_html(url, browser)
+                return await _fetch_grailed_page_html(url, browser)
         except Exception as err:
             logger.error(f"Headless Browser HTML fetch failed for {url}: {err}")
-            return None
+            return GrailedHeadlessFetchResult(None, GrailedPageState.INCOMPLETE)
 
 
 async def _fetch_html(url: str, browser: HeadlessBrowser) -> str | None:
+    """Fetch listing HTML for callers that only need the compatibility value."""
+    return (await _fetch_grailed_page_html(url, browser)).html
+
+
+async def _fetch_grailed_page_html(
+    url: str, browser: HeadlessBrowser
+) -> GrailedHeadlessFetchResult:
     """Fetch a Grailed listing only after its DOM reaches a known state."""
     try:
         parsed_url = urlsplit(url)
@@ -629,18 +650,20 @@ async def _fetch_html(url: str, browser: HeadlessBrowser) -> str | None:
                 type(exc).__name__,
                 canonical_url,
             )
-            return None
+            return GrailedHeadlessFetchResult(None, GrailedPageState.INCOMPLETE)
         finally:
             if page is not None:
                 await page.close()
 
         state = classify_grailed_html(html)
         if state is GrailedPageState.LISTING:
-            return html
+            return GrailedHeadlessFetchResult(html, state)
         if state is GrailedPageState.BLOCKED:
-            return None
+            return GrailedHeadlessFetchResult(None, state)
 
-    return None
+    return GrailedHeadlessFetchResult(None, GrailedPageState.INCOMPLETE)
+
+
 async def resolve_shortlink_headless(url: str) -> str | None:
     """Resolve a shortlink (e.g. grailed.app.link) by navigating with headless browser.
 

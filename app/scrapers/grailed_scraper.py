@@ -335,18 +335,19 @@ class GrailedScraper(BaseScraper):
         if not html:
             self.logger.info("Attempting headless browser fallback for Grailed item %s", url)
             try:
-                headless_html = await headless.fetch_page_html_headless(url)
+                headless_result = await headless.fetch_grailed_page_headless(url)
             except Exception as exc:
                 self.logger.error("Headless browser fallback failed for %s: %s", url, exc)
                 return None
 
-            state = classify_grailed_html(headless_html)
-            if state is not GrailedPageState.LISTING:
+            if headless_result.state is not GrailedPageState.LISTING:
                 self.logger.warning(
-                    "Headless browser response was classified as %s for %s", state, url
+                    "Headless browser response was classified as %s for %s",
+                    headless_result.state,
+                    url,
                 )
                 return None
-            html = headless_html
+            html = headless_result.html
 
         soup = BeautifulSoup(html, "lxml")
 
