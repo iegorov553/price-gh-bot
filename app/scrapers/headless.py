@@ -629,7 +629,7 @@ async def _fetch_html(url: str, browser: HeadlessBrowser) -> str | None:
                 type(exc).__name__,
                 canonical_url,
             )
-            continue
+            return None
         finally:
             if page is not None:
                 await page.close()

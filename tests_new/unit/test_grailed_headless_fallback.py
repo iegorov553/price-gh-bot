@@ -110,3 +110,17 @@ async def test_fetch_logs_navigation_failure_without_url_credentials(caplog: pyt
     assert "https://grailed.com/listings/1" in caplog.text
     assert "buyer:secret" not in caplog.text
     assert "session=private" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failing_operation", ["goto", "wait_for_function", "content"])
+async def test_fetch_does_not_retry_page_operation_exceptions(failing_operation: str) -> None:
+    browser = MagicMock()
+    page = AsyncMock()
+    getattr(page, failing_operation).side_effect = RuntimeError("page operation failed")
+    browser.get_page = AsyncMock(return_value=page)
+
+    result = await headless._fetch_html("https://www.grailed.com/listings/1", browser)
+
+    assert result is None
+    assert browser.get_page.await_count == 1
