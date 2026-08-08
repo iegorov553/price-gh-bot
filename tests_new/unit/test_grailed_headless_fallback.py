@@ -12,6 +12,72 @@ from app.scrapers.grailed_scraper import GrailedScraper
 from app.scrapers.grailed_url_resolver import async_normalize_grailed_url
 
 
+def _static_forbidden_session() -> MagicMock:
+    session = MagicMock()
+    response = MagicMock()
+    response.status = 403
+    session.get.return_value.__aenter__ = AsyncMock(return_value=response)
+    return session
+
+
+@pytest.mark.asyncio
+async def test_grailed_scraper_rejects_blocked_headless_page_before_seller_extraction() -> None:
+    scraper = GrailedScraper()
+    url = "https://www.grailed.com/listings/123456"
+    blocked_html = (
+        "<html><body>You are unable to access grailed.com"
+        + ("x" * 1_100)
+        + "</body></html>"
+    )
+
+    with patch(
+        "app.scrapers.headless.fetch_page_html_headless", new_callable=AsyncMock
+    ) as mock_headless, patch.object(
+        scraper, "_extract_seller_data", new_callable=AsyncMock
+    ) as mock_seller:
+        mock_headless.return_value = blocked_html
+
+        result = await scraper.scrape_item(url, _static_forbidden_session())
+
+    assert result is None
+    mock_seller.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_grailed_scraper_extracts_seller_once_after_price_from_headless_listing() -> None:
+    scraper = GrailedScraper()
+    url = "https://www.grailed.com/listings/123456"
+    listing_html = """<!DOCTYPE html>
+<html><head>
+<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"listing":{"title":"Test Grailed Hoodie","price":250,"buyNowPrice":250,"shipping":{"us":{"amount":15}}}}}}</script>
+</head><body></body></html>"""
+    extraction_order: list[str] = []
+
+    def extract_price(url: str, soup: object) -> tuple[int, bool]:
+        extraction_order.append("price")
+        return 250, True
+
+    async def extract_seller(soup: object, session: object) -> None:
+        extraction_order.append("seller")
+        return None
+
+    with patch(
+        "app.scrapers.headless.fetch_page_html_headless", new_callable=AsyncMock
+    ) as mock_headless, patch(
+        "app.scrapers.grailed_scraper._extract_price_and_buyability", side_effect=extract_price
+    ), patch.object(
+        scraper, "_extract_seller_data", side_effect=extract_seller
+    ) as mock_seller:
+        mock_headless.return_value = listing_html
+
+        result = await scraper.scrape_item(url, _static_forbidden_session())
+
+    assert result is not None
+    assert result.price == 250
+    assert extraction_order == ["price", "seller"]
+    mock_seller.assert_awaited_once()
+
+
 @pytest.mark.asyncio
 async def test_async_normalize_grailed_url_static_payload() -> None:
     url = (

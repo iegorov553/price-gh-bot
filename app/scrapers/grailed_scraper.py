@@ -18,9 +18,8 @@ from bs4 import BeautifulSoup
 from ..models import ItemData, SellerData
 from . import headless
 from .base import BaseScraper
+from .grailed_page import GrailedPageState, classify_grailed_html
 from .grailed_url_resolver import async_normalize_grailed_url, normalize_grailed_url
-
-
 
 logger = logging.getLogger(__name__)
 
@@ -317,11 +316,14 @@ class GrailedScraper(BaseScraper):
         try:
             async with session.get(url) as response:
                 if response.status == 200:
-                    content_type = response.headers.get("content-type", "").lower()
-                    if "application/json" not in content_type:
-                        text = await response.text()
-                        if text and len(text) >= 1000:
-                            html = text
+                    text = await response.text()
+                    state = classify_grailed_html(text)
+                    if state is GrailedPageState.LISTING:
+                        html = text
+                    else:
+                        self.logger.warning(
+                            "Static HTTP response was classified as %s for %s", state, url
+                        )
                 else:
                     self.logger.warning(
                         "Static HTTP fetch returned status %s for %s", response.status, url
@@ -333,19 +335,26 @@ class GrailedScraper(BaseScraper):
         if not html:
             self.logger.info("Attempting headless browser fallback for Grailed item %s", url)
             try:
-                html = await headless.fetch_page_html_headless(url)
+                headless_html = await headless.fetch_page_html_headless(url)
             except Exception as exc:
                 self.logger.error("Headless browser fallback failed for %s: %s", url, exc)
+                return None
 
-
-        if not html or len(html) < 1000:
-            self.logger.warning("No HTML content obtained for Grailed URL: %s", url)
-            return None
+            state = classify_grailed_html(headless_html)
+            if state is not GrailedPageState.LISTING:
+                self.logger.warning(
+                    "Headless browser response was classified as %s for %s", state, url
+                )
+                return None
+            html = headless_html
 
         soup = BeautifulSoup(html, "lxml")
 
         # Extract price and buyability
         price, is_buyable = _extract_price_and_buyability(url, soup)
+        if price is None:
+            self.logger.warning("No price extracted from Grailed HTML for URL: %s", url)
+            return None
 
         # Extract shipping
         shipping = _scrape_shipping_grailed(soup)
@@ -358,10 +367,6 @@ class GrailedScraper(BaseScraper):
 
         # Extract seller data
         seller_data = await self._extract_seller_data(soup, session)
-
-        if price is None:
-            self.logger.warning("No price extracted from Grailed HTML for URL: %s", url)
-            return None
 
         item_data = ItemData(
             price=price,
