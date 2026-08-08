@@ -16,13 +16,16 @@ import aiohttp
 from bs4 import BeautifulSoup
 
 from ..models import ItemData, SellerData
+from . import headless
 from .base import BaseScraper
-from .grailed_url_resolver import normalize_grailed_url
-from .headless import get_grailed_seller_data_headless
+from .grailed_url_resolver import async_normalize_grailed_url, normalize_grailed_url
+
+
 
 logger = logging.getLogger(__name__)
 
 PRICE_RE = re.compile(r"^\d[\d,.]*$")
+
 
 
 def _clean_price(raw: str) -> Decimal | None:
@@ -76,10 +79,14 @@ def _parse_next_data(soup: BeautifulSoup) -> dict[str, Any] | None:
     """
     try:
         script = soup.find("script", id="__NEXT_DATA__")
-        if not script or not script.string:
+        if not script:
             return None
 
-        data = json.loads(script.string)
+        content = script.string or script.get_text()
+        if not content:
+            return None
+
+        data = json.loads(content)
 
         # Navigate to listing data: props.pageProps.listing
         props = data.get("props", {})
@@ -93,6 +100,7 @@ def _parse_next_data(soup: BeautifulSoup) -> dict[str, Any] | None:
         pass
 
     return None
+
 
 
 def _scrape_shipping_grailed(soup: BeautifulSoup) -> Decimal | None:
@@ -299,29 +307,39 @@ class GrailedScraper(BaseScraper):
         """
         self._log_scraping_start(url, "item")
 
-        normalized_url = normalize_grailed_url(url)
+        normalized_url = await async_normalize_grailed_url(url, session)
         if normalized_url != url:
             self.logger.debug("Normalized Grailed URL %s → %s", url, normalized_url)
             url = normalized_url
 
+        html: str | None = None
+
         try:
             async with session.get(url) as response:
-                response.raise_for_status()
+                if response.status == 200:
+                    content_type = response.headers.get("content-type", "").lower()
+                    if "application/json" not in content_type:
+                        text = await response.text()
+                        if text and len(text) >= 1000:
+                            html = text
+                else:
+                    self.logger.warning(
+                        "Static HTTP fetch returned status %s for %s", response.status, url
+                    )
+        except Exception as exc:
+            self.logger.warning("Static HTTP fetch failed for %s: %s", url, exc)
 
-                # Check Content-Type to avoid parsing JSON as HTML
-                content_type = response.headers.get("content-type", "").lower()
-                if "application/json" in content_type:
-                    # Server returned JSON instead of HTML - listing may be unavailable
-                    return None
+        # Fallback to headless browser if static fetch failed or produced empty/invalid page
+        if not html:
+            self.logger.info("Attempting headless browser fallback for Grailed item %s", url)
+            try:
+                html = await headless.fetch_page_html_headless(url)
+            except Exception as exc:
+                self.logger.error("Headless browser fallback failed for %s: %s", url, exc)
 
-                html = await response.text()
 
-                # Additional validation: check if response looks like a listing page
-                if not html or len(html) < 1000:
-                    # Response too short to be a valid listing page
-                    return None
-
-        except Exception:
+        if not html or len(html) < 1000:
+            self.logger.warning("No HTML content obtained for Grailed URL: %s", url)
             return None
 
         soup = BeautifulSoup(html, "lxml")
@@ -341,6 +359,10 @@ class GrailedScraper(BaseScraper):
         # Extract seller data
         seller_data = await self._extract_seller_data(soup, session)
 
+        if price is None:
+            self.logger.warning("No price extracted from Grailed HTML for URL: %s", url)
+            return None
+
         item_data = ItemData(
             price=price,
             shipping_us=shipping,
@@ -349,13 +371,10 @@ class GrailedScraper(BaseScraper):
             image_url=image_url,
         )
 
-        if item_data:
-            self._log_scraping_success(url, "item", f"'{item_data.title}' - ${item_data.price}")
-            self._cached_seller_data = seller_data
-            return item_data
-        else:
-            self.logger.warning(f"No item data extracted from Grailed URL: {url}")
-            return None
+        self._log_scraping_success(url, "item", f"'{item_data.title}' - ${item_data.price}")
+        self._cached_seller_data = seller_data
+        return item_data
+
 
     async def scrape_seller(self, url: str, session: aiohttp.ClientSession) -> SellerData | None:
         """Extract seller data from Grailed profile URL.
@@ -388,7 +407,8 @@ class GrailedScraper(BaseScraper):
 
         try:
             # Используем оптимизированный headless browser для всех профилей
-            seller_data = await get_grailed_seller_data_headless(url)
+            seller_data = await headless.get_grailed_seller_data_headless(url)
+
 
             if seller_data:
                 trusted_status = "trusted" if seller_data.trusted_badge else "standard"

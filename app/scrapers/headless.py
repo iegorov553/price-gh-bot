@@ -566,6 +566,73 @@ async def get_grailed_seller_data_headless(url: str) -> SellerData | None:
             return await extract_seller_data_headless(url, browser)
 
 
+async def fetch_page_html_headless(url: str) -> str | None:
+    """Fetch HTML of a web page using headless browser with JS execution.
+
+    Args:
+        url: Page URL to fetch.
+
+    Returns:
+        HTML text content or None if fetch fails.
+    """
+    try:
+        browser = await get_global_browser()
+        return await _fetch_html(url, browser)
+    except Exception as e:
+        logger.error(f"Global browser HTML fetch failed for {url}: {e}")
+        try:
+            async with HeadlessBrowser() as browser:
+                return await _fetch_html(url, browser)
+        except Exception as err:
+            logger.error(f"Headless Browser HTML fetch failed for {url}: {err}")
+            return None
+
+
+async def _fetch_html(url: str, browser: HeadlessBrowser) -> str | None:
+    page = await browser.get_page()
+    try:
+        await page.goto(url, wait_until="domcontentloaded", timeout=25000)
+        await page.wait_for_timeout(1500)
+        return await page.content()
+    finally:
+        await page.close()
+
+
+async def resolve_shortlink_headless(url: str) -> str | None:
+    """Resolve a shortlink (e.g. grailed.app.link) by navigating with headless browser.
+
+    Args:
+        url: Shortlink URL.
+
+    Returns:
+        Final target URL after redirects, or None if failed.
+    """
+    try:
+        browser = await get_global_browser()
+        return await _resolve_redirect(url, browser)
+    except Exception as e:
+        logger.error(f"Global browser shortlink resolution failed for {url}: {e}")
+        try:
+            async with HeadlessBrowser() as browser:
+                return await _resolve_redirect(url, browser)
+        except Exception as err:
+            logger.error(f"Headless Browser shortlink resolution failed for {url}: {err}")
+            return None
+
+
+async def _resolve_redirect(url: str, browser: HeadlessBrowser) -> str | None:
+    page = await browser.get_page()
+    try:
+        await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+        final_url = page.url
+        if final_url and final_url != url:
+            return final_url
+        return None
+    finally:
+        await page.close()
+
+
+
 async def get_global_browser() -> HeadlessBrowser:
     """Get or create a global browser instance for reuse."""
     global _global_browser
