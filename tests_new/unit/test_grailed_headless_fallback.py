@@ -1,0 +1,64 @@
+"""Unit tests for Grailed headless fallback and async shortlink resolution."""
+
+from __future__ import annotations
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from app.models import ItemData
+from app.scrapers.grailed_scraper import GrailedScraper
+from app.scrapers.grailed_url_resolver import async_normalize_grailed_url
+
+
+@pytest.mark.asyncio
+async def test_async_normalize_grailed_url_static_payload() -> None:
+    url = (
+        "https://grailed.app.link?channel=Pasteboard&data=eyIkY2Fub25pY2FsX3VybCI6Imh0dHBzOi8vd3d3LmdyYWlsZWQuY29tL2xpc3RpbmdzLzEyMzQ1NiJ9"
+    )
+    res = await async_normalize_grailed_url(url)
+    assert res == "https://www.grailed.com/listings/123456"
+
+
+@pytest.mark.asyncio
+async def test_async_normalize_grailed_url_http_head_redirect() -> None:
+    url = "https://grailed.app.link/abc1234"
+    mock_session = MagicMock()
+    mock_response = MagicMock()
+    mock_response.url = "https://www.grailed.com/listings/999999"
+    mock_session.head.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+
+    res = await async_normalize_grailed_url(url, mock_session)
+    assert res == "https://www.grailed.com/listings/999999"
+
+
+@pytest.mark.asyncio
+async def test_grailed_scraper_headless_fallback_on_http_error() -> None:
+    scraper = GrailedScraper()
+    url = "https://www.grailed.com/listings/123456"
+
+    mock_session = MagicMock()
+    # Simulate aiohttp session raising an exception on HTTP GET
+    mock_session.get.return_value.__aenter__ = AsyncMock(side_effect=Exception("HTTP 403 Forbidden"))
+
+    # Construct HTML with > 1000 characters to pass length check
+    padding = "<!-- " + ("x" * 1000) + " -->"
+    sample_html = f"""<!DOCTYPE html>
+<html>
+  <head>
+    <script id="__NEXT_DATA__" type="application/json">{{"props":{{"pageProps":{{"listing":{{"title":"Test Grailed Hoodie","price":250,"buyNowPrice":250,"shipping":{{"us":{{"amount":15}}}}}}}}}}}}</script>
+  </head>
+  <body>{padding}</body>
+</html>"""
+
+    with patch("app.scrapers.headless.fetch_page_html_headless", new_callable=AsyncMock) as mock_headless, \
+         patch("app.scrapers.headless.get_grailed_seller_data_headless", new_callable=AsyncMock) as mock_seller:
+        mock_headless.return_value = sample_html
+        mock_seller.return_value = None
+        result = await scraper.scrape_item(url, mock_session)
+
+        mock_headless.assert_called_once_with(url)
+        assert result is not None
+        assert isinstance(result, ItemData)
+        assert result.title == "Test Grailed Hoodie"
+        assert result.price == 250
+        assert result.shipping_us == 15

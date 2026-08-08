@@ -41,6 +41,8 @@ test_*.py
 !tests_new/unit/test_config_bot.py
 !tests_new/unit/test_grailed_buyability.py
 !tests_new/unit/test_response_formatter.py
+!tests_new/unit/test_grailed_headless_fallback.py
+
 patch_*.py
 verify_*.py
 *.png
