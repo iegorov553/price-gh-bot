@@ -49,3 +49,7 @@ verify_*.py
 
 # Documentation build
 site/
+
+# Isolated agent workspaces
+.worktrees/
+.superpowers/
