@@ -210,7 +210,11 @@ git commit -m "fix(scrapers): wait for Grailed listing readiness"
 Add one test where static HTTP returns 403 and headless returns an access-denied page. Patch `_extract_seller_data` and assert it is not awaited. Add a second test where headless returns valid listing HTML and seller extraction occurs exactly once after price extraction.
 
 ```python
-mock_headless.return_value = "<html><body>You are unable to access grailed.com</body></html>"
+mock_headless.return_value = (
+    "<html><body>You are unable to access grailed.com"
+    + ("x" * 1_100)
+    + "</body></html>"
+)
 result = await scraper.scrape_item(url, mock_session)
 assert result is None
 mock_seller.assert_not_awaited()
