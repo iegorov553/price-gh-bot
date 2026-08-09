@@ -630,6 +630,7 @@ async def _fetch_html(url: str, browser: HeadlessBrowser) -> str | None:
     page = await browser.get_page()
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=25_000)
+        await page.wait_for_timeout(1500)
         return await page.content()
     finally:
         await page.close()

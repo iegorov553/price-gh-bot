@@ -185,12 +185,22 @@ async def test_grailed_scraper_headless_fallback_on_http_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fetch_page_html_headless_returns_raw_blocked_html() -> None:
+async def test_fetch_page_html_headless_waits_before_returning_raw_blocked_html() -> None:
     url = "https://www.grailed.com/listings/1"
     blocked_html = "<html><body>You are unable to access grailed.com</body></html>"
+    acquisition_events: list[tuple[str, int | None]] = []
+
+    async def record_wait(timeout: int) -> None:
+        acquisition_events.append(("wait", timeout))
+
+    async def record_content() -> str:
+        acquisition_events.append(("content", None))
+        return blocked_html
+
     browser = MagicMock()
     page = AsyncMock()
-    page.content.return_value = blocked_html
+    page.wait_for_timeout.side_effect = record_wait
+    page.content.side_effect = record_content
     browser.get_page = AsyncMock(return_value=page)
 
     with patch(
@@ -200,8 +210,8 @@ async def test_fetch_page_html_headless_returns_raw_blocked_html() -> None:
         result = await headless.fetch_page_html_headless(url)
 
     assert result == blocked_html
+    assert acquisition_events == [("wait", 1500), ("content", None)]
     page.goto.assert_awaited_once_with(url, wait_until="domcontentloaded", timeout=25_000)
-    page.content.assert_awaited_once_with()
     page.close.assert_awaited_once_with()
 
 
