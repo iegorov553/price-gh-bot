@@ -23,10 +23,16 @@ from secrets import randbelow
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlsplit, urlunsplit
 
+from ..models import SellerData
+from .grailed_page import GrailedPageState, classify_grailed_html
+
+PlaywrightTimeoutError: type[BaseException]
+
 try:
-    from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+    from playwright.async_api import TimeoutError as _PlaywrightTimeoutError
     from playwright.async_api import async_playwright
 
+    PlaywrightTimeoutError = _PlaywrightTimeoutError
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     async_playwright = None  # type: ignore[assignment]
@@ -37,9 +43,6 @@ if TYPE_CHECKING:
     from playwright.async_api import Browser, BrowserContext, ElementHandle, Page, Playwright, Route
 else:
     Browser = BrowserContext = ElementHandle = Page = Route = Playwright = Any  # type: ignore
-
-from ..models import SellerData
-from .grailed_page import GrailedPageState, classify_grailed_html
 
 logger = logging.getLogger(__name__)
 
@@ -580,15 +583,31 @@ async def get_grailed_seller_data_headless(url: str) -> SellerData | None:
 
 
 async def fetch_page_html_headless(url: str) -> str | None:
-    """Fetch classified Grailed listing HTML through the compatibility API.
+    """Fetch raw page HTML through the generic compatibility API.
 
     Args:
         url: Page URL to fetch.
 
     Returns:
-        Listing HTML text or None if the page is blocked, incomplete, or fails.
+        Acquired HTML text without Grailed classification, or None if fetching fails.
     """
-    return (await fetch_grailed_page_headless(url)).html
+    try:
+        browser = await get_global_browser()
+        return await _fetch_html(url, browser)
+    except Exception as exc:
+        logger.error(
+            "Global browser compatibility HTML fetch failed (exception=%s)",
+            type(exc).__name__,
+        )
+        try:
+            async with HeadlessBrowser() as browser:
+                return await _fetch_html(url, browser)
+        except Exception as fallback_exc:
+            logger.error(
+                "Compatibility HTML fetch failed (exception=%s)",
+                type(fallback_exc).__name__,
+            )
+            return None
 
 
 async def fetch_grailed_page_headless(url: str) -> GrailedHeadlessFetchResult:
@@ -607,8 +626,13 @@ async def fetch_grailed_page_headless(url: str) -> GrailedHeadlessFetchResult:
 
 
 async def _fetch_html(url: str, browser: HeadlessBrowser) -> str | None:
-    """Fetch listing HTML for callers that only need the compatibility value."""
-    return (await _fetch_grailed_page_html(url, browser)).html
+    """Fetch unclassified HTML for generic compatibility callers."""
+    page = await browser.get_page()
+    try:
+        await page.goto(url, wait_until="domcontentloaded", timeout=25_000)
+        return await page.content()
+    finally:
+        await page.close()
 
 
 async def _fetch_grailed_page_html(
@@ -701,7 +725,6 @@ async def _resolve_redirect(url: str, browser: HeadlessBrowser) -> str | None:
         return None
     finally:
         await page.close()
-
 
 
 async def get_global_browser() -> HeadlessBrowser:

@@ -1,5 +1,9 @@
 """Tests for URL extraction and validation."""
 
+import logging
+
+import pytest
+
 from app.bot.url_processor import URLProcessor
 
 
@@ -25,3 +29,17 @@ class TestURLProcessor:
         extracted = self.processor.extract_urls(text)
 
         assert extracted == [url]
+
+    def test_suspicious_url_warning_omits_raw_url_and_user_id(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        raw_url = "https://attacker.example/private?secret=raw-value"
+        user_id = 918_273_645
+
+        with caplog.at_level(logging.WARNING, logger="app.bot.url_processor"):
+            result = self.processor.process_message(raw_url, user_id=user_id)
+
+        assert result["has_suspicious"] is True
+        assert "invalid_count=1" in caplog.text
+        assert raw_url not in caplog.text
+        assert str(user_id) not in caplog.text

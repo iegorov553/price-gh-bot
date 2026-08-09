@@ -23,6 +23,15 @@ def _static_forbidden_session() -> MagicMock:
     return session
 
 
+def _static_ok_session(html: str) -> MagicMock:
+    session = MagicMock()
+    response = MagicMock()
+    response.status = 200
+    response.text = AsyncMock(return_value=html)
+    session.get.return_value.__aenter__ = AsyncMock(return_value=response)
+    return session
+
+
 @pytest.mark.asyncio
 async def test_grailed_scraper_records_blocked_headless_outcome_before_seller_extraction(
     caplog: pytest.LogCaptureFixture,
@@ -30,11 +39,12 @@ async def test_grailed_scraper_records_blocked_headless_outcome_before_seller_ex
     scraper = GrailedScraper()
     url = "https://www.grailed.com/listings/123456"
 
-    with patch(
-        "app.scrapers.headless.fetch_grailed_page_headless", new_callable=AsyncMock
-    ) as mock_headless, patch.object(
-        scraper, "_extract_seller_data", new_callable=AsyncMock
-    ) as mock_seller:
+    with (
+        patch(
+            "app.scrapers.headless.fetch_grailed_page_headless", new_callable=AsyncMock
+        ) as mock_headless,
+        patch.object(scraper, "_extract_seller_data", new_callable=AsyncMock) as mock_seller,
+    ):
         mock_headless.return_value = GrailedHeadlessFetchResult(
             html=None, state=GrailedPageState.BLOCKED
         )
@@ -43,7 +53,34 @@ async def test_grailed_scraper_records_blocked_headless_outcome_before_seller_ex
 
     assert result is None
     mock_seller.assert_not_awaited()
-    assert "Headless browser response was classified as blocked" in caplog.text
+    assert "Grailed page blocked" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_grailed_scraper_rejects_blocked_static_http_200_before_fallback() -> None:
+    scraper = GrailedScraper()
+    url = "https://www.grailed.com/listings/123456"
+    blocked_html = "<html><body>You are unable to access grailed.com</body></html>"
+    listing_html = """<html><head>
+<meta property="product:price:amount" content="250">
+<meta property="og:title" content="Fallback listing">
+</head><body></body></html>"""
+
+    with (
+        patch(
+            "app.scrapers.headless.fetch_grailed_page_headless", new_callable=AsyncMock
+        ) as mock_headless,
+        patch.object(scraper, "_extract_seller_data", new_callable=AsyncMock),
+    ):
+        mock_headless.return_value = GrailedHeadlessFetchResult(
+            html=listing_html, state=GrailedPageState.LISTING
+        )
+
+        result = await scraper.scrape_item(url, _static_ok_session(blocked_html))
+
+    assert result is not None
+    assert result.price == 250
+    mock_headless.assert_awaited_once_with(url)
 
 
 @pytest.mark.asyncio
@@ -64,13 +101,15 @@ async def test_grailed_scraper_extracts_seller_once_after_price_from_headless_li
         extraction_order.append("seller")
         return None
 
-    with patch(
-        "app.scrapers.headless.fetch_grailed_page_headless", new_callable=AsyncMock
-    ) as mock_headless, patch(
-        "app.scrapers.grailed_scraper._extract_price_and_buyability", side_effect=extract_price
-    ), patch.object(
-        scraper, "_extract_seller_data", side_effect=extract_seller
-    ) as mock_seller:
+    with (
+        patch(
+            "app.scrapers.headless.fetch_grailed_page_headless", new_callable=AsyncMock
+        ) as mock_headless,
+        patch(
+            "app.scrapers.grailed_scraper._extract_price_and_buyability", side_effect=extract_price
+        ),
+        patch.object(scraper, "_extract_seller_data", side_effect=extract_seller) as mock_seller,
+    ):
         mock_headless.return_value = GrailedHeadlessFetchResult(
             html=listing_html, state=GrailedPageState.LISTING
         )
@@ -85,9 +124,7 @@ async def test_grailed_scraper_extracts_seller_once_after_price_from_headless_li
 
 @pytest.mark.asyncio
 async def test_async_normalize_grailed_url_static_payload() -> None:
-    url = (
-        "https://grailed.app.link?channel=Pasteboard&data=eyIkY2Fub25pY2FsX3VybCI6Imh0dHBzOi8vd3d3LmdyYWlsZWQuY29tL2xpc3RpbmdzLzEyMzQ1NiJ9"
-    )
+    url = "https://grailed.app.link?channel=Pasteboard&data=eyIkY2Fub25pY2FsX3VybCI6Imh0dHBzOi8vd3d3LmdyYWlsZWQuY29tL2xpc3RpbmdzLzEyMzQ1NiJ9"
     res = await async_normalize_grailed_url(url)
     assert res == "https://www.grailed.com/listings/123456"
 
@@ -111,7 +148,9 @@ async def test_grailed_scraper_headless_fallback_on_http_error() -> None:
 
     mock_session = MagicMock()
     # Simulate aiohttp session raising an exception on HTTP GET
-    mock_session.get.return_value.__aenter__ = AsyncMock(side_effect=Exception("HTTP 403 Forbidden"))
+    mock_session.get.return_value.__aenter__ = AsyncMock(
+        side_effect=Exception("HTTP 403 Forbidden")
+    )
 
     # Construct HTML with > 1000 characters to pass length check
     padding = "<!-- " + ("x" * 1000) + " -->"
@@ -123,8 +162,14 @@ async def test_grailed_scraper_headless_fallback_on_http_error() -> None:
   <body>{padding}</body>
 </html>"""
 
-    with patch("app.scrapers.headless.fetch_grailed_page_headless", new_callable=AsyncMock) as mock_headless, \
-         patch("app.scrapers.headless.get_grailed_seller_data_headless", new_callable=AsyncMock) as mock_seller:
+    with (
+        patch(
+            "app.scrapers.headless.fetch_grailed_page_headless", new_callable=AsyncMock
+        ) as mock_headless,
+        patch(
+            "app.scrapers.headless.get_grailed_seller_data_headless", new_callable=AsyncMock
+        ) as mock_seller,
+    ):
         mock_headless.return_value = GrailedHeadlessFetchResult(
             html=sample_html, state=GrailedPageState.LISTING
         )
@@ -140,6 +185,27 @@ async def test_grailed_scraper_headless_fallback_on_http_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_fetch_page_html_headless_returns_raw_blocked_html() -> None:
+    url = "https://www.grailed.com/listings/1"
+    blocked_html = "<html><body>You are unable to access grailed.com</body></html>"
+    browser = MagicMock()
+    page = AsyncMock()
+    page.content.return_value = blocked_html
+    browser.get_page = AsyncMock(return_value=page)
+
+    with patch(
+        "app.scrapers.headless.get_global_browser",
+        new=AsyncMock(return_value=browser),
+    ):
+        result = await headless.fetch_page_html_headless(url)
+
+    assert result == blocked_html
+    page.goto.assert_awaited_once_with(url, wait_until="domcontentloaded", timeout=25_000)
+    page.content.assert_awaited_once_with()
+    page.close.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
 async def test_fetch_retries_incomplete_page_once() -> None:
     browser = MagicMock()
     first = AsyncMock()
@@ -148,10 +214,10 @@ async def test_fetch_retries_incomplete_page_once() -> None:
     second.content.return_value = '<html><script id="__NEXT_DATA__">{}</script></html>'
     browser.get_page = AsyncMock(side_effect=[first, second])
 
-    result = await headless._fetch_html("https://www.grailed.com/listings/1", browser)
+    result = await headless._fetch_grailed_page_html("https://www.grailed.com/listings/1", browser)
 
-    assert result is not None
-    assert "__NEXT_DATA__" in result
+    assert result.state is GrailedPageState.LISTING
+    assert result.html == '<html><script id="__NEXT_DATA__">{}</script></html>'
     assert browser.get_page.await_count == 2
 
 
@@ -165,14 +231,28 @@ async def test_fetch_retries_incomplete_content_after_readiness_timeout() -> Non
     second.content.return_value = '<html><script id="__NEXT_DATA__">{}</script></html>'
     browser.get_page = AsyncMock(side_effect=[first, second])
 
-    result = await headless._fetch_grailed_page_html(
-        "https://www.grailed.com/listings/1", browser
-    )
+    result = await headless._fetch_grailed_page_html("https://www.grailed.com/listings/1", browser)
 
     assert result.state is GrailedPageState.LISTING
     assert result.html == '<html><script id="__NEXT_DATA__">{}</script></html>'
     first.content.assert_awaited_once_with()
     assert browser.get_page.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_fetch_stops_on_blocked_content_after_readiness_timeout() -> None:
+    browser = MagicMock()
+    page = AsyncMock()
+    page.wait_for_function.side_effect = PlaywrightTimeoutError("readiness timed out")
+    page.content.return_value = "<html><body>You are unable to access grailed.com</body></html>"
+    browser.get_page = AsyncMock(return_value=page)
+
+    result = await headless._fetch_grailed_page_html("https://www.grailed.com/listings/1", browser)
+
+    assert result.state is GrailedPageState.BLOCKED
+    assert result.html is None
+    page.content.assert_awaited_once_with()
+    assert browser.get_page.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -182,9 +262,7 @@ async def test_fetch_exposes_blocked_page_state() -> None:
     page.content.return_value = "<html><body>You are unable to access grailed.com</body></html>"
     browser.get_page = AsyncMock(return_value=page)
 
-    result = await headless._fetch_grailed_page_html(
-        "https://www.grailed.com/listings/1", browser
-    )
+    result = await headless._fetch_grailed_page_html("https://www.grailed.com/listings/1", browser)
 
     assert result.html is None
     assert result.state is GrailedPageState.BLOCKED
@@ -192,17 +270,19 @@ async def test_fetch_exposes_blocked_page_state() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fetch_logs_navigation_failure_without_url_credentials(caplog: pytest.LogCaptureFixture) -> None:
+async def test_fetch_logs_navigation_failure_without_url_credentials(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     browser = MagicMock()
     page = AsyncMock()
     page.goto.side_effect = RuntimeError("navigation failed")
     browser.get_page = AsyncMock(return_value=page)
 
-    result = await headless._fetch_html(
+    result = await headless._fetch_grailed_page_html(
         "https://buyer:secret@grailed.com/listings/1?session=private", browser
     )
 
-    assert result is None
+    assert result.html is None
     assert "https://grailed.com/listings/1" in caplog.text
     assert "buyer:secret" not in caplog.text
     assert "session=private" not in caplog.text
@@ -216,7 +296,7 @@ async def test_fetch_does_not_retry_page_operation_exceptions(failing_operation:
     getattr(page, failing_operation).side_effect = RuntimeError("page operation failed")
     browser.get_page = AsyncMock(return_value=page)
 
-    result = await headless._fetch_html("https://www.grailed.com/listings/1", browser)
+    result = await headless._fetch_grailed_page_html("https://www.grailed.com/listings/1", browser)
 
-    assert result is None
+    assert result.html is None
     assert browser.get_page.await_count == 1

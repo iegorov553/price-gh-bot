@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 PRICE_RE = re.compile(r"^\d[\d,.]*$")
 
 
-
 def _clean_price(raw: str) -> Decimal | None:
     """Clean and parse price string."""
     raw = raw.strip()
@@ -99,7 +98,6 @@ def _parse_next_data(soup: BeautifulSoup) -> dict[str, Any] | None:
         pass
 
     return None
-
 
 
 def _scrape_shipping_grailed(soup: BeautifulSoup) -> Decimal | None:
@@ -341,11 +339,10 @@ class GrailedScraper(BaseScraper):
                 return None
 
             if headless_result.state is not GrailedPageState.LISTING:
-                self.logger.warning(
-                    "Headless browser response was classified as %s for %s",
-                    headless_result.state,
-                    url,
-                )
+                if headless_result.state is GrailedPageState.BLOCKED:
+                    self.logger.warning("Grailed page blocked (source=headless)")
+                else:
+                    self.logger.warning("Grailed page incomplete (source=headless)")
                 return None
             html = headless_result.html
 
@@ -381,7 +378,6 @@ class GrailedScraper(BaseScraper):
         self._cached_seller_data = seller_data
         return item_data
 
-
     async def scrape_seller(self, url: str, session: aiohttp.ClientSession) -> SellerData | None:
         """Extract seller data from Grailed profile URL.
 
@@ -414,7 +410,6 @@ class GrailedScraper(BaseScraper):
         try:
             # Используем оптимизированный headless browser для всех профилей
             seller_data = await headless.get_grailed_seller_data_headless(url)
-
 
             if seller_data:
                 trusted_status = "trusted" if seller_data.trusted_badge else "standard"
