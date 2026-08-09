@@ -22,12 +22,9 @@ from .bot.handlers import (
     start,
 )
 from .config import config
+from .logging_config import configure_logging
 
-# Logging
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    level=logging.DEBUG,  # Enable debug logging
-)
+configure_logging(config.bot.log_level)
 logger = logging.getLogger(__name__)
 
 
@@ -127,7 +124,7 @@ def main() -> None:
     if config.bot.use_webhook:
         path = f"/{config.bot.bot_token}"
         webhook_url = f"https://{config.bot.webhook_domain}{path}"
-        logger.info(f"Starting webhook at {webhook_url}")
+        logger.info("Starting webhook for domain %s", config.bot.webhook_domain)
 
         listen_host = config.bot.listen_host
         app.run_webhook(

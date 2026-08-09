@@ -6,7 +6,7 @@ for different aspects of the application (bot, shipping, currency, etc.).
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import Field
@@ -98,6 +98,7 @@ class BotConfig(BaseSettings):
         github_token: GitHub API token for creating issues.
         github_owner: GitHub repository owner.
         github_repo: GitHub repository name.
+        log_level: Minimum severity emitted by application loggers.
     """
 
     bot_token: str | None = Field(default=None, validation_alias="BOT_TOKEN")
@@ -111,6 +112,9 @@ class BotConfig(BaseSettings):
     github_token: str | None = Field(default=None, validation_alias="GITHUB_TOKEN")
     github_owner: str = Field(default="iegorov553", validation_alias="GITHUB_OWNER")
     github_repo: str = Field(default="price-gh-bot", validation_alias="GITHUB_REPO")
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO", validation_alias="LOG_LEVEL"
+    )
 
     @property
     def webhook_domain(self) -> str | None:
