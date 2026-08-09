@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from app.models import ItemData
 from app.scrapers import headless
@@ -151,6 +152,26 @@ async def test_fetch_retries_incomplete_page_once() -> None:
 
     assert result is not None
     assert "__NEXT_DATA__" in result
+    assert browser.get_page.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_fetch_retries_incomplete_content_after_readiness_timeout() -> None:
+    browser = MagicMock()
+    first = AsyncMock()
+    first.wait_for_function.side_effect = PlaywrightTimeoutError("readiness timed out")
+    first.content.return_value = "<html><body>Grailed</body></html>"
+    second = AsyncMock()
+    second.content.return_value = '<html><script id="__NEXT_DATA__">{}</script></html>'
+    browser.get_page = AsyncMock(side_effect=[first, second])
+
+    result = await headless._fetch_grailed_page_html(
+        "https://www.grailed.com/listings/1", browser
+    )
+
+    assert result.state is GrailedPageState.LISTING
+    assert result.html == '<html><script id="__NEXT_DATA__">{}</script></html>'
+    first.content.assert_awaited_once_with()
     assert browser.get_page.await_count == 2
 
 

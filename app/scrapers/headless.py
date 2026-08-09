@@ -24,11 +24,13 @@ from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlsplit, urlunsplit
 
 try:
+    from playwright.async_api import TimeoutError as PlaywrightTimeoutError
     from playwright.async_api import async_playwright
 
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     async_playwright = None  # type: ignore[assignment]
+    PlaywrightTimeoutError = TimeoutError
     PLAYWRIGHT_AVAILABLE = False
 
 if TYPE_CHECKING:
@@ -628,20 +630,23 @@ async def _fetch_grailed_page_html(
         try:
             page = await browser.get_page()
             await page.goto(url, wait_until="domcontentloaded", timeout=25_000)
-            await page.wait_for_function(
-                """() => {
-                    const html = document.documentElement.innerHTML.toLowerCase();
-                    return document.querySelector(
-                        '#__NEXT_DATA__, meta[property="product:price:amount"], '
-                        + 'script[type="application/ld+json"], #challenge-running, [class*="cf-chl-"]'
-                    ) !== null
-                        || html.includes('you are unable to access grailed.com')
-                        || html.includes('checking your browser')
-                        || html.includes('cf-chl-')
-                        || html.includes('challenge-running');
-                }""",
-                timeout=10_000,
-            )
+            try:
+                await page.wait_for_function(
+                    """() => {
+                        const html = document.documentElement.innerHTML.toLowerCase();
+                        return document.querySelector(
+                            '#__NEXT_DATA__, meta[property="product:price:amount"], '
+                            + 'script[type="application/ld+json"], #challenge-running, [class*="cf-chl-"]'
+                        ) !== null
+                            || html.includes('you are unable to access grailed.com')
+                            || html.includes('checking your browser')
+                            || html.includes('cf-chl-')
+                            || html.includes('challenge-running');
+                    }""",
+                    timeout=10_000,
+                )
+            except PlaywrightTimeoutError:
+                pass
             html = await page.content()
         except Exception as exc:
             logger.warning(
