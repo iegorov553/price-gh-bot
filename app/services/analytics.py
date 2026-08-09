@@ -317,7 +317,7 @@ class AnalyticsService:
                 }
 
         except Exception as e:
-            logger.error(f"Failed to get user stats for {user_id}: {e}")
+            logger.error("Failed to get user stats: %s", e)
             return {"user_id": user_id, "error": str(e)}
 
     def get_popular_items(self, limit: int = 10, days: int = 7) -> list[dict[str, Any]]:

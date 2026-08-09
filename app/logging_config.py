@@ -91,5 +91,5 @@ def configure_logging(level: str) -> None:
     root_logger.addHandler(handler)
     root_logger.setLevel(numeric_level)
 
-    for logger_name in ("httpx", "httpcore", "telegram.ext.ExtBot", "telegram.ext._application"):
+    for logger_name in ("httpx", "httpcore", "telegram.ext.ExtBot", "telegram.ext.Application"):
         logging.getLogger(logger_name).setLevel(logging.WARNING)

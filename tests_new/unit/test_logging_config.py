@@ -7,9 +7,17 @@ import logging
 from collections.abc import Iterator
 
 import pytest
+from telegram.ext import _application as telegram_application
 
 from app.config import config
 from app.logging_config import SensitiveDataFilter, configure_logging
+
+_NETWORK_LOGGER_NAMES = (
+    "httpx",
+    "httpcore",
+    "telegram.ext.ExtBot",
+    telegram_application._LOGGER.name,
+)
 
 
 @pytest.fixture
@@ -19,8 +27,7 @@ def preserved_root_logging() -> Iterator[None]:
     original_handlers = root.handlers[:]
     original_level = root.level
     third_party_levels = {
-        name: logging.getLogger(name).level
-        for name in ("httpx", "httpcore", "telegram.ext.ExtBot", "telegram.ext._application")
+        name: logging.getLogger(name).level for name in _NETWORK_LOGGER_NAMES
     }
     yield
     root.handlers = original_handlers
@@ -147,8 +154,9 @@ def test_configure_logging_preserves_normal_logs_and_limits_network_noise(
     assert root.level == logging.DEBUG
     assert len(root.handlers) == 1
     assert any(isinstance(item, SensitiveDataFilter) for item in root.handlers[0].filters)
-    for name in ("httpx", "httpcore", "telegram.ext.ExtBot", "telegram.ext._application"):
+    for name in _NETWORK_LOGGER_NAMES[:-1]:
         assert logging.getLogger(name).getEffectiveLevel() >= logging.WARNING
+    assert telegram_application._LOGGER.getEffectiveLevel() >= logging.WARNING
 
     stream = io.StringIO()
     _configured_stream_handler().setStream(stream)
