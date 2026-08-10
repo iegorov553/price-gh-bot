@@ -10,6 +10,9 @@ class GrailedPageState(StrEnum):
 _BLOCK_MARKERS = (
     "you are unable to access grailed.com",
     "checking your browser",
+    "<title>just a moment...</title>",
+    "performing security verification",
+    "this website uses a security service to protect against malicious bots",
     "cf-chl-",
     "challenge-running",
 )

@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 import aiohttp
 from bs4 import BeautifulSoup
 
+from ..config import config
 from ..models import ItemData, SellerData
 from . import headless
 from .base import BaseScraper
@@ -331,6 +332,9 @@ class GrailedScraper(BaseScraper):
 
         # Fallback to headless browser if static fetch failed or produced empty/invalid page
         if not html:
+            if not config.bot.enable_headless_browser:
+                self.logger.info("Grailed headless fallback is disabled")
+                return None
             self.logger.info("Attempting headless browser fallback for Grailed item %s", url)
             try:
                 headless_result = await headless.fetch_grailed_page_headless(url)

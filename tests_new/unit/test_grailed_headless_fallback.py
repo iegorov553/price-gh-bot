@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,7 +10,7 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from app.models import ItemData
 from app.scrapers import headless
-from app.scrapers.grailed_page import GrailedPageState
+from app.scrapers.grailed_page import GrailedPageState, classify_grailed_html
 from app.scrapers.grailed_scraper import GrailedScraper
 from app.scrapers.grailed_url_resolver import async_normalize_grailed_url
 from app.scrapers.headless import GrailedHeadlessFetchResult
@@ -185,6 +186,23 @@ async def test_grailed_scraper_headless_fallback_on_http_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_grailed_scraper_skips_headless_fallback_when_disabled() -> None:
+    scraper = GrailedScraper()
+    url = "https://www.grailed.com/listings/123456"
+
+    with (
+        patch("app.config.config.bot.enable_headless_browser", False),
+        patch(
+            "app.scrapers.headless.fetch_grailed_page_headless", new_callable=AsyncMock
+        ) as mock_headless,
+    ):
+        result = await scraper.scrape_item(url, _static_forbidden_session())
+
+    assert result is None
+    mock_headless.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_fetch_page_html_headless_waits_before_returning_raw_blocked_html() -> None:
     url = "https://www.grailed.com/listings/1"
     blocked_html = "<html><body>You are unable to access grailed.com</body></html>"
@@ -245,7 +263,7 @@ async def test_fetch_retries_incomplete_content_after_readiness_timeout() -> Non
 
     assert result.state is GrailedPageState.LISTING
     assert result.html == '<html><script id="__NEXT_DATA__">{}</script></html>'
-    first.content.assert_awaited_once_with()
+    assert first.content.await_count == 2
     assert browser.get_page.await_count == 2
 
 
@@ -261,7 +279,7 @@ async def test_fetch_stops_on_blocked_content_after_readiness_timeout() -> None:
 
     assert result.state is GrailedPageState.BLOCKED
     assert result.html is None
-    page.content.assert_awaited_once_with()
+    assert page.content.await_count == 2
     assert browser.get_page.await_count == 1
 
 
@@ -277,6 +295,113 @@ async def test_fetch_exposes_blocked_page_state() -> None:
     assert result.html is None
     assert result.state is GrailedPageState.BLOCKED
     assert browser.get_page.await_count == 1
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        "<html><head><title>Just a moment...</title></head></html>",
+        "<html><body><h2>Performing security verification</h2></body></html>",
+        (
+            "<html><body>This website uses a security service to protect against "
+            "malicious bots.</body></html>"
+        ),
+    ],
+)
+def test_classifies_current_cloudflare_challenge_markers(html: str) -> None:
+    assert classify_grailed_html(html) is GrailedPageState.BLOCKED
+
+
+@pytest.mark.asyncio
+async def test_fetch_waits_for_challenge_to_resolve_in_same_page() -> None:
+    blocked_html = "<html><head><title>Just a moment...</title></head></html>"
+    listing_html = '<html><script id="__NEXT_DATA__">{}</script></html>'
+    browser = MagicMock()
+    page = AsyncMock()
+    response = MagicMock(status=403)
+    page.goto.return_value = response
+    page.content.side_effect = [blocked_html, listing_html]
+    browser.get_page = AsyncMock(return_value=page)
+
+    result = await headless._fetch_grailed_page_html(
+        "https://www.grailed.com/listings/1", browser
+    )
+
+    assert result.state is GrailedPageState.LISTING
+    assert result.html == listing_html
+    page.wait_for_function.assert_awaited_once()
+    assert page.wait_for_function.await_args.kwargs["timeout"] == 12_000
+    assert browser.get_page.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_returns_blocked_after_challenge_grace_without_retry() -> None:
+    blocked_html = "<html><head><title>Just a moment...</title></head></html>"
+    browser = MagicMock()
+    page = AsyncMock()
+    page.content.side_effect = [blocked_html, blocked_html]
+    page.wait_for_function.side_effect = PlaywrightTimeoutError("challenge remained")
+    browser.get_page = AsyncMock(return_value=page)
+
+    result = await headless._fetch_grailed_page_html(
+        "https://www.grailed.com/listings/1", browser
+    )
+
+    assert result.state is GrailedPageState.BLOCKED
+    assert result.html is None
+    assert browser.get_page.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_does_not_retry_after_challenge_becomes_incomplete() -> None:
+    blocked_html = "<html><head><title>Just a moment...</title></head></html>"
+    incomplete_html = "<html><body>Grailed shell</body></html>"
+    browser = MagicMock()
+    page = AsyncMock()
+    page.content.side_effect = [blocked_html, incomplete_html]
+    browser.get_page = AsyncMock(return_value=page)
+
+    result = await headless._fetch_grailed_page_html(
+        "https://www.grailed.com/listings/1", browser
+    )
+
+    assert result.state is GrailedPageState.BLOCKED
+    assert result.html is None
+    assert browser.get_page.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_global_browser_operations_are_serialized() -> None:
+    browser = MagicMock()
+    active = 0
+    peak_active = 0
+
+    async def record_fetch(url: str, current_browser: object) -> str:
+        nonlocal active, peak_active
+        assert current_browser is browser
+        active += 1
+        peak_active = max(peak_active, active)
+        await asyncio.sleep(0)
+        active -= 1
+        return url
+
+    with (
+        patch(
+            "app.scrapers.headless.get_global_browser",
+            new=AsyncMock(return_value=browser),
+        ),
+        patch("app.scrapers.headless._fetch_html", side_effect=record_fetch),
+    ):
+        results = await asyncio.gather(
+            headless.fetch_page_html_headless("https://grailed.com/listings/1"),
+            headless.fetch_page_html_headless("https://grailed.com/listings/2"),
+        )
+
+    assert results == [
+        "https://grailed.com/listings/1",
+        "https://grailed.com/listings/2",
+    ]
+    assert peak_active == 1
 
 
 @pytest.mark.asyncio
@@ -303,6 +428,7 @@ async def test_fetch_logs_navigation_failure_without_url_credentials(
 async def test_fetch_does_not_retry_page_operation_exceptions(failing_operation: str) -> None:
     browser = MagicMock()
     page = AsyncMock()
+    page.content.return_value = "<html><body>Grailed</body></html>"
     getattr(page, failing_operation).side_effect = RuntimeError("page operation failed")
     browser.get_page = AsyncMock(return_value=page)
 

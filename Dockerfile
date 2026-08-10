@@ -32,7 +32,7 @@ COPY requirements.txt requirements-dev.txt ./
 RUN pip install -r requirements.txt -r requirements-dev.txt
 
 # Install Playwright browser binaries + system deps
-RUN playwright install chromium && playwright install-deps
+RUN python -m playwright install --with-deps --no-shell chromium
 
 # --------------- Runtime image ---------------
 FROM base AS runtime
