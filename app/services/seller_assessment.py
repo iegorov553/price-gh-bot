@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from ..bot.messages import (
+    ITEM_SOLD_MESSAGE,
     ITEM_WARNING_NO_BUY_NOW,
     SELLER_WARNING_LOW_RATING,
     SELLER_WARNING_NO_REVIEWS,
@@ -32,6 +33,9 @@ def evaluate_seller_advisory(
         SellerAdvisory с заполненным текстом предупреждения или пустым сообщением,
         если все проверки пройдены успешно.
     """
+    if item_data and getattr(item_data, "is_sold", False):
+        return SellerAdvisory(reason="item_sold", message=ITEM_SOLD_MESSAGE)
+
     technical_failure = seller_data is None
 
     if seller_data:
