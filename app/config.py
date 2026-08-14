@@ -135,6 +135,22 @@ class BotConfig(BaseSettings):
         return bool(self.webhook_domain)
 
 
+class GrailedAlgoliaConfig(BaseSettings):
+    """Grailed Algolia API configuration.
+
+    Attributes:
+        app_id: Algolia Application ID for Grailed.
+        api_key: Algolia Search-only API key.
+        index_name: Algolia index name for listings.
+        timeout_sec: HTTP request timeout in seconds.
+    """
+
+    app_id: str = Field(default="MNRWEFSS2Q", validation_alias="GRAILED_ALGOLIA_APP_ID")
+    api_key: str = Field(default="c89dbaddf15fe70e1941a109bf7c2a3d", validation_alias="GRAILED_ALGOLIA_API_KEY")
+    index_name: str = Field(default="Listing_production", validation_alias="GRAILED_ALGOLIA_INDEX_NAME")
+    timeout_sec: float = Field(default=5.0, validation_alias="GRAILED_ALGOLIA_TIMEOUT_SEC")
+
+
 class Config:
     """Application configuration manager.
 
@@ -157,6 +173,7 @@ class Config:
         # Load main configurations
         self.bot = BotConfig()
         self.analytics = AnalyticsConfig()
+        self.algolia = GrailedAlgoliaConfig()
 
         # Load fee configuration
         fees_path = self.config_dir / "fees.yml"
