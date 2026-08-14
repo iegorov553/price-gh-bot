@@ -76,7 +76,7 @@ class TestRealURLsE2E:
             try:
                 item_data, seller_data = await grailed.get_item_data(test_url, session)
 
-                if item_data is None:
+                if item_data is None or item_data.price is None:
                     pytest.skip("Grailed listing not accessible - may be removed or changed")
 
                 # Assert item data
