@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, patch
 import aiohttp
 import pytest
 
+from app.bot.response_formatter import response_formatter
 from app.bot.scraping_orchestrator import scraping_orchestrator
 from app.models import ItemData, SellerData
 from app.services.seller_assessment import evaluate_seller_advisory
@@ -264,6 +265,44 @@ async def test_orchestrator_process_urls_concurrent_grailed_batch() -> None:
         assert mock_log_analytics.call_count == 3
 
 
+@pytest.mark.asyncio
+async def test_orchestrator_grailed_sold_listing_flow() -> None:
+    """Test full orchestrator flow for sold listing on Grailed."""
+    mock_sold_item = ItemData(
+        price=Decimal("117.00"),
+        shipping_us=Decimal("25.00"),
+        is_buyable=False,
+        is_sold=True,
+        title="Tornado Mart Flared Jeans",
+        image_url="https://example.com/sold.jpg",
+    )
+    mock_seller = SellerData(
+        num_reviews=80,
+        avg_rating=4.95,
+        trusted_badge=True,
+    )
+
+    with patch(
+        "app.scrapers.grailed_scraper.grailed_algolia_client.get_listing_by_id",
+        new_callable=AsyncMock,
+        return_value=(mock_sold_item, mock_seller),
+    ) as mock_algolia:
+        async with aiohttp.ClientSession() as session:
+            url = "https://www.grailed.com/listings/94370655-tornado-mart"
+            result = await scraping_orchestrator.scrape_item_listing(url, session)
+
+            mock_algolia.assert_called_once_with("94370655", session)
+            assert result["success"] is True
+            assert result["platform"] == "grailed"
+            assert result["item_data"].is_sold is True
+            assert result["item_data"].is_buyable is False
+
+            # Format response and verify advisory
+            response = await response_formatter.format_item_response(result)
+            assert "уже продан на Grailed" in response
+            assert "$117" in response
+
+
 @pytest.mark.parametrize(
     ("seller_data", "item_data", "expected_reason"),
     [
@@ -284,6 +323,11 @@ async def test_orchestrator_process_urls_concurrent_grailed_batch() -> None:
         ),
         (
             SellerData(num_reviews=50, avg_rating=4.9, trusted_badge=True),
+            ItemData(price=Decimal("50"), is_buyable=False, is_sold=True),
+            "item_sold",
+        ),
+        (
+            SellerData(num_reviews=50, avg_rating=4.9, trusted_badge=True),
             ItemData(price=Decimal("50"), is_buyable=True),
             None,
         ),
@@ -299,3 +343,4 @@ def test_seller_advisory_variations(
         assert advisory.message is not None
     else:
         assert advisory.message is None
+

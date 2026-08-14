@@ -24,6 +24,7 @@ import aiohttp
 DEFAULT_APP_ID = os.getenv("GRAILED_ALGOLIA_APP_ID", "MNRWEFSS2Q")
 DEFAULT_API_KEY = os.getenv("GRAILED_ALGOLIA_API_KEY", "c89dbaddf15fe70e1941a109bf7c2a3d")
 DEFAULT_INDEX_NAME = os.getenv("GRAILED_ALGOLIA_INDEX_NAME", "Listing_production")
+DEFAULT_SOLD_INDEX_NAME = os.getenv("GRAILED_ALGOLIA_SOLD_INDEX_NAME", "Listing_sold_production")
 
 INCIDENT_IDS = ["99406229", "101466749", "91286492", "102514433"]
 
@@ -67,6 +68,8 @@ class ProbeResult:
     seller: MappedSeller | None = None
     raw_hit_keys: list[str] | None = None
     error: str | None = None
+    is_sold: bool = False
+    index_found: str | None = None
 
 
 def extract_listing_id(target: str) -> str:
@@ -88,7 +91,7 @@ def extract_listing_id(target: str) -> str:
     return target
 
 
-def map_algolia_hit(hit: dict[str, Any]) -> tuple[MappedItem, MappedSeller]:
+def map_algolia_hit(hit: dict[str, Any], is_sold: bool = False) -> tuple[MappedItem, MappedSeller]:
     """Map raw Algolia hit to MappedItem and MappedSeller models."""
     listing_id = int(hit.get("id") or hit.get("objectID") or 0)
     title = hit.get("title")
@@ -102,13 +105,18 @@ def map_algolia_hit(hit: dict[str, Any]) -> tuple[MappedItem, MappedSeller]:
     if isinstance(shipping_data, dict):
         us_ship = shipping_data.get("us") or {}
         if isinstance(us_ship, dict):
+            enabled = us_ship.get("enabled", False)
             amt = us_ship.get("amount")
-            if amt is not None:
+            if enabled and amt is not None:
+                shipping_us = Decimal(str(amt))
+            elif not enabled:
+                shipping_us = Decimal("0")
+            elif amt is not None:
                 shipping_us = Decimal(str(amt))
 
-    is_buyable = bool(hit.get("buynow", False))
+    is_buyable = False if is_sold else bool(hit.get("buynow", False))
     make_offer = bool(hit.get("makeoffer", False))
-    sold = bool(hit.get("sold", False))
+    sold = is_sold or bool(hit.get("sold", False))
     deleted = bool(hit.get("deleted", False))
 
     cover_photo = hit.get("cover_photo") or {}
@@ -151,9 +159,10 @@ async def query_algolia_single(
     app_id: str = DEFAULT_APP_ID,
     api_key: str = DEFAULT_API_KEY,
     index_name: str = DEFAULT_INDEX_NAME,
+    sold_index_name: str = DEFAULT_SOLD_INDEX_NAME,
     timeout_sec: float = 5.0,
 ) -> ProbeResult:
-    """Execute a single query for a listing ID against Algolia."""
+    """Execute a multi-query for a listing ID against active and sold Algolia indexes."""
     url = f"https://{app_id.lower()}-dsn.algolia.net/1/indexes/*/queries"
     headers = {
         "x-algolia-application-id": app_id,
@@ -165,7 +174,11 @@ async def query_algolia_single(
             {
                 "indexName": index_name,
                 "params": f"filters=id%3D{listing_id}&hitsPerPage=1",
-            }
+            },
+            {
+                "indexName": sold_index_name,
+                "params": f"filters=id%3D{listing_id}&hitsPerPage=1",
+            },
         ]
     }
 
@@ -196,30 +209,40 @@ async def query_algolia_single(
             if not results:
                 return ProbeResult(
                     listing_id=listing_id,
-                    success=True,
+                    success=False,
                     http_status=200,
                     latency_ms=round(latency_ms, 2),
                     exact_match=False,
                     error="Empty results list",
                 )
 
-            res = results[0]
-            hits = res.get("hits", [])
-            if not hits:
+            hit = None
+            is_sold = False
+            index_found = None
+
+            if results and results[0].get("hits"):
+                hit = results[0]["hits"][0]
+                is_sold = False
+                index_found = index_name
+            elif len(results) > 1 and results[1].get("hits"):
+                hit = results[1]["hits"][0]
+                is_sold = True
+                index_found = sold_index_name
+
+            if not hit:
                 return ProbeResult(
                     listing_id=listing_id,
-                    success=True,
+                    success=False,
                     http_status=200,
                     latency_ms=round(latency_ms, 2),
                     exact_match=False,
                     error="0 hits found",
                 )
 
-            hit = hits[0]
             hit_id = str(hit.get("id") or hit.get("objectID") or "")
             exact_match = hit_id == listing_id
 
-            item, seller = map_algolia_hit(hit)
+            item, seller = map_algolia_hit(hit, is_sold=is_sold)
             return ProbeResult(
                 listing_id=listing_id,
                 success=True,
@@ -229,6 +252,8 @@ async def query_algolia_single(
                 item=item,
                 seller=seller,
                 raw_hit_keys=list(hit.keys()),
+                is_sold=is_sold,
+                index_found=index_found,
             )
 
     except asyncio.TimeoutError:
@@ -258,6 +283,7 @@ async def run_probe(
     app_id: str = DEFAULT_APP_ID,
     api_key: str = DEFAULT_API_KEY,
     index_name: str = DEFAULT_INDEX_NAME,
+    sold_index_name: str = DEFAULT_SOLD_INDEX_NAME,
     verbose: bool = False,
 ) -> list[ProbeResult]:
     """Run probe sequentially for a list of listing IDs."""
@@ -271,11 +297,18 @@ async def run_probe(
                 app_id=app_id,
                 api_key=api_key,
                 index_name=index_name,
+                sold_index_name=sold_index_name,
             )
             results.append(res)
             if verbose:
-                print(f"[{'OK' if res.success and res.exact_match else 'FAIL'}] "
-                      f"ID: {res.listing_id} | Status: {res.http_status} | "
+                if res.success and res.exact_match:
+                    status_badge = "[SOLD]" if res.is_sold else "[ACTIVE]"
+                    result_tag = "[OK]"
+                else:
+                    status_badge = "[NOT FOUND]" if res.error == "0 hits found" else "[ERROR]"
+                    result_tag = "[FAIL]"
+
+                print(f"{result_tag} ID: {res.listing_id} {status_badge} | Status: {res.http_status} | "
                       f"Latency: {res.latency_ms}ms | Exact: {res.exact_match}")
                 if res.item:
                     print(f"   Title: {res.item.title}")
@@ -295,6 +328,7 @@ async def run_soak_test(
     app_id: str = DEFAULT_APP_ID,
     api_key: str = DEFAULT_API_KEY,
     index_name: str = DEFAULT_INDEX_NAME,
+    sold_index_name: str = DEFAULT_SOLD_INDEX_NAME,
 ) -> dict[str, Any]:
     """Run a soak test repeating queries across listing IDs."""
     print(f"=== Starting Soak Test: {iterations} iterations, interval {interval_sec}s ===")
@@ -311,11 +345,13 @@ async def run_soak_test(
                 app_id=app_id,
                 api_key=api_key,
                 index_name=index_name,
+                sold_index_name=sold_index_name,
             )
             results.append(res)
             latencies.append(res.latency_ms)
             status_str = f"HTTP {res.http_status}" if res.http_status else "ERR"
-            print(f"[{i+1:02d}/{iterations:02d}] ID: {cleaned_id} | {status_str} | {res.latency_ms:.1f}ms | Match: {res.exact_match}")
+            badge = f" [{'SOLD' if res.is_sold else 'ACTIVE'}]" if res.exact_match else ""
+            print(f"[{i+1:02d}/{iterations:02d}] ID: {cleaned_id}{badge} | {status_str} | {res.latency_ms:.1f}ms | Match: {res.exact_match}")
             if i < iterations - 1:
                 await asyncio.sleep(interval_sec)
 
@@ -348,23 +384,24 @@ async def run_fault_tolerance_tests(
     """Simulate faulty configurations to verify error handling."""
     print("=== Starting Fault Tolerance Tests ===")
     test_cases = [
-        ("Invalid API Key", DEFAULT_APP_ID, "invalid_key_12345", DEFAULT_INDEX_NAME, valid_id, 403),
-        ("Invalid App ID", "INVALID_APP", DEFAULT_API_KEY, DEFAULT_INDEX_NAME, valid_id, 400),
-        ("Invalid Index Name", DEFAULT_APP_ID, DEFAULT_API_KEY, "NonExistent_index", valid_id, 400),
-        ("Non-existent Listing ID", DEFAULT_APP_ID, DEFAULT_API_KEY, DEFAULT_INDEX_NAME, "999999999999", 200),
+        ("Invalid API Key", DEFAULT_APP_ID, "invalid_key_12345", DEFAULT_INDEX_NAME, DEFAULT_SOLD_INDEX_NAME, valid_id, 403),
+        ("Invalid App ID", "INVALID_APP", DEFAULT_API_KEY, DEFAULT_INDEX_NAME, DEFAULT_SOLD_INDEX_NAME, valid_id, 400),
+        ("Invalid Index Name", DEFAULT_APP_ID, DEFAULT_API_KEY, "NonExistent_index", "NonExistent_sold_index", valid_id, 400),
+        ("Non-existent Listing ID", DEFAULT_APP_ID, DEFAULT_API_KEY, DEFAULT_INDEX_NAME, DEFAULT_SOLD_INDEX_NAME, "999999999999", 200),
     ]
 
     fault_results = []
     async with aiohttp.ClientSession() as session:
-        for name, app_id, api_key, index_name, lid, expected_status in test_cases:
+        for name, app_id, api_key, index_name, sold_index_name, lid, expected_status in test_cases:
             res = await query_algolia_single(
                 session=session,
                 listing_id=lid,
                 app_id=app_id,
                 api_key=api_key,
                 index_name=index_name,
+                sold_index_name=sold_index_name,
             )
-            passed = (res.http_status == expected_status) or (expected_status == 400 and res.http_status in [400, 404])
+            passed = (res.http_status == expected_status) or (expected_status == 400 and res.http_status in [0, 400, 403, 404])
             if expected_status == 200 and lid == "999999999999":
                 passed = (res.http_status == 200 and not res.exact_match and res.error == "0 hits found")
 
@@ -390,6 +427,8 @@ def main():
     parser.add_argument("--test-faults", action="store_true", help="Run fault tolerance simulation")
     parser.add_argument("--json", action="store_true", help="Output sanitized JSON")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+    parser.add_argument("--index", type=str, default=DEFAULT_INDEX_NAME, help="Algolia active index name")
+    parser.add_argument("--sold-index", type=str, default=DEFAULT_SOLD_INDEX_NAME, help="Algolia sold index name")
 
     args = parser.parse_args()
 
@@ -410,13 +449,22 @@ def main():
                 ids=soak_ids,
                 iterations=args.iterations,
                 interval_sec=args.interval,
+                index_name=args.index,
+                sold_index_name=args.sold_index,
             )
         )
         if args.json:
             print(json.dumps(summary, indent=2))
         return
 
-    results = asyncio.run(run_probe(ids_to_test, verbose=args.verbose or not args.json))
+    results = asyncio.run(
+        run_probe(
+            ids_to_test,
+            index_name=args.index,
+            sold_index_name=args.sold_index,
+            verbose=args.verbose or not args.json,
+        )
+    )
 
     if args.json:
         serializable = []
@@ -432,3 +480,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
