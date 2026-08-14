@@ -184,7 +184,7 @@ class ResponseFormatter:
                 return GRAILED_LISTING_ISSUE
 
         # Generic error message
-        logger.error(f"Scraping error for {platform}: {error}")
+        logger.warning(f"Item not found or scraping failed for {platform}: {error}")
         return ERROR_PRICE_NOT_FOUND
 
     def _format_seller_error_response(self, result: BaseScrapeResult) -> str:
