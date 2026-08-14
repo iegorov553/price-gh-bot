@@ -20,6 +20,7 @@ class ItemData(BaseModel):
         is_buyable: Whether item has fixed buy-now price vs offer-only.
         title: Item title/description for shipping weight estimation.
         image_url: Primary product image URL for display in messages.
+        is_sold: Whether the item is already sold.
     """
 
     price: Decimal | None = None
@@ -27,6 +28,7 @@ class ItemData(BaseModel):
     is_buyable: bool = False
     title: str | None = None
     image_url: str | None = None
+    is_sold: bool = False
 
 
 class SellerData(BaseModel):

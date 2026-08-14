@@ -142,12 +142,16 @@ class GrailedAlgoliaConfig(BaseSettings):
         app_id: Algolia Application ID for Grailed.
         api_key: Algolia Search-only API key.
         index_name: Algolia index name for listings.
+        sold_index_name: Algolia index name for sold listings.
         timeout_sec: HTTP request timeout in seconds.
     """
 
     app_id: str = Field(default="MNRWEFSS2Q", validation_alias="GRAILED_ALGOLIA_APP_ID")
     api_key: str = Field(default="c89dbaddf15fe70e1941a109bf7c2a3d", validation_alias="GRAILED_ALGOLIA_API_KEY")
     index_name: str = Field(default="Listing_production", validation_alias="GRAILED_ALGOLIA_INDEX_NAME")
+    sold_index_name: str = Field(
+        default="Listing_sold_production", validation_alias="GRAILED_ALGOLIA_SOLD_INDEX_NAME"
+    )
     timeout_sec: float = Field(default=5.0, validation_alias="GRAILED_ALGOLIA_TIMEOUT_SEC")
 
 
