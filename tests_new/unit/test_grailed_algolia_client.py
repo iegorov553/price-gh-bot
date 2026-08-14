@@ -73,6 +73,29 @@ SAMPLE_FREE_SHIPPING_HIT = {
     },
 }
 
+SAMPLE_SOLD_HIT = {
+    "id": 88776655,
+    "title": "Arc'teryx Beta LT Jacket",
+    "price": 350,
+    "buynow": True,
+    "makeoffer": False,
+    "sold": True,
+    "deleted": False,
+    "shipping": {
+        "us": {"amount": 15, "enabled": True}
+    },
+    "user": {
+        "id": 998877,
+        "username": "gorpcore_seller",
+        "seller_score": {"rating_average": 5.0, "rating_count": 42},
+        "trusted_seller": True,
+    },
+    "cover_photo": {
+        "image_url": "https://media-assets.grailed.com/prd/listing/temp/sold_sample.jpg"
+    },
+}
+
+
 
 @pytest.mark.asyncio
 async def test_get_listing_by_id_success():
@@ -91,6 +114,7 @@ async def test_get_listing_by_id_success():
     assert item.title == "Vissla Board Shorts"
     assert item.price == Decimal("34")
     assert item.shipping_us == Decimal("9")
+    assert item.is_sold is False
     assert item.is_buyable is True
     assert item.image_url == "https://media-assets.grailed.com/prd/listing/temp/sample.jpg"
 
@@ -99,6 +123,67 @@ async def test_get_listing_by_id_success():
     assert seller.avg_rating == 4.87
     assert seller.trusted_badge is True
     assert seller.technical_issue is False
+
+
+@pytest.mark.asyncio
+async def test_get_listing_by_id_sold_listing_fallback():
+    client = GrailedAlgoliaClient()
+    mock_resp_data = {
+        "results": [
+            {"hits": [], "nbHits": 0},
+            {"hits": [SAMPLE_SOLD_HIT], "nbHits": 1},
+        ]
+    }
+
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+    mock_post_ctx = AsyncMock()
+    mock_post_ctx.status = 200
+    mock_post_ctx.json = AsyncMock(return_value=mock_resp_data)
+    mock_session.post.return_value.__aenter__.return_value = mock_post_ctx
+
+    item, seller = await client.get_listing_by_id(88776655, mock_session)
+
+    assert item is not None
+    assert item.title == "Arc'teryx Beta LT Jacket"
+    assert item.price == Decimal("350")
+    assert item.shipping_us == Decimal("15")
+    assert item.is_sold is True
+    assert item.is_buyable is False
+    assert item.image_url == "https://media-assets.grailed.com/prd/listing/temp/sold_sample.jpg"
+
+    assert seller is not None
+    assert seller.num_reviews == 42
+    assert seller.avg_rating == 5.0
+    assert seller.trusted_badge is True
+
+
+@pytest.mark.asyncio
+async def test_get_listing_by_id_multi_query_payload_structure():
+    client = GrailedAlgoliaClient()
+    mock_resp_data = {
+        "results": [
+            {"hits": [SAMPLE_ACTIVE_HIT], "nbHits": 1},
+            {"hits": [], "nbHits": 0},
+        ]
+    }
+
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+    mock_post_ctx = AsyncMock()
+    mock_post_ctx.status = 200
+    mock_post_ctx.json = AsyncMock(return_value=mock_resp_data)
+    mock_session.post.return_value.__aenter__.return_value = mock_post_ctx
+
+    await client.get_listing_by_id(99406229, mock_session)
+
+    mock_session.post.assert_called_once()
+    call_kwargs = mock_session.post.call_args.kwargs
+    payload = call_kwargs["json"]
+    assert "requests" in payload
+    assert len(payload["requests"]) == 2
+    assert payload["requests"][0]["indexName"] == "Listing_production"
+    assert payload["requests"][0]["params"] == "filters=id%3D99406229&hitsPerPage=1"
+    assert payload["requests"][1]["indexName"] == "Listing_sold_production"
+    assert payload["requests"][1]["params"] == "filters=id%3D99406229&hitsPerPage=1"
 
 
 @pytest.mark.asyncio

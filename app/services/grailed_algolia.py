@@ -24,6 +24,8 @@ class GrailedAlgoliaClient:
 
     def __init__(self) -> None:
         self.cfg = config.algolia
+        self.index_name = self.cfg.index_name
+        self.sold_index_name = self.cfg.sold_index_name
 
     def _get_headers(self) -> dict[str, str]:
         return {
@@ -36,7 +38,7 @@ class GrailedAlgoliaClient:
         return f"https://{self.cfg.app_id.lower()}-dsn.algolia.net/1/indexes/*/queries"
 
     def _map_hit_to_models(
-        self, hit: dict[str, Any]
+        self, hit: dict[str, Any], is_sold: bool = False
     ) -> tuple[ItemData | None, SellerData | None]:
         """Convert a raw Algolia hit into ItemData and SellerData."""
         try:
@@ -61,7 +63,7 @@ class GrailedAlgoliaClient:
                     elif not enabled:
                         shipping_us = Decimal("0")
 
-            is_buyable = bool(hit.get("buynow", False))
+            is_buyable = False if is_sold else bool(hit.get("buynow", False))
 
             # Cover image URL
             cover_photo = hit.get("cover_photo") or {}
@@ -75,6 +77,7 @@ class GrailedAlgoliaClient:
                 is_buyable=is_buyable,
                 title=str(title).strip() if title else None,
                 image_url=image_url,
+                is_sold=is_sold,
             )
 
             # Seller mapping
@@ -105,9 +108,13 @@ class GrailedAlgoliaClient:
         payload = {
             "requests": [
                 {
-                    "indexName": self.cfg.index_name,
+                    "indexName": self.index_name,
                     "params": f"filters=id%3D{cleaned_id}&hitsPerPage=1",
-                }
+                },
+                {
+                    "indexName": self.sold_index_name,
+                    "params": f"filters=id%3D{cleaned_id}&hitsPerPage=1",
+                },
             ]
         }
 
@@ -122,10 +129,14 @@ class GrailedAlgoliaClient:
                 if resp.status == 200:
                     data = await resp.json()
                     results = data.get("results", [])
-                    if results and results[0].get("hits"):
-                        hit = results[0]["hits"][0]
-                        return self._map_hit_to_models(hit)
-                    logger.info("Listing ID %s not found in Algolia index", cleaned_id)
+                    if results:
+                        if results[0].get("hits"):
+                            hit = results[0]["hits"][0]
+                            return self._map_hit_to_models(hit, is_sold=False)
+                        elif len(results) > 1 and results[1].get("hits"):
+                            hit = results[1]["hits"][0]
+                            return self._map_hit_to_models(hit, is_sold=True)
+                    logger.info("Listing ID %s not found in Algolia indexes", cleaned_id)
                     return None, None
                 else:
                     err_body = await resp.text()
