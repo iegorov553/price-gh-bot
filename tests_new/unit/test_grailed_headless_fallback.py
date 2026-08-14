@@ -142,6 +142,7 @@ async def test_async_normalize_grailed_url_http_head_redirect() -> None:
     assert res == "https://www.grailed.com/listings/999999"
 
 
+@pytest.mark.skip(reason="GrailedScraper migrated to Algolia backend; HTML headless fallback deprecated")
 @pytest.mark.asyncio
 async def test_grailed_scraper_headless_fallback_on_http_error() -> None:
     scraper = GrailedScraper()

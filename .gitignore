@@ -44,6 +44,7 @@ test_*.py
 !tests_new/unit/test_grailed_headless_fallback.py
 !tests_new/unit/test_config.py
 !tests_new/unit/test_grailed_algolia_client.py
+!tests_new/unit/test_grailed_scraper_algolia.py
 
 patch_*.py
 verify_*.py
