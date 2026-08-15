@@ -263,7 +263,7 @@ jobs:
         tool: 'pytest'
         output-file-path: benchmark.json
         github-token: ${{ secrets.GITHUB_TOKEN }}
-        auto-push: false
+        auto-push: true
         summary-always: true
 
   # Documentation build test
