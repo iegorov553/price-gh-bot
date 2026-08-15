@@ -44,14 +44,17 @@ class TestBotHandlerIntegration:
 
         expected_response = "💰 Итог по товару: $89.99 + $12.50"
 
-        with patch.object(
-            scraping_orchestrator,
-            "process_urls_concurrent",
-            AsyncMock(return_value=[item_result]),
-        ) as mock_process, patch.object(
-            response_formatter,
-            "format_item_response",
-            AsyncMock(return_value=expected_response),
+        with (
+            patch.object(
+                scraping_orchestrator,
+                "process_urls_concurrent",
+                AsyncMock(return_value=[item_result]),
+            ) as mock_process,
+            patch.object(
+                response_formatter,
+                "format_item_response",
+                AsyncMock(return_value=expected_response),
+            ),
         ):
             await handle_link(update, context)
 
@@ -95,14 +98,17 @@ class TestBotHandlerIntegration:
 
         expected_response = "💎 Diamond seller rating included"
 
-        with patch.object(
-            scraping_orchestrator,
-            "process_urls_concurrent",
-            AsyncMock(return_value=[item_result]),
-        ), patch.object(
-            response_formatter,
-            "format_item_response",
-            AsyncMock(return_value=expected_response),
+        with (
+            patch.object(
+                scraping_orchestrator,
+                "process_urls_concurrent",
+                AsyncMock(return_value=[item_result]),
+            ),
+            patch.object(
+                response_formatter,
+                "format_item_response",
+                AsyncMock(return_value=expected_response),
+            ),
         ):
             await handle_link(update, context)
 
@@ -149,14 +155,17 @@ class TestBotHandlerIntegration:
 
         responses = ["Ответ по eBay", "Ответ по Grailed"]
 
-        with patch.object(
-            scraping_orchestrator,
-            "process_urls_concurrent",
-            AsyncMock(return_value=[ebay_result, grailed_result]),
-        ), patch.object(
-            response_formatter,
-            "format_item_response",
-            AsyncMock(side_effect=responses),
+        with (
+            patch.object(
+                scraping_orchestrator,
+                "process_urls_concurrent",
+                AsyncMock(return_value=[ebay_result, grailed_result]),
+            ),
+            patch.object(
+                response_formatter,
+                "format_item_response",
+                AsyncMock(side_effect=responses),
+            ),
         ):
             await handle_link(update, context)
 
@@ -200,14 +209,17 @@ class TestBotHandlerIntegration:
 
         expected_profile_response = "Анализ продавца Grailed: 💎 Diamond"
 
-        with patch.object(
-            scraping_orchestrator,
-            "process_urls_concurrent",
-            AsyncMock(return_value=[seller_result]),
-        ), patch.object(
-            response_formatter,
-            "format_seller_profile_response",
-            MagicMock(return_value=expected_profile_response),
+        with (
+            patch.object(
+                scraping_orchestrator,
+                "process_urls_concurrent",
+                AsyncMock(return_value=[seller_result]),
+            ),
+            patch.object(
+                response_formatter,
+                "format_seller_profile_response",
+                MagicMock(return_value=expected_profile_response),
+            ),
         ):
             await handle_link(update, context)
 
@@ -248,14 +260,17 @@ class TestBotHandlerIntegration:
 
         expected_text = "не имеет фиксированной цены"
 
-        with patch.object(
-            scraping_orchestrator,
-            "process_urls_concurrent",
-            AsyncMock(return_value=[item_result]),
-        ), patch.object(
-            response_formatter,
-            "format_item_response",
-            AsyncMock(return_value=f"Товар {expected_text}: $150.00"),
+        with (
+            patch.object(
+                scraping_orchestrator,
+                "process_urls_concurrent",
+                AsyncMock(return_value=[item_result]),
+            ),
+            patch.object(
+                response_formatter,
+                "format_item_response",
+                AsyncMock(return_value=f"Товар {expected_text}: $150.00"),
+            ),
         ):
             await handle_link(update, context)
 
@@ -287,14 +302,17 @@ class TestBotHandlerIntegration:
         }
         failure_text = "❌ Ошибка при обработке ссылки"
 
-        with patch.object(
-            scraping_orchestrator,
-            "process_urls_concurrent",
-            AsyncMock(return_value=[failure_result]),
-        ), patch.object(
-            response_formatter,
-            "format_item_response",
-            AsyncMock(return_value=failure_text),
+        with (
+            patch.object(
+                scraping_orchestrator,
+                "process_urls_concurrent",
+                AsyncMock(return_value=[failure_result]),
+            ),
+            patch.object(
+                response_formatter,
+                "format_item_response",
+                AsyncMock(return_value=failure_text),
+            ),
         ):
             await handle_link(update, context)
 

@@ -84,4 +84,3 @@ def test_sold_item_triggers_item_sold_advisory() -> None:
     assert advisory.reason == "item_sold"
     assert advisory.message is not None
     assert "уже продан" in advisory.message
-

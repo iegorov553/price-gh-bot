@@ -4,13 +4,12 @@ These tests use actual marketplace URLs to verify that the entire
 scraping and calculation pipeline works with real data.
 """
 
-import asyncio
 from decimal import Decimal
 
 import pytest
 
 from app.bot.utils import calculate_final_price_async, create_session
-from app.scrapers import ebay, grailed_scraper
+from app.scrapers import grailed_scraper
 from app.services import currency, shipping
 
 
@@ -44,7 +43,9 @@ class TestRealURLsE2E:
                     if seller_data:
                         assert seller_data.num_reviews >= 0, "Review count should be non-negative"
                         assert 0.0 <= seller_data.avg_rating <= 5.0, "Rating should be 0-5"
-                        assert isinstance(seller_data.trusted_badge, bool), "Badge should be boolean"
+                        assert isinstance(seller_data.trusted_badge, bool), (
+                            "Badge should be boolean"
+                        )
 
                 # Test full calculation pipeline
                 shipping_quote = shipping.estimate_shopfans_shipping(item_data.title)
@@ -78,9 +79,9 @@ class TestRealURLsE2E:
                 assert rate.markup_percentage == 5.0
 
                 # Rate should be in reasonable range (50-200 RUB per USD)
-                assert (
-                    Decimal("50") <= rate.rate <= Decimal("200")
-                ), f"Rate {rate.rate} seems unreasonable"
+                assert Decimal("50") <= rate.rate <= Decimal("200"), (
+                    f"Rate {rate.rate} seems unreasonable"
+                )
 
             except Exception as e:
                 pytest.fail(f"Currency conversion failed: {e}")
@@ -96,9 +97,7 @@ class TestRealURLsE2E:
             "Random item without clear category",
         ]
 
-        expected_categories = ["hoodie", "sneakers", "t-shirt", "tie", "default"]
-
-        for title, expected_category in zip(test_titles, expected_categories, strict=True):
+        for title in test_titles:
             quote = shipping.estimate_shopfans_shipping(title)
 
             assert quote.weight_kg > Decimal("0"), f"Weight should be positive for: {title}"

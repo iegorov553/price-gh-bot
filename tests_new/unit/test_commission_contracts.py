@@ -44,9 +44,9 @@ class TestCommissionContracts:
             expected_subtotal = (
                 item_price_decimal + us_shipping_decimal + result.commission
             ).quantize(Decimal("0.01"))
-            assert (
-                result.subtotal == expected_subtotal
-            ), f"Subtotal mismatch for case: {description}"
+            assert result.subtotal == expected_subtotal, (
+                f"Subtotal mismatch for case: {description}"
+            )
             assert result.shipping_russia == ru_shipping_decimal
             assert result.additional_costs == (result.customs_duty + ru_shipping_decimal).quantize(
                 Decimal("0.01")
@@ -116,9 +116,9 @@ class TestCommissionContracts:
 
         # Test with zero shipping
         result = calculate_final_price(Decimal("200.00"), Decimal("0.00"), Decimal("25.00"))
-        assert result.commission == Decimal(
-            "20.00"
-        ), "Zero shipping should calculate on item price only"
+        assert result.commission == Decimal("20.00"), (
+            "Zero shipping should calculate on item price only"
+        )
 
         # Test with both zero (edge case)
         result = calculate_final_price(Decimal("0.00"), Decimal("0.00"), Decimal("25.00"))
