@@ -46,7 +46,9 @@ class URLProcessor:
                 invalid_urls.append(url)
 
         if invalid_urls:
-            logger.warning("Filtered out invalid URLs: %s", invalid_urls)
+            logger.warning(
+                "Filtered invalid marketplace URLs (invalid_count=%d)", len(invalid_urls)
+            )
 
         logger.info("Validated %d/%d URLs", len(valid_urls), len(urls))
         return valid_urls
@@ -91,8 +93,11 @@ class URLProcessor:
         has_suspicious = len(valid_urls) < len(raw_urls)
 
         if has_suspicious and user_id is not None:
-            suspicious_urls = [url for url in raw_urls if url not in valid_urls]
-            logger.warning("User %s sent suspicious URLs: %s", user_id, suspicious_urls)
+            logger.warning(
+                "Suspicious URL input detected (invalid_count=%d, total_count=%d)",
+                len(raw_urls) - len(valid_urls),
+                len(raw_urls),
+            )
 
         categorized = self.categorize_urls(valid_urls) if valid_urls else None
         return ProcessedURLs(

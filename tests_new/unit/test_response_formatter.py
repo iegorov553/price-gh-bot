@@ -86,3 +86,37 @@ async def test_breakdown_without_warning_still_appends_note_and_timestamp() -> N
     )
     assert lines[-1] == expected_timestamp
     assert note_index + len(note_lines) <= len(lines) - 2
+
+
+@pytest.mark.asyncio
+async def test_sold_listing_includes_sold_warning_and_breakdown() -> None:
+    """Sold listing response should include breakdown and sold notice."""
+    formatter = ResponseFormatter()
+    item_data = ItemData(
+        price=Decimal("117.00"),
+        shipping_us=Decimal("25.00"),
+        is_buyable=False,
+        is_sold=True,
+        title="Tornado Mart Flared Jeans",
+    )
+    seller_data = SellerData(
+        num_reviews=80,
+        avg_rating=4.95,
+        trusted_badge=True,
+    )
+    scrape_result = {
+        "success": True,
+        "platform": "grailed",
+        "item_data": item_data,
+        "seller_data": seller_data,
+        "error": None,
+        "processing_time_ms": 120,
+        "url": "https://www.grailed.com/listings/94370655-tornado-mart",
+    }
+
+    response = await formatter.format_item_response(scrape_result)
+
+    assert "Tornado Mart Flared Jeans" in response
+    assert "уже продан на Grailed" in response
+    assert "$117" in response
+

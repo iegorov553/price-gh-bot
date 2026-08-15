@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -317,3 +319,20 @@ def test_get_user_stats_supports_day_filter(tmp_path: pytest.TempPathFactory) ->
 
     assert stats["total_searches"] == 1
     assert stats["last_search"] == stats["first_search"]
+
+
+def test_get_user_stats_error_log_omits_user_id(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Analytics failures must not put a Telegram user ID in source log records."""
+    user_id = 987654321
+    service = AnalyticsService(str(tmp_path / "analytics.db"))
+    service.db_path = str(tmp_path)
+
+    with caplog.at_level(logging.ERROR, logger="app.services.analytics"):
+        result = service.get_user_stats(user_id=user_id)
+
+    assert result["user_id"] == user_id
+    assert "Failed to get user stats" in caplog.text
+    assert str(user_id) not in caplog.text

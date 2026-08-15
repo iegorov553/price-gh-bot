@@ -72,3 +72,16 @@ def test_technical_issue_flag_overrides_num_reviews() -> None:
     advisory = evaluate_seller_advisory(seller_data=seller, item_data=ItemData(price=Decimal("10")))
 
     assert advisory.reason == "technical_issue"
+
+
+def test_sold_item_triggers_item_sold_advisory() -> None:
+    """Sold items should trigger item_sold advisory reason and message."""
+    item = ItemData(price=Decimal("100"), is_buyable=False, is_sold=True)
+    seller = SellerData(num_reviews=50, avg_rating=5.0, trusted_badge=True)
+
+    advisory = evaluate_seller_advisory(seller_data=seller, item_data=item)
+
+    assert advisory.reason == "item_sold"
+    assert advisory.message is not None
+    assert "уже продан" in advisory.message
+

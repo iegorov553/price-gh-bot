@@ -22,25 +22,24 @@ from .bot.handlers import (
     start,
 )
 from .config import config
+from .logging_config import configure_logging
 
-# Logging
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    level=logging.DEBUG,  # Enable debug logging
-)
+configure_logging(config.bot.log_level)
 logger = logging.getLogger(__name__)
 
 
 async def initialize_resources() -> None:
     """Initialize application resources."""
+    if config.bot.enable_headless_browser:
+        try:
+            from .scrapers.headless import get_global_browser
+
+            await get_global_browser()
+            logger.info("Chromium scraper browser initialized")
+        except Exception as exc:
+            logger.warning("Failed to initialize Chromium scraper browser: %s", exc)
+
     try:
-        # Инициализируем browser pool
-        from .services.browser_pool import get_browser_pool
-
-        await get_browser_pool()
-        logger.info("Пул браузеров инициализирован")
-
-        # Инициализируем cache service
         from .services.cache_service import get_cache_service
 
         cache = await get_cache_service()
@@ -49,8 +48,8 @@ async def initialize_resources() -> None:
         else:
             logger.info("Redis кэш недоступен, работаем без кэширования")
 
-    except Exception as e:
-        logger.warning(f"Ошибка инициализации ресурсов: {e}")
+    except Exception as exc:
+        logger.warning("Failed to initialize cache service: %s", exc)
 
 
 async def cleanup_resources() -> None:
@@ -62,22 +61,10 @@ async def cleanup_resources() -> None:
         await shutdown_cache_service()
         logger.info("Cache service закрыт")
 
-        # Закрываем оптимизированный browser pool
-        from .services.browser_pool import shutdown_browser_pool
+        from .scrapers.headless import cleanup_global_browser
 
-        await shutdown_browser_pool()
-        logger.info("Пул браузеров закрыт")
-
-        # Fallback: очистка старого глобального браузера
-        try:
-            from .scrapers.headless import cleanup_global_browser
-
-            await cleanup_global_browser()
-            logger.info("Cleaned up legacy global browser instance")
-        except Exception as cleanup_error:
-            logger.warning(
-                "Failed to clean up legacy global browser instance safely: %s", cleanup_error
-            )
+        await cleanup_global_browser()
+        logger.info("Chromium scraper browser closed")
 
     except Exception as e:
         logger.warning(f"Error during cleanup: {e}")
@@ -99,7 +86,7 @@ def main() -> None:
     # Create application
     app = Application.builder().token(config.bot.bot_token).build()
 
-    # Initialize browser pool on startup
+    # Initialize the single shared Chromium instance on startup
     async def post_init(application: Application) -> None:
         await initialize_resources()
 
@@ -127,7 +114,7 @@ def main() -> None:
     if config.bot.use_webhook:
         path = f"/{config.bot.bot_token}"
         webhook_url = f"https://{config.bot.webhook_domain}{path}"
-        logger.info(f"Starting webhook at {webhook_url}")
+        logger.info("Starting webhook for domain %s", config.bot.webhook_domain)
 
         listen_host = config.bot.listen_host
         app.run_webhook(

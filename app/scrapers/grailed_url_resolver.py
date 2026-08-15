@@ -53,7 +53,56 @@ def normalize_grailed_url(url: str) -> str:
     return url
 
 
+async def async_normalize_grailed_url(url: str, session: Any = None) -> str:
+    """Return canonical Grailed URL for listings shared via grailed.app.link.
+
+    Attempts static payload decoding first. If static resolution fails,
+    attempts HTTP HEAD/GET redirect resolution or headless browser resolution.
+    """
+    normalized = normalize_grailed_url(url)
+    if _GRAILED_DOMAIN in urlparse(normalized).netloc.lower():
+        return normalized
+
+    parsed = urlparse(url)
+    if not parsed.netloc.lower().endswith(_APP_LINK_SUFFIX):
+        return url
+
+    # Try HTTP redirect resolution via session
+    if session is not None:
+        try:
+            async with session.head(url, allow_redirects=True) as resp:
+                final_url = str(resp.url)
+                if _GRAILED_DOMAIN in urlparse(final_url).netloc.lower():
+                    logger.debug("Resolved Grailed shortlink via HTTP HEAD %s → %s", url, final_url)
+                    return final_url
+        except Exception as exc:
+            logger.debug("HTTP HEAD shortlink resolution failed for %s: %s", url, exc)
+
+        try:
+            async with session.get(url, allow_redirects=True) as resp:
+                final_url = str(resp.url)
+                if _GRAILED_DOMAIN in urlparse(final_url).netloc.lower():
+                    logger.debug("Resolved Grailed shortlink via HTTP GET %s → %s", url, final_url)
+                    return final_url
+        except Exception as exc:
+            logger.debug("HTTP GET shortlink resolution failed for %s: %s", url, exc)
+
+    # Try headless browser redirect resolution
+    try:
+        from .headless import resolve_shortlink_headless
+
+        headless_resolved = await resolve_shortlink_headless(url)
+        if headless_resolved and _GRAILED_DOMAIN in urlparse(headless_resolved).netloc.lower():
+            logger.debug("Resolved Grailed shortlink via Headless %s → %s", url, headless_resolved)
+            return headless_resolved
+    except Exception as exc:
+        logger.debug("Headless shortlink resolution failed for %s: %s", url, exc)
+
+    return url
+
+
 def _resolve_app_link(parsed_url: ParseResult) -> str | None:
+
     """Decode grailed.app.link payload and extract canonical URL."""
     query = parse_qs(parsed_url.query)
     data_payload = query.get("data", [])
@@ -136,4 +185,5 @@ def _ensure_grailed_url(value: str) -> str | None:
     return value
 
 
-__all__ = ["normalize_grailed_url"]
+__all__ = ["normalize_grailed_url", "async_normalize_grailed_url"]
+

@@ -17,26 +17,43 @@ import asyncio
 import logging
 import re
 import shlex
+import time
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from secrets import randbelow
 from typing import TYPE_CHECKING, Any, cast
+from urllib.parse import urlsplit, urlunsplit
+
+from ..models import SellerData
+from .grailed_page import GrailedPageState, classify_grailed_html
+
+PlaywrightTimeoutError: type[BaseException]
 
 try:
+    from playwright.async_api import TimeoutError as _PlaywrightTimeoutError
     from playwright.async_api import async_playwright
 
+    PlaywrightTimeoutError = _PlaywrightTimeoutError
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     async_playwright = None  # type: ignore[assignment]
+    PlaywrightTimeoutError = TimeoutError
     PLAYWRIGHT_AVAILABLE = False
 
 if TYPE_CHECKING:
-    from playwright.async_api import Browser, BrowserContext, ElementHandle, Page, Playwright, Route
+    from playwright.async_api import Browser, BrowserContext, ElementHandle, Page, Playwright
 else:
-    Browser = BrowserContext = ElementHandle = Page = Route = Playwright = Any  # type: ignore
-
-from ..models import SellerData
+    Browser = BrowserContext = ElementHandle = Page = Playwright = Any  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class GrailedHeadlessFetchResult:
+    """Classified result of a headless Grailed page acquisition."""
+
+    html: str | None
+    state: GrailedPageState
 
 
 def _random_delay(min_seconds: float, max_seconds: float) -> float:
@@ -52,6 +69,21 @@ def _random_timeout(min_ms: int, max_ms: int) -> int:
     if max_ms <= min_ms:
         return min_ms
     return min_ms + randbelow(max_ms - min_ms + 1)
+
+
+def _safe_target(url: str) -> tuple[str, str]:
+    """Return a credential-free URL and public listing identifier for logs."""
+    try:
+        parsed_url = urlsplit(url)
+        hostname = parsed_url.hostname or ""
+        authority = f"[{hostname}]" if ":" in hostname else hostname
+        if parsed_url.port is not None:
+            authority = f"{authority}:{parsed_url.port}"
+        canonical_url = urlunsplit((parsed_url.scheme, authority, parsed_url.path, "", ""))
+        match = re.search(r"/listings/(\d+)", parsed_url.path)
+        return canonical_url, match.group(1) if match else "unknown"
+    except ValueError:
+        return "<invalid-url>", "unknown"
 
 
 class HeadlessBrowser:
@@ -82,59 +114,24 @@ class HeadlessBrowser:
             playwright_context = await async_playwright().start()
             self.playwright = playwright_context
 
-            # Launch browser with human-like configuration
+            # Use Playwright's regular Chromium build in new headless mode.
             self.browser = await playwright_context.chromium.launch(
+                channel="chromium",
                 headless=True,
                 args=[
                     "--no-sandbox",
-                    "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage",
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                    "--disable-background-timer-throttling",
-                    "--disable-backgrounding-occluded-windows",
-                    "--disable-renderer-backgrounding",
-                    "--disable-extensions",
-                    "--disable-plugins",
-                    "--disable-javascript-harmony-shipping",
-                    "--disable-ipc-flooding-protection",
-                    "--aggressive-cache-discard",
-                    "--memory-pressure-off",
-                    # More human-like flags
-                    "--disable-blink-features=AutomationControlled",
-                    "--disable-features=VizDisplayCompositor",
                 ],
             )
 
-            # Create context with human-like behavior
+            # Keep one stock context for the process lifetime so cookies persist.
             browser_instance = self.browser
-            self.context = await browser_instance.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                viewport={"width": 1366, "height": 768},  # Common desktop resolution
-                java_script_enabled=True,
-                locale="en-US",
-                timezone_id="America/New_York",
-                extra_http_headers={
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-                    "Accept-Language": "en-US,en;q=0.9",
-                    "Accept-Encoding": "gzip, deflate, br",
-                    "Cache-Control": "max-age=0",
-                    "Connection": "keep-alive",
-                    "Upgrade-Insecure-Requests": "1",
-                    "Sec-Fetch-Dest": "document",
-                    "Sec-Fetch-Mode": "navigate",
-                    "Sec-Fetch-Site": "none",
-                    "Sec-Fetch-User": "?1",
-                    "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-                    "sec-ch-ua-mobile": "?0",
-                    "sec-ch-ua-platform": '"Windows"',
-                },
+            self.context = await browser_instance.new_context()
+
+            logger.info(
+                "Chromium browser started (mode=new-headless, version=%s)",
+                browser_instance.version,
             )
-
-            # Block unnecessary resources to speed up loading
-            await self.context.route("**/*", self._route_handler)
-
-            logger.info("Headless browser started successfully")
 
         except Exception as e:
             logger.error(f"Failed to start headless browser: {e}")
@@ -154,103 +151,46 @@ class HeadlessBrowser:
 
     async def stop(self) -> None:
         """Stop the headless browser and cleanup resources."""
-        try:
-            if self.context:
-                await self.context.close()
-                self.context = None
+        context, browser, playwright = self.context, self.browser, self.playwright
+        self.context = None
+        self.browser = None
+        self.playwright = None
 
-            if self.browser:
-                await self.browser.close()
-                self.browser = None
-
-            if self.playwright:
-                await self.playwright.stop()
-                self.playwright = None
-
-            logger.debug("Headless browser stopped and cleaned up")
-
-        except Exception as e:
-            logger.warning(f"Error during browser cleanup: {e}")
-
-    async def _route_handler(self, route: Route) -> None:
-        """Block unnecessary resources to speed up page loading."""
-        resource_type = route.request.resource_type
-        url = route.request.url
-
-        # Block heavy media but keep essential resources for human-like appearance
-        if resource_type in ["image", "media", "font"]:
-            await route.abort()
-        # Block analytics and tracking - these are obviously bot-like
-        elif any(
-            domain in url
-            for domain in [
-                "google-analytics",
-                "googletagmanager",
-                "facebook",
-                "twitter",
-                "doubleclick",
-                "adsystem",
-                "siftscience",
-                "pinterest",
-            ]
+        for resource_name, resource, close_method in (
+            ("browser context", context, "close"),
+            ("browser", browser, "close"),
+            ("Playwright", playwright, "stop"),
         ):
-            await route.abort()
-        # Allow CSS for proper rendering (important for human-like behavior)
-        # Allow JS for dynamic content
-        # Allow XHR/fetch for data loading
-        else:
-            await route.continue_()
+            if resource is None:
+                continue
+            try:
+                await getattr(resource, close_method)()
+            except Exception as exc:
+                logger.warning("Error during %s cleanup: %s", resource_name, exc)
+
+        logger.debug("Headless browser stopped and cleaned up")
 
     async def get_page(self) -> Page:
-        """Get a new page from the browser context with stealth settings."""
+        """Get a new page from the persistent stock browser context."""
         if self.context is None:
             raise RuntimeError("Browser not started. Call start() first.")
 
-        context = self.context
-        page = await context.new_page()
+        return await self.context.new_page()
 
-        # Hide automation markers
-        await page.add_init_script(
-            """
-            // Hide webdriver property
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined,
-            });
-
-            // Mock chrome property
-            window.chrome = {
-                runtime: {},
-                loadTimes: function() {},
-                csi: function() {},
-                app: {}
-            };
-
-            // Mock permissions
-            const originalQuery = window.navigator.permissions.query;
-            window.navigator.permissions.query = (parameters) => (
-                parameters.name === 'notifications' ?
-                    Promise.resolve({ state: Notification.permission }) :
-                    originalQuery(parameters)
-            );
-
-            // Mock plugins
-            Object.defineProperty(navigator, 'plugins', {
-                get: () => [1, 2, 3, 4, 5],
-            });
-
-            // Mock languages
-            Object.defineProperty(navigator, 'languages', {
-                get: () => ['en-US', 'en'],
-            });
-        """
-        )
-
-        return page
+    def is_connected(self) -> bool:
+        """Return whether the underlying Chromium process is connected."""
+        if self.browser is None:
+            return False
+        try:
+            return bool(self.browser.is_connected())
+        except Exception:
+            return False
 
 
 # Global browser instance for reuse
 _global_browser: HeadlessBrowser | None = None
 _browser_lock = asyncio.Lock()
+_browser_operation_lock = asyncio.Lock()
 
 
 async def extract_seller_data_headless(
@@ -265,12 +205,13 @@ async def extract_seller_data_headless(
     Returns:
         SellerData object with extracted metrics, or None if extraction fails
     """
+    _canonical_url, listing_id = _safe_target(url)
     page: Page | None = None
     try:
         page = await headless_browser.get_page()
 
         # Navigate to the page with human-like behavior
-        logger.debug(f"Loading page with optimized headless browser: {url}")
+        logger.debug("Loading page with stock Chromium (listing_id=%s)", listing_id)
 
         # Add human-like randomness to loading
         # Random delay before navigation (0.1-0.5s)
@@ -288,11 +229,15 @@ async def extract_seller_data_headless(
             logger.info(f"Successfully extracted seller data with headless browser: {seller_data}")
             return seller_data
         else:
-            logger.warning(f"No seller data found with headless browser for: {url}")
+            logger.warning("No seller data found with headless browser (listing_id=%s)", listing_id)
             return None
 
     except Exception as e:
-        logger.error(f"Headless browser extraction failed for {url}: {e}")
+        logger.error(
+            "Headless browser extraction failed (listing_id=%s, exception=%s)",
+            listing_id,
+            type(e).__name__,
+        )
         return None
     finally:
         if page:
@@ -556,14 +501,243 @@ async def get_grailed_seller_data_headless(url: str) -> SellerData | None:
     Returns:
         SellerData object with extracted metrics, or None if extraction fails
     """
-    try:
-        browser = await get_global_browser()
-        return await extract_seller_data_headless(url, browser)
-    except Exception as e:
-        logger.error(f"Global browser extraction failed: {e}")
-        # Fallback to new browser instance
-        async with HeadlessBrowser() as browser:
+    async with _browser_operation_lock:
+        browser: HeadlessBrowser | None = None
+        try:
+            browser = await get_global_browser()
             return await extract_seller_data_headless(url, browser)
+        except Exception as exc:
+            logger.error("Global browser extraction failed (exception=%s)", type(exc).__name__)
+            if browser is not None and browser.is_connected():
+                return None
+            try:
+                await cleanup_global_browser()
+                browser = await get_global_browser()
+                return await extract_seller_data_headless(url, browser)
+            except Exception as recovery_exc:
+                logger.error(
+                    "Headless browser recovery failed (exception=%s)",
+                    type(recovery_exc).__name__,
+                )
+                return None
+
+
+async def fetch_page_html_headless(url: str) -> str | None:
+    """Fetch raw page HTML through the generic compatibility API.
+
+    Args:
+        url: Page URL to fetch.
+
+    Returns:
+        Acquired HTML text without Grailed classification, or None if fetching fails.
+    """
+    async with _browser_operation_lock:
+        browser: HeadlessBrowser | None = None
+        try:
+            browser = await get_global_browser()
+            return await _fetch_html(url, browser)
+        except Exception as exc:
+            logger.error(
+                "Global browser compatibility HTML fetch failed (exception=%s)",
+                type(exc).__name__,
+            )
+            if browser is not None and browser.is_connected():
+                return None
+            try:
+                await cleanup_global_browser()
+                browser = await get_global_browser()
+                return await _fetch_html(url, browser)
+            except Exception as recovery_exc:
+                logger.error(
+                    "Compatibility HTML fetch failed (exception=%s)",
+                    type(recovery_exc).__name__,
+                )
+                return None
+
+
+async def fetch_grailed_page_headless(url: str) -> GrailedHeadlessFetchResult:
+    """Acquire a Grailed page while retaining its classified terminal state."""
+    _canonical_url, listing_id = _safe_target(url)
+    async with _browser_operation_lock:
+        browser: HeadlessBrowser | None = None
+        try:
+            browser = await get_global_browser()
+            return await _fetch_grailed_page_html(url, browser)
+        except Exception as exc:
+            logger.error(
+                "Global browser HTML fetch failed (listing_id=%s, exception=%s)",
+                listing_id,
+                type(exc).__name__,
+            )
+            if browser is not None and browser.is_connected():
+                return GrailedHeadlessFetchResult(None, GrailedPageState.INCOMPLETE)
+            try:
+                await cleanup_global_browser()
+                browser = await get_global_browser()
+                return await _fetch_grailed_page_html(url, browser)
+            except Exception as recovery_exc:
+                logger.error(
+                    "Headless browser HTML fallback failed (listing_id=%s, exception=%s)",
+                    listing_id,
+                    type(recovery_exc).__name__,
+                )
+                return GrailedHeadlessFetchResult(None, GrailedPageState.INCOMPLETE)
+
+
+async def _fetch_html(url: str, browser: HeadlessBrowser) -> str | None:
+    """Fetch unclassified HTML for generic compatibility callers."""
+    page = await browser.get_page()
+    try:
+        await page.goto(url, wait_until="domcontentloaded", timeout=25_000)
+        await page.wait_for_timeout(1500)
+        return await page.content()
+    finally:
+        await page.close()
+
+
+async def _fetch_grailed_page_html(
+    url: str, browser: HeadlessBrowser
+) -> GrailedHeadlessFetchResult:
+    """Fetch a Grailed listing only after its DOM reaches a known state."""
+    canonical_url, listing_id = _safe_target(url)
+    started_at = time.monotonic()
+    last_http_status: int | None = None
+
+    def finish(
+        state: GrailedPageState,
+        html: str | None,
+        attempt: int,
+        http_status: int | None,
+    ) -> GrailedHeadlessFetchResult:
+        browser_process = getattr(browser, "browser", None)
+        browser_version = getattr(browser_process, "version", "unknown")
+        logger.info(
+            "Grailed browser acquisition finished (listing_id=%s, state=%s, "
+            "http_status=%s, elapsed_ms=%s, chromium=%s, attempt=%s)",
+            listing_id,
+            state,
+            http_status,
+            int((time.monotonic() - started_at) * 1000),
+            browser_version,
+            attempt,
+        )
+        return GrailedHeadlessFetchResult(html, state)
+
+    listing_ready_script = """() => document.querySelector(
+        '#__NEXT_DATA__, meta[property="product:price:amount"], '
+        + 'script[type="application/ld+json"]'
+    ) !== null"""
+    known_state_script = """() => {
+        const html = document.documentElement.innerHTML.toLowerCase();
+        const title = document.title.toLowerCase();
+        return document.querySelector(
+            '#__NEXT_DATA__, meta[property="product:price:amount"], '
+            + 'script[type="application/ld+json"], #challenge-running, [class*="cf-chl-"]'
+        ) !== null
+            || title === 'just a moment...'
+            || html.includes('you are unable to access grailed.com')
+            || html.includes('checking your browser')
+            || html.includes('performing security verification')
+            || html.includes('this website uses a security service to protect against malicious bots')
+            || html.includes('cf-chl-')
+            || html.includes('challenge-running');
+    }"""
+
+    for attempt in range(1, 3):
+        page: Page | None = None
+        http_status: int | None = None
+        try:
+            page = await browser.get_page()
+            response = await page.goto(url, wait_until="domcontentloaded", timeout=25_000)
+            raw_status = getattr(response, "status", None)
+            if isinstance(raw_status, int):
+                http_status = raw_status
+                last_http_status = raw_status
+
+            initial_html = await page.content()
+            initial_state = classify_grailed_html(initial_html)
+            challenge_seen = initial_state is GrailedPageState.BLOCKED
+
+            if initial_state is GrailedPageState.BLOCKED:
+                # Keep the same page and cookies while a non-interactive challenge
+                # has a chance to complete. A resolved challenge exposes listing data.
+                try:
+                    await page.wait_for_function(listing_ready_script, timeout=12_000)
+                except PlaywrightTimeoutError:
+                    pass
+            elif initial_state is GrailedPageState.INCOMPLETE:
+                try:
+                    await page.wait_for_function(known_state_script, timeout=10_000)
+                except PlaywrightTimeoutError:
+                    pass
+
+            html = await page.content()
+        except Exception as exc:
+            logger.warning(
+                "Grailed headless fetch failed (attempt=%s, exception=%s, target=%s)",
+                attempt,
+                type(exc).__name__,
+                canonical_url,
+            )
+            return finish(GrailedPageState.INCOMPLETE, None, attempt, http_status)
+        finally:
+            if page is not None:
+                await page.close()
+
+        state = classify_grailed_html(html)
+        if state is GrailedPageState.LISTING:
+            return finish(state, html, attempt, http_status)
+        if challenge_seen:
+            return finish(GrailedPageState.BLOCKED, None, attempt, http_status)
+        if state is GrailedPageState.BLOCKED:
+            return finish(state, None, attempt, http_status)
+
+    return finish(GrailedPageState.INCOMPLETE, None, 2, last_http_status)
+
+
+async def resolve_shortlink_headless(url: str) -> str | None:
+    """Resolve a shortlink (e.g. grailed.app.link) by navigating with headless browser.
+
+    Args:
+        url: Shortlink URL.
+
+    Returns:
+        Final target URL after redirects, or None if failed.
+    """
+    async with _browser_operation_lock:
+        browser: HeadlessBrowser | None = None
+        try:
+            browser = await get_global_browser()
+            return await _resolve_redirect(url, browser)
+        except Exception as exc:
+            logger.error(
+                "Global browser shortlink resolution failed (exception=%s)",
+                type(exc).__name__,
+            )
+            if browser is not None and browser.is_connected():
+                return None
+            try:
+                await cleanup_global_browser()
+                browser = await get_global_browser()
+                return await _resolve_redirect(url, browser)
+            except Exception as recovery_exc:
+                logger.error(
+                    "Headless browser shortlink recovery failed (exception=%s)",
+                    type(recovery_exc).__name__,
+                )
+                return None
+
+
+async def _resolve_redirect(url: str, browser: HeadlessBrowser) -> str | None:
+    page = await browser.get_page()
+    try:
+        await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+        final_url = page.url
+        if final_url and final_url != url:
+            return final_url
+        return None
+    finally:
+        await page.close()
 
 
 async def get_global_browser() -> HeadlessBrowser:
@@ -571,6 +745,9 @@ async def get_global_browser() -> HeadlessBrowser:
     global _global_browser
 
     async with _browser_lock:
+        if _global_browser is not None and not _global_browser.is_connected():
+            await _global_browser.stop()
+            _global_browser = None
         if _global_browser is None:
             _global_browser = HeadlessBrowser()
             await _global_browser.start()
@@ -595,7 +772,7 @@ def _needs_browser_install(message: str) -> bool:
 async def _ensure_playwright_browsers_installed() -> bool:
     """Attempt to install Playwright Chromium binaries on demand."""
     try:
-        cmd = ["playwright", "install", "chromium"]
+        cmd = ["playwright", "install", "--no-shell", "chromium"]
         logger.info("Running %s", " ".join(shlex.quote(part) for part in cmd))
         process = await asyncio.create_subprocess_exec(
             *cmd,
