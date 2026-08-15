@@ -343,4 +343,3 @@ def test_seller_advisory_variations(
         assert advisory.message is not None
     else:
         assert advisory.message is None
-

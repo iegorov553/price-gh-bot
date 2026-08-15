@@ -11,14 +11,11 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from app.scrapers import headless
 from app.scrapers.grailed_page import GrailedPageState, classify_grailed_html
 from app.scrapers.grailed_url_resolver import async_normalize_grailed_url
-from app.scrapers.headless import GrailedHeadlessFetchResult
 
 
 @pytest.mark.asyncio
 async def test_async_normalize_grailed_url_static_payload() -> None:
-    url = (
-        "https://grailed.app.link?channel=Pasteboard&data=eyIkY2Fub25pY2FsX3VybCI6Imh0dHBzOi8vd3d3LmdyYWlsZWQuY29tL2xpc3RpbmdzLzEyMzQ1NiJ9"
-    )
+    url = "https://grailed.app.link?channel=Pasteboard&data=eyIkY2Fub25pY2FsX3VybCI6Imh0dHBzOi8vd3d3LmdyYWlsZWQuY29tL2xpc3RpbmdzLzEyMzQ1NiJ9"
     res = await async_normalize_grailed_url(url)
     assert res == "https://www.grailed.com/listings/123456"
 
@@ -156,9 +153,7 @@ async def test_fetch_waits_for_challenge_to_resolve_in_same_page() -> None:
     page.content.side_effect = [blocked_html, listing_html]
     browser.get_page = AsyncMock(return_value=page)
 
-    result = await headless._fetch_grailed_page_html(
-        "https://www.grailed.com/listings/1", browser
-    )
+    result = await headless._fetch_grailed_page_html("https://www.grailed.com/listings/1", browser)
 
     assert result.state is GrailedPageState.LISTING
     assert result.html == listing_html
@@ -176,9 +171,7 @@ async def test_fetch_returns_blocked_after_challenge_grace_without_retry() -> No
     page.wait_for_function.side_effect = PlaywrightTimeoutError("challenge remained")
     browser.get_page = AsyncMock(return_value=page)
 
-    result = await headless._fetch_grailed_page_html(
-        "https://www.grailed.com/listings/1", browser
-    )
+    result = await headless._fetch_grailed_page_html("https://www.grailed.com/listings/1", browser)
 
     assert result.state is GrailedPageState.BLOCKED
     assert result.html is None
@@ -194,9 +187,7 @@ async def test_fetch_does_not_retry_after_challenge_becomes_incomplete() -> None
     page.content.side_effect = [blocked_html, incomplete_html]
     browser.get_page = AsyncMock(return_value=page)
 
-    result = await headless._fetch_grailed_page_html(
-        "https://www.grailed.com/listings/1", browser
-    )
+    result = await headless._fetch_grailed_page_html("https://www.grailed.com/listings/1", browser)
 
     assert result.state is GrailedPageState.BLOCKED
     assert result.html is None

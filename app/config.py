@@ -147,8 +147,12 @@ class GrailedAlgoliaConfig(BaseSettings):
     """
 
     app_id: str = Field(default="MNRWEFSS2Q", validation_alias="GRAILED_ALGOLIA_APP_ID")
-    api_key: str = Field(default="c89dbaddf15fe70e1941a109bf7c2a3d", validation_alias="GRAILED_ALGOLIA_API_KEY")
-    index_name: str = Field(default="Listing_production", validation_alias="GRAILED_ALGOLIA_INDEX_NAME")
+    api_key: str = Field(
+        default="c89dbaddf15fe70e1941a109bf7c2a3d", validation_alias="GRAILED_ALGOLIA_API_KEY"
+    )
+    index_name: str = Field(
+        default="Listing_production", validation_alias="GRAILED_ALGOLIA_INDEX_NAME"
+    )
     sold_index_name: str = Field(
         default="Listing_sold_production", validation_alias="GRAILED_ALGOLIA_SOLD_INDEX_NAME"
     )

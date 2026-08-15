@@ -10,7 +10,6 @@ from app.models import ItemData, SellerData
 from app.scrapers.grailed_scraper import (
     GrailedScraper,
     extract_grailed_listing_id,
-    grailed_scraper,
 )
 
 

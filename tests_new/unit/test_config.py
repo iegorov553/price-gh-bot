@@ -1,6 +1,7 @@
 """Unit tests for configuration models, including GrailedAlgoliaConfig."""
 
 import pytest
+
 from app.config import Config, GrailedAlgoliaConfig
 from app.models import ItemData
 
