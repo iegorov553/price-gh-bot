@@ -6,8 +6,7 @@ branch = True
 parallel = True
 concurrency = thread,multiprocessing
 
-# Files to include/exclude
-include = app/*
+# Files to exclude
 omit =
     app/__init__.py
     app/config.py
