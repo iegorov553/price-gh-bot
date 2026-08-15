@@ -166,6 +166,7 @@ jobs:
       env:
         ENABLE_HEADLESS_BROWSER: true
         LOG_LEVEL: INFO
+        COVERAGE_RCFILE: .coveragerc.integration
       run: |
         pytest tests_new/e2e/ -v --tb=short --maxfail=1 \
         --timeout=120 --cov=app --cov-report=xml
