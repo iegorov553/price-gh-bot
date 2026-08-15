@@ -153,6 +153,7 @@ def mock_http_session():
     response.status = 200
     response.text = AsyncMock(return_value="<html>Test content</html>")
     response.json = AsyncMock(return_value={"test": "data"})
+    response.raise_for_status = MagicMock()
 
     session.get.return_value.__aenter__.return_value = response
     session.post.return_value.__aenter__.return_value = response

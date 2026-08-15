@@ -6,7 +6,6 @@ Algolia backend, bypassing HTML scraping and browser-based anti-bot hurdles.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from decimal import Decimal
 from typing import Any
@@ -148,7 +147,7 @@ class GrailedAlgoliaClient:
                     )
                     return None, None
 
-        except (asyncio.TimeoutError, TimeoutError):
+        except TimeoutError:
             logger.warning("Algolia query timed out for listing %s", cleaned_id)
             return None, None
         except Exception as exc:
@@ -200,7 +199,7 @@ class GrailedAlgoliaClient:
                     )
                     return None
 
-        except (asyncio.TimeoutError, TimeoutError):
+        except TimeoutError:
             logger.warning("Algolia seller query timed out for %s", cleaned_username)
             return None
         except Exception as exc:

@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock
 import aiohttp
 import pytest
 
-from app.models import ItemData, SellerData
 from app.services import GrailedAlgoliaClient, grailed_algolia_client
 
 SAMPLE_ACTIVE_HIT = {
@@ -17,18 +16,14 @@ SAMPLE_ACTIVE_HIT = {
     "makeoffer": True,
     "sold": False,
     "deleted": False,
-    "shipping": {
-        "us": {"amount": 9, "enabled": True}
-    },
+    "shipping": {"us": {"amount": 9, "enabled": True}},
     "user": {
         "id": 13535449,
         "username": "EraLuxe",
         "seller_score": {"rating_average": 4.87, "rating_count": 118},
         "trusted_seller": True,
     },
-    "cover_photo": {
-        "image_url": "https://media-assets.grailed.com/prd/listing/temp/sample.jpg"
-    },
+    "cover_photo": {"image_url": "https://media-assets.grailed.com/prd/listing/temp/sample.jpg"},
 }
 
 SAMPLE_OFFER_ONLY_HIT = {
@@ -39,18 +34,14 @@ SAMPLE_OFFER_ONLY_HIT = {
     "makeoffer": True,
     "sold": False,
     "deleted": False,
-    "shipping": {
-        "us": {"amount": 18.99, "enabled": True}
-    },
+    "shipping": {"us": {"amount": 18.99, "enabled": True}},
     "user": {
         "id": 2204,
         "username": "secondlifeinc",
         "seller_score": {"rating_average": 4.85, "rating_count": 2204},
         "trusted_seller": False,
     },
-    "cover_photo": {
-        "url": "https://media-assets.grailed.com/prd/listing/temp/sample2.jpg"
-    },
+    "cover_photo": {"url": "https://media-assets.grailed.com/prd/listing/temp/sample2.jpg"},
 }
 
 SAMPLE_FREE_SHIPPING_HIT = {
@@ -59,18 +50,14 @@ SAMPLE_FREE_SHIPPING_HIT = {
     "price": 25,
     "buynow": True,
     "makeoffer": False,
-    "shipping": {
-        "us": {"amount": 0, "enabled": False}
-    },
+    "shipping": {"us": {"amount": 0, "enabled": False}},
     "user": {
         "id": 555,
         "username": "vintageshop",
         "seller_score": {"rating_average": 5.0, "rating_count": 10},
         "trusted_seller": False,
     },
-    "cover_photo": {
-        "image_url": "https://media-assets.grailed.com/prd/listing/temp/sample3.jpg"
-    },
+    "cover_photo": {"image_url": "https://media-assets.grailed.com/prd/listing/temp/sample3.jpg"},
 }
 
 SAMPLE_SOLD_HIT = {
@@ -81,9 +68,7 @@ SAMPLE_SOLD_HIT = {
     "makeoffer": False,
     "sold": True,
     "deleted": False,
-    "shipping": {
-        "us": {"amount": 15, "enabled": True}
-    },
+    "shipping": {"us": {"amount": 15, "enabled": True}},
     "user": {
         "id": 998877,
         "username": "gorpcore_seller",
@@ -94,7 +79,6 @@ SAMPLE_SOLD_HIT = {
         "image_url": "https://media-assets.grailed.com/prd/listing/temp/sold_sample.jpg"
     },
 }
-
 
 
 @pytest.mark.asyncio

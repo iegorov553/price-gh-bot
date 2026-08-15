@@ -13,6 +13,9 @@ from typing import Any
 
 from ..models import SearchAnalytics
 
+# Register datetime adapter for Python 3.12+ sqlite3 compatibility
+sqlite3.register_adapter(datetime, lambda dt: dt.isoformat())
+
 logger = logging.getLogger(__name__)
 
 

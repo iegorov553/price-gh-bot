@@ -102,7 +102,6 @@ async def async_normalize_grailed_url(url: str, session: Any = None) -> str:
 
 
 def _resolve_app_link(parsed_url: ParseResult) -> str | None:
-
     """Decode grailed.app.link payload and extract canonical URL."""
     query = parse_qs(parsed_url.query)
     data_payload = query.get("data", [])
@@ -186,4 +185,3 @@ def _ensure_grailed_url(value: str) -> str | None:
 
 
 __all__ = ["normalize_grailed_url", "async_normalize_grailed_url"]
-

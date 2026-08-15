@@ -119,4 +119,3 @@ async def test_sold_listing_includes_sold_warning_and_breakdown() -> None:
     assert "Tornado Mart Flared Jeans" in response
     assert "уже продан на Grailed" in response
     assert "$117" in response
-
