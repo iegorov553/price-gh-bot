@@ -31,24 +31,11 @@ Thumbs.db
 *.tmp
 *.temp
 
-# Debug and test files
-debug_*.py
-test_*.py
-!tests_new/unit/test_platform_detection.py
-!tests_new/unit/test_grailed_url_resolver.py
-!tests_new/unit/test_scraping_orchestrator_cache.py
-!tests_new/unit/test_url_processor.py
-!tests_new/unit/test_config_bot.py
-!tests_new/unit/test_grailed_buyability.py
-!tests_new/unit/test_response_formatter.py
-!tests_new/unit/test_grailed_headless_fallback.py
-!tests_new/unit/test_config.py
-!tests_new/unit/test_grailed_algolia_client.py
-!tests_new/unit/test_grailed_scraper_algolia.py
-!tests_new/integration/test_grailed_orchestration.py
-
-patch_*.py
-verify_*.py
+# Debug and scratch files in root
+/debug_*.py
+/test_*.py
+/patch_*.py
+/verify_*.py
 *.png
 
 # Documentation build
