@@ -94,9 +94,9 @@ class TestShippingContracts:
         expected_weight = Decimal("0.80")
         for title in test_cases:
             result = estimate_shopfans_shipping(title, Decimal("150"))
-            assert (
-                result.weight_kg == expected_weight
-            ), f"Case insensitive matching failed for: '{title}'"
+            assert result.weight_kg == expected_weight, (
+                f"Case insensitive matching failed for: '{title}'"
+            )
 
     def test_country_specific_shipping(self, mock_config):
         """Test shipping calculation for different countries."""
@@ -129,7 +129,7 @@ class TestShippingContracts:
         for i in range(1, len(costs)):
             assert costs[i] >= costs[i - 1], (
                 f"Shipping cost decreased with weight increase:\n"
-                f"Weight {weights[i-1]}kg -> ${costs[i-1]}\n"
+                f"Weight {weights[i - 1]}kg -> ${costs[i - 1]}\n"
                 f"Weight {weights[i]}kg -> ${costs[i]}"
             )
 
@@ -160,9 +160,9 @@ class TestShippingContracts:
 
         for title, expected_weight in zip(special_titles, expected_weights, strict=True):
             result = estimate_shopfans_shipping(title, Decimal("150"))
-            assert result.weight_kg == Decimal(
-                str(expected_weight)
-            ), f"Special character handling failed for: '{title}'"
+            assert result.weight_kg == Decimal(str(expected_weight)), (
+                f"Special character handling failed for: '{title}'"
+            )
 
     def test_shipping_quote_model_completeness(self, mock_config):
         """Test that ShippingQuote model is properly populated."""

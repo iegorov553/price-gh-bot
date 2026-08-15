@@ -3,7 +3,6 @@
 Tests the new error handling logic without complex async mocking.
 """
 
-
 from app.bot.messages import GRAILED_LISTING_ISSUE, GRAILED_SITE_DOWN, GRAILED_SITE_SLOW
 
 

@@ -26,9 +26,7 @@ def preserved_root_logging() -> Iterator[None]:
     root = logging.getLogger()
     original_handlers = root.handlers[:]
     original_level = root.level
-    third_party_levels = {
-        name: logging.getLogger(name).level for name in _NETWORK_LOGGER_NAMES
-    }
+    third_party_levels = {name: logging.getLogger(name).level for name in _NETWORK_LOGGER_NAMES}
     yield
     root.handlers = original_handlers
     root.setLevel(original_level)

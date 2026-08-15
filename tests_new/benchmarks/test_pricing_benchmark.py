@@ -1,7 +1,8 @@
 """Performance benchmarks for core pricing and shipping calculations."""
 
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
