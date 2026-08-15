@@ -22,11 +22,13 @@ class GrailedAlgoliaClient:
     """Client for querying Grailed listings and seller profiles via Algolia."""
 
     def __init__(self) -> None:
+        """Initialize Grailed Algolia client with configuration parameters."""
         self.cfg = config.algolia
         self.index_name = self.cfg.index_name
         self.sold_index_name = self.cfg.sold_index_name
 
     def _get_headers(self) -> dict[str, str]:
+        """Return HTTP headers required for Algolia search API requests."""
         return {
             "x-algolia-application-id": self.cfg.app_id,
             "x-algolia-api-key": self.cfg.api_key,
@@ -34,6 +36,7 @@ class GrailedAlgoliaClient:
         }
 
     def _get_endpoint_url(self) -> str:
+        """Return Algolia multi-query endpoint URL."""
         return f"https://{self.cfg.app_id.lower()}-dsn.algolia.net/1/indexes/*/queries"
 
     def _map_hit_to_models(

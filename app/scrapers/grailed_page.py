@@ -1,7 +1,15 @@
+"""Classification utilities for Grailed HTML page responses.
+
+Provides page state determination to detect Cloudflare anti-bot blocks,
+valid listing pages, or incomplete responses.
+"""
+
 from enum import StrEnum
 
 
 class GrailedPageState(StrEnum):
+    """Enumeration of possible Grailed HTML page classification states."""
+
     LISTING = "listing"
     BLOCKED = "blocked"
     INCOMPLETE = "incomplete"
@@ -26,6 +34,15 @@ _LISTING_MARKERS = (
 
 
 def classify_grailed_html(html: str | None) -> GrailedPageState:
+    """Classify Grailed HTML content into a GrailedPageState.
+
+    Args:
+        html: Raw HTML content string or None.
+
+    Returns:
+        GrailedPageState indicating if the page is a valid listing,
+        blocked by challenge, or incomplete.
+    """
     if not html:
         return GrailedPageState.INCOMPLETE
     lowered = html.lower()
