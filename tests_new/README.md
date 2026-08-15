@@ -294,8 +294,10 @@ pytest tests_new/unit/test_commission_contracts.py::TestCommissionContracts::tes
 def test_commission_calculation_with_high_shipping_above_threshold():
     pass
 
+
 # Good: Clear assertions with error messages
 assert result.commission == expected, f"Commission failed for {description}"
+
 
 # Good: Use fixtures for common setup
 def test_commission_logic(commission_test_cases, mock_config):
