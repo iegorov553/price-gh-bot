@@ -43,3 +43,12 @@ class TestURLProcessor:
         assert "invalid_count=1" in caplog.text
         assert raw_url not in caplog.text
         assert str(user_id) not in caplog.text
+
+    def test_validate_grailed_onelink_url(self) -> None:
+        url = "https://grailed.onelink.me/1LT8/7o7iovrk"
+        result = self.processor.process_message(url, user_id=12345)
+
+        assert result["valid_urls"] == [url]
+        assert result["has_suspicious"] is False
+        assert result["categorized"] is not None
+        assert url in result["categorized"]["item_listings"]

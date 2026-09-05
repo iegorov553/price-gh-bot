@@ -343,3 +343,68 @@ def test_seller_advisory_variations(
         assert advisory.message is not None
     else:
         assert advisory.message is None
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_resolves_onelink_listing_and_profile() -> None:
+    """Test orchestrator correctly routes onelink shortlinks for both listings and seller profiles."""
+    mock_item = ItemData(
+        price=Decimal("35.00"),
+        shipping_us=Decimal("10.00"),
+        is_buyable=True,
+        title="Stussy Shoulder Bag",
+    )
+    mock_item_seller = SellerData(
+        num_reviews=19,
+        avg_rating=5.0,
+        trusted_badge=True,
+    )
+    mock_profile_seller = SellerData(
+        num_reviews=42,
+        avg_rating=4.9,
+        trusted_badge=True,
+    )
+
+    onelink_item = "https://grailed.onelink.me/1LT8/item123"
+    onelink_profile = "https://grailed.onelink.me/1LT8/seller456"
+
+    async def mock_normalize(url: str, session: Any = None) -> str:
+        if url == onelink_item:
+            return "https://www.grailed.com/listings/103877007-stussy-bag"
+        elif url == onelink_profile:
+            return "https://www.grailed.com/users/999-grailedseller"
+        return url
+
+    from unittest.mock import ANY
+
+    with (
+        patch(
+            "app.bot.scraping_orchestrator.async_normalize_grailed_url",
+            side_effect=mock_normalize,
+        ),
+        patch(
+            "app.scrapers.grailed_scraper.grailed_algolia_client.get_listing_by_id",
+            new_callable=AsyncMock,
+            return_value=(mock_item, mock_item_seller),
+        ) as mock_get_listing,
+        patch(
+            "app.scrapers.grailed_scraper.grailed_algolia_client.get_seller_by_username",
+            new_callable=AsyncMock,
+            return_value=mock_profile_seller,
+        ) as mock_get_seller,
+        patch("app.bot.scraping_orchestrator.analytics_service.log_search"),
+    ):
+        results = await scraping_orchestrator.process_urls_concurrent(
+            [onelink_item, onelink_profile], user_id=12345, username="tester"
+        )
+
+        assert len(results) == 2
+        assert results[0]["success"] is True
+        assert results[0]["platform"] == "grailed"
+        assert results[0]["item_data"] == mock_item
+        mock_get_listing.assert_called_once_with("103877007", ANY)
+
+        assert results[1]["success"] is True
+        assert results[1]["platform"] == "profile"
+        assert results[1]["seller_data"] == mock_profile_seller
+        mock_get_seller.assert_called_once_with("grailedseller", ANY)

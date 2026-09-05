@@ -56,3 +56,57 @@ def test_normalize_grailed_url_returns_original_on_decode_error() -> None:
 )
 def test_normalize_grailed_url_passthrough_for_canonical_links(url: str) -> None:
     assert normalize_grailed_url(url) == url
+
+
+def test_normalize_grailed_url_from_onelink_query_param() -> None:
+    url = "https://grailed.onelink.me/1LT8/abc?deep_link_value=%2Flistings%2F103877007"
+    assert normalize_grailed_url(url) == "https://www.grailed.com/listings/103877007"
+
+
+@pytest.mark.asyncio
+async def test_async_normalize_grailed_onelink_redirect_listing() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.scrapers.grailed_url_resolver import async_normalize_grailed_url
+
+    shortlink = "https://grailed.onelink.me/1LT8/7o7iovrk"
+    target = "https://www.grailed.com/listings/103877007?c=listing"
+
+    mock_resp = MagicMock()
+    mock_resp.status = 301
+    mock_resp.headers = {"Location": target}
+
+    mock_context = AsyncMock()
+    mock_context.__aenter__.return_value = mock_resp
+    mock_context.__aexit__.return_value = None
+
+    mock_session = MagicMock()
+    mock_session.get.return_value = mock_context
+
+    resolved = await async_normalize_grailed_url(shortlink, mock_session)
+    assert resolved == target
+    mock_session.get.assert_called_once_with(shortlink, allow_redirects=False)
+
+
+@pytest.mark.asyncio
+async def test_async_normalize_grailed_onelink_redirect_seller_profile() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.scrapers.grailed_url_resolver import async_normalize_grailed_url
+
+    shortlink = "https://grailed.onelink.me/1LT8/seller123"
+    target = "https://www.grailed.com/users/12345-grailedseller"
+
+    mock_resp = MagicMock()
+    mock_resp.status = 301
+    mock_resp.headers = {"Location": target}
+
+    mock_context = AsyncMock()
+    mock_context.__aenter__.return_value = mock_resp
+    mock_context.__aexit__.return_value = None
+
+    mock_session = MagicMock()
+    mock_session.get.return_value = mock_context
+
+    resolved = await async_normalize_grailed_url(shortlink, mock_session)
+    assert resolved == target

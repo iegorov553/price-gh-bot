@@ -16,17 +16,28 @@ from urllib.parse import ParseResult, parse_qs, urljoin, urlparse
 logger = logging.getLogger(__name__)
 
 _GRAILED_DOMAIN = "grailed.com"
-_APP_LINK_SUFFIX = ".app.link"
+_SHORTLINK_SUFFIXES = (".app.link", ".onelink.me")
+
+
+def is_grailed_shortlink(url: str) -> bool:
+    """Check if URL is a Grailed shortlink (Branch.io or AppsFlyer OneLink)."""
+    try:
+        domain = urlparse(url).netloc.lower()
+        return any(domain.endswith(suffix) for suffix in _SHORTLINK_SUFFIXES)
+    except Exception:
+        return False
 
 
 def normalize_grailed_url(url: str) -> str:
-    """Return canonical Grailed URL for listings shared via grailed.app.link.
+    """Return canonical Grailed URL for listings shared via shortlinks.
+
+    Supports Branch.io (grailed.app.link) and AppsFlyer OneLink (grailed.onelink.me).
 
     Args:
         url: Original URL that might be a Grailed shortlink.
 
     Returns:
-        Canonical Grailed listing URL when shortlink payload contains it,
+        Canonical Grailed listing URL when shortlink payload or query contains it,
         otherwise returns the original URL.
     """
     try:
@@ -40,9 +51,20 @@ def normalize_grailed_url(url: str) -> str:
     if _GRAILED_DOMAIN in domain:
         return url
 
-    # Only handle Appsflyer shortlinks explicitly.
-    if not domain.endswith(_APP_LINK_SUFFIX):
+    # Only handle supported shortlinks explicitly.
+    if not any(domain.endswith(suffix) for suffix in _SHORTLINK_SUFFIXES):
         return url
+
+    # Try static query parameters (e.g. AppsFlyer deep_link_value or af_dp)
+    query = parse_qs(parsed.query)
+    for q_key in ("deep_link_value", "af_dp"):
+        vals = query.get(q_key, [])
+        if vals:
+            candidate = vals[0]
+            resolved = _ensure_grailed_url(candidate)
+            if resolved:
+                logger.debug("Resolved Grailed shortlink via query %s → %s", url, resolved)
+                return resolved
 
     resolved = _resolve_app_link(parsed)
     if resolved:
@@ -54,21 +76,37 @@ def normalize_grailed_url(url: str) -> str:
 
 
 async def async_normalize_grailed_url(url: str, session: Any = None) -> str:
-    """Return canonical Grailed URL for listings shared via grailed.app.link.
+    """Return canonical Grailed URL for listings shared via shortlinks.
 
     Attempts static payload decoding first. If static resolution fails,
-    attempts HTTP HEAD/GET redirect resolution or headless browser resolution.
+    attempts HTTP GET/HEAD redirect resolution or headless browser resolution.
     """
     normalized = normalize_grailed_url(url)
     if _GRAILED_DOMAIN in urlparse(normalized).netloc.lower():
         return normalized
 
     parsed = urlparse(url)
-    if not parsed.netloc.lower().endswith(_APP_LINK_SUFFIX):
+    if not any(parsed.netloc.lower().endswith(suffix) for suffix in _SHORTLINK_SUFFIXES):
         return url
 
     # Try HTTP redirect resolution via session
     if session is not None:
+        # Fast check: GET with allow_redirects=False to inspect 301/302 Location header.
+        # AppsFlyer OneLink rejects HEAD with 405 Method Not Allowed, but returns 301 on GET.
+        try:
+            async with session.get(url, allow_redirects=False) as resp:
+                if resp.status in (301, 302, 303, 307, 308):
+                    location = resp.headers.get("Location")
+                    if location:
+                        target = urljoin(url, location)
+                        if _GRAILED_DOMAIN in urlparse(target).netloc.lower():
+                            logger.debug(
+                                "Resolved Grailed shortlink via GET 301 %s → %s", url, target
+                            )
+                            return target
+        except Exception as exc:
+            logger.debug("HTTP GET allow_redirects=False failed for %s: %s", url, exc)
+
         try:
             async with session.head(url, allow_redirects=True) as resp:
                 final_url = str(resp.url)
@@ -184,4 +222,4 @@ def _ensure_grailed_url(value: str) -> str | None:
     return value
 
 
-__all__ = ["normalize_grailed_url", "async_normalize_grailed_url"]
+__all__ = ["normalize_grailed_url", "async_normalize_grailed_url", "is_grailed_shortlink"]
