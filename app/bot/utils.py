@@ -414,7 +414,8 @@ def validate_marketplace_url(url: str) -> bool:
             "www.ebay.com",
             "grailed.com",
             "www.grailed.com",
-            "app.link",  # Grailed shortener
+            "app.link",  # Grailed shortener (Branch.io)
+            "onelink.me",  # Grailed shortener (AppsFlyer)
         }
 
         return any(

@@ -321,3 +321,60 @@ class TestBotHandlerIntegration:
             final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
         )
         assert failure_text in final_text
+
+    @pytest.mark.asyncio
+    async def test_handle_onelink_resolving_to_seller_profile(
+        self, mock_config, mock_http_session, sample_seller_data
+    ):
+        """Test handling when a shortlink in item_listings resolves to a seller profile."""
+        url = "https://grailed.onelink.me/1LT8/sellerprofile"
+        update = AsyncMock()
+        update.message.text = url
+        update.message.reply_text = AsyncMock()
+        update.message.reply_photo = AsyncMock()
+        update.effective_user = MagicMock(id=777, username="profile_searcher")
+        context = AsyncMock()
+        context.application = MagicMock()
+        context.application.bot = MagicMock()
+
+        seller_result = {
+            "success": True,
+            "platform": "profile",
+            "url": "https://www.grailed.com/users/123-seller",
+            "seller_data": sample_seller_data["excellent_seller"],
+            "seller_advisory": None,
+            "error": None,
+            "processing_time_ms": 100,
+        }
+        profile_text = "👤 Профиль продавца: Отличный продавец"
+
+        with (
+            patch.object(
+                scraping_orchestrator,
+                "process_urls_concurrent",
+                AsyncMock(return_value=[seller_result]),
+            ) as mock_process,
+            patch.object(
+                response_formatter,
+                "format_seller_profile_response",
+                MagicMock(return_value=profile_text),
+            ) as mock_format_profile,
+            patch.object(
+                response_formatter,
+                "format_item_response",
+                AsyncMock(),
+            ) as mock_format_item,
+        ):
+            await handle_link(update, context)
+
+        mock_process.assert_awaited_once_with(
+            [url], update.effective_user.id, update.effective_user.username
+        )
+        mock_format_profile.assert_called_once_with(seller_result)
+        mock_format_item.assert_not_called()
+
+        final_call = update.message.reply_text.await_args_list[-1]
+        final_text = (
+            final_call.kwargs.get("text") if "text" in final_call.kwargs else final_call.args[0]
+        )
+        assert profile_text in final_text

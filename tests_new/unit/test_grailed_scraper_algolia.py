@@ -160,8 +160,40 @@ def test_grailed_scraper_supports_url() -> None:
     scraper = GrailedScraper()
     assert scraper.supports_url("https://www.grailed.com/listings/123") is True
     assert scraper.supports_url("https://grailed.app.link/abc") is True
+    assert scraper.supports_url("https://grailed.onelink.me/1LT8/7o7iovrk") is True
     assert scraper.supports_url("https://www.ebay.com/itm/123") is False
     assert scraper.supports_url("invalid-url") is False
+
+
+@pytest.mark.asyncio
+async def test_grailed_scraper_scrape_seller_resolves_shortlink() -> None:
+    scraper = GrailedScraper()
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+
+    mock_seller = SellerData(
+        num_reviews=25,
+        avg_rating=5.0,
+        trusted_badge=True,
+    )
+
+    with (
+        patch(
+            "app.scrapers.grailed_scraper.async_normalize_grailed_url",
+            new_callable=AsyncMock,
+            return_value="https://www.grailed.com/users/999-sellerone",
+        ) as mock_normalize,
+        patch(
+            "app.scrapers.grailed_scraper.grailed_algolia_client.get_seller_by_username",
+            new_callable=AsyncMock,
+            return_value=mock_seller,
+        ) as mock_get_user,
+    ):
+        url = "https://grailed.onelink.me/1LT8/sellerone"
+        result = await scraper.scrape_seller(url, mock_session)
+
+        mock_normalize.assert_called_once_with(url, mock_session)
+        mock_get_user.assert_called_once_with("sellerone", mock_session)
+        assert result == mock_seller
 
 
 def test_grailed_scraper_is_seller_profile() -> None:

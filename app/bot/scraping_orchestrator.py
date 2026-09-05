@@ -13,6 +13,7 @@ import aiohttp
 
 from ..models import SearchAnalytics
 from ..scrapers import scraper_registry
+from ..scrapers.grailed_url_resolver import async_normalize_grailed_url, is_grailed_shortlink
 from ..services.analytics import analytics_service
 from ..services.cache_service import CacheService, get_cache_service
 from ..services.seller_assessment import evaluate_seller_advisory
@@ -296,6 +297,17 @@ class ScrapingOrchestrator:
                             "platform": "unknown",
                             "processing_time_ms": 0,
                         }
+
+                    # Pre-resolve Grailed shortlinks (e.g. onelink.me, app.link) before classification
+                    if is_grailed_shortlink(url):
+                        try:
+                            resolved_url = await async_normalize_grailed_url(url, session)
+                            if resolved_url != url:
+                                logger.debug("Pre-resolved shortlink %s -> %s", url, resolved_url)
+                                url = resolved_url
+                                scraper = scraper_registry.get_scraper_for_url(url) or scraper
+                        except Exception as exc:
+                            logger.warning("Failed to pre-resolve shortlink %s: %s", url, exc)
 
                     # Check if it's a seller profile or item listing
                     if scraper.is_seller_profile(url):

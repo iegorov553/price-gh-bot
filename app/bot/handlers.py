@@ -119,6 +119,13 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
             # Send responses for each item
             for item_result in results:
+                if item_result.get("platform") == "profile":
+                    response = response_formatter.format_seller_profile_response(item_result)
+                    await update.message.reply_text(
+                        response, parse_mode="Markdown", disable_web_page_preview=True
+                    )
+                    continue
+
                 response = await response_formatter.format_item_response(item_result)
 
                 # Send with image if available

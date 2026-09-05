@@ -16,7 +16,7 @@ import aiohttp
 from ..models import ItemData, SellerData
 from ..services.grailed_algolia import grailed_algolia_client
 from .base import BaseScraper
-from .grailed_url_resolver import async_normalize_grailed_url, normalize_grailed_url
+from .grailed_url_resolver import async_normalize_grailed_url
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,7 @@ class GrailedScraper(BaseScraper):
             return seller_data
 
         try:
-            normalized_url = normalize_grailed_url(url)
+            normalized_url = await async_normalize_grailed_url(url, session)
             if normalized_url != url:
                 self.logger.debug("Normalized Grailed seller URL %s → %s", url, normalized_url)
                 url = normalized_url
