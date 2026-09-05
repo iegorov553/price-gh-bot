@@ -98,7 +98,7 @@ async def async_normalize_grailed_url(url: str, session: Any = None) -> str:
                 if resp.status in (301, 302, 303, 307, 308):
                     location = resp.headers.get("Location")
                     if location:
-                        target = urljoin(url, location)
+                        target = str(urljoin(url, str(location)))
                         if _GRAILED_DOMAIN in urlparse(target).netloc.lower():
                             logger.debug(
                                 "Resolved Grailed shortlink via GET 301 %s → %s", url, target
