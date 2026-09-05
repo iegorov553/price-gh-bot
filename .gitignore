@@ -44,3 +44,7 @@ site/
 # Isolated agent workspaces
 .worktrees/
 .superpowers/
+.playwright-cli/
+
+# Planning artifacts
+docs/plans/
